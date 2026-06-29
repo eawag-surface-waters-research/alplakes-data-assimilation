@@ -1,6 +1,6 @@
 ## 1. Computer Setup
  
-- Create a GitHub account and request access to the [alplakes-da](https://github.com/eawag-surface-waters-research/alplakes-da) repository
+- Create a GitHub account and request access to the [alplakes-data-assimilation](https://github.com/eawag-surface-waters-research/alplakes-data-assimilation) repository
 - Request an admin user account from IT to enable installation of custom programs
 - Install and configure [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in Visual Studio Code
 - Install and configure [Docker](https://www.docker.com/)

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Repo paths, from this file at src/assimilator/functions.py
 SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # …/src
-ROOT    = os.path.dirname(SRC_DIR)                                      # …/alplakes-da
+ROOT    = os.path.dirname(SRC_DIR)                                      # …/alplakes-data-assimilation
 
 # General config — see static/general.json. Loaded at import (the file is committed). Exposes the
 # ICON acquisition settings (forcing fit); the model-specific values (Simstrat epoch, forcing-file
@@ -60,7 +60,7 @@ def resolve_run_root(cfg):
 def display_path(path):
     """Pretty path for logs: relative to ROOT when inside the repo, else the absolute path with
     $HOME collapsed to '~'. Keeps in-repo logs terse while a rerouted run_root (e.g. on ext4) reads
-    as '~/alplakes-da_res/run/...' instead of '../../../../home/...'."""
+    as '~/alplakes-data-assimilation_res/run/...' instead of '../../../../home/...'."""
     rel = os.path.relpath(path, ROOT)
     if not rel.startswith(".."):
         return rel

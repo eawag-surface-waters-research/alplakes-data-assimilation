@@ -82,6 +82,6 @@ Useful CLI flags:
 - `--run-root <dir>` — write run output elsewhere. **On WSL, route output to native ext4** for a
   large speed-up — the `/mnt/c` mount is slow for the many small Docker IOs:
   ```bash
-  python src/main.py args/run_openda.json --run-root ~/alplakes-da_res/run
+  python src/main.py args/run_openda.json --run-root ~/alplakes-data-assimilation_res/run
   ```
   (Equivalent: `ALPLAKES_RUN_ROOT` env or a `"run_root"` config key. Default: in-repo `run/`.)

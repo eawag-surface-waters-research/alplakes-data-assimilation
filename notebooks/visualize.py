@@ -334,7 +334,7 @@ if __name__ == "__main__":
     parser.add_argument("--run-root", default=None,
                         help="Base dir where the run output lives (ensemble + OpenDA work dirs); must match "
                              "what the run used. Overrides config 'run_root' and $ALPLAKES_RUN_ROOT. "
-                             "Default: in-repo ./run. Point at the WSL ext4 base, e.g. ~/alplakes-da_res/run.")
+                             "Default: in-repo ./run. Point at the WSL ext4 base, e.g. ~/alplakes-data-assimilation_res/run.")
     cli = parser.parse_args()
 
     arg_file = cli.arg_file

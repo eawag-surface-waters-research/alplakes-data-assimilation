@@ -40,8 +40,8 @@ import time
 # Anchor paths off this script's location, not the cwd.  OpenDA runs the wrapper
 # with cwd = the instance dir (e.g. run/openda/work_enkf/workN), whose depth can
 # change, but this file always lives at <openda_dir>/stochModel/bin/:
-#   bin/ -> stochModel/ -> <openda_dir> (run/openda_simstrat) -> run/ -> alplakes-da (root)
-# snapshot lives in the assimilator package (alplakes-da/src/); perturbed
+#   bin/ -> stochModel/ -> <openda_dir> (run/openda_simstrat) -> run/ -> alplakes-data-assimilation (root)
+# snapshot lives in the assimilator package (alplakes-data-assimilation/src/); perturbed
 # forcings in <openda_dir>/forcings/.
 # ---------------------------------------------------------------------------
 _BIN_DIR    = os.path.dirname(os.path.abspath(__file__))
