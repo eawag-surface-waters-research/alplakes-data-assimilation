@@ -1,0 +1,7 @@
+{
+    "simstrat_ref_year": 1981,
+    "forcing_header": "Time [d]    u [m/s]    v [m/s]  Tair [°C] sol [W/m2] vap [mbar]  cloud [-] rain [m/hr]",
+    "icon_api_base": "http://eaw-alplakes2.eawag.wroot.emp-eaw.ch:8000/meteoswiss/icon/area/reanalysis/kenda-ch1",
+    "icon_variables": ["T_2M", "U", "V", "GLOB"],
+    "lakes_geojson_source": "https://alplakes-eawag.s3.eu-central-1.amazonaws.com/static/website/metadata/master/lakes.geojson"
+}

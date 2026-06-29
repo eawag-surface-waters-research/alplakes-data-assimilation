@@ -1,0 +1,6 @@
+# The OpenDA wrapper is executed via its shebang (#!/usr/bin/env python3) inside
+# Linux/WSL on the Docker host. It MUST keep LF line endings — with CRLF the kernel
+# reads the interpreter as "python3\r" and every model instance fails with
+#   /usr/bin/env: 'python3\r': No such file or directory
+# Pin it to LF so a Windows checkout (or core.autocrlf=true) can't re-break it.
+static/openda/simstrat_wrapper_enkf.py text eol=lf

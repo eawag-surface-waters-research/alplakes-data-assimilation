@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<blackBoxWrapperConfig xmlns="http://www.openda.org"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.openda.org http://schemas.openda.org/blackBoxWrapperConfig.xsd">
+
+	<aliasDefinitions defaultKeyPrefix="%" defaultKeySuffix="%">
+		<alias key="binDir" />
+		<alias key="templateDir" />
+		<alias key="instanceDir" />
+		<alias key="configFile" />
+		<alias key="stateFile" />
+	</aliasDefinitions>
+
+	<run>
+		<initializeActionsUsingDirClone
+			instanceDir="%instanceDir%%instanceNumber%" templateDir="%templateDir%" />
+
+		<computeActions>
+			<action linuxExe="%binDir%/simstrat_wrapper_enkf.py" windowsExe="%binDir%/simstrat_wrapper_enkf.bat" workingDirectory="%instanceDir%">
+				<arg>--config</arg>
+				<arg>%configFile%</arg>
+				<arg>--log_level</arg>
+				<arg>INFO</arg>
+				<!-- No per-depth output checks here: the predictor files (T_<d>m.csv) are
+				     depth-specific, so listing them would hardcode this file to one lake.
+				     The generated timeSeriesFormatter.gen.xml 'output' dataObject reads them
+				     and will fail the run if any are missing. -->
+			</action>
+		</computeActions>
+
+		<additionalComputeActions></additionalComputeActions>
+		<finalizeActions></finalizeActions>
+	</run>
+
+	<inputOutput>
+		<dataObject className="org.openda.exchange.dataobjects.AsciiKeywordDataObject">
+			<file>time_control.yaml</file>
+			<id>time_config</id>
+		</dataObject>
+
+		<!-- Full-grid temperature state (N cells, updated by EnKF analysis) -->
+		<dataObject className="org.openda.exchange.dataobjects.AsciiVectorDataObject">
+			<file>%stateFile%</file>
+			<id>state_temperature</id>
+		</dataObject>
+
+		<dataObject className="org.openda.exchange.dataobjects.TimeSeriesFormatterDataObject">
+			<file>timeSeriesFormatter.gen.xml</file>
+			<id>output</id>
+		</dataObject>
+	</inputOutput>
+
+</blackBoxWrapperConfig>

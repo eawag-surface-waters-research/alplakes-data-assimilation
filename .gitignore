@@ -1,0 +1,17 @@
+# Generated / data folders 
+run/*
+!run/.gitkeep
+inputs/*
+!inputs/.gitkeep
+logs/*
+!logs/.gitkeep
+observations/*
+!observations/.gitkeep
+
+# Local-only scratch
+local/
+
+# varia
+__pycache__/
+.idea/
+.claude/
