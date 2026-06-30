@@ -57,7 +57,8 @@ def run(cfg, model="simstrat", skip_oda=False, force=None):
     lake          = ensemble_raw["lake"]
     n_members     = ensemble_raw["n_members"]
     ensemble_base = resolve_src(ensemble_raw["ensemble_base"])
-    model_inputs = os.path.join(ROOT, "inputs", lake)
+    model_inputs = resolve_src(ensemble_raw["model_inputs_path"]) if ensemble_raw.get("model_inputs_path") \
+        else os.path.join(ROOT, "inputs", lake)
 
     # Pin every step to the same absolute ensemble_base (avoids cwd-dependent
     # resolution differences between the sub-scripts).
