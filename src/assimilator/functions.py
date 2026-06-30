@@ -4,8 +4,6 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from tqdm import tqdm
-
 # pandas is imported lazily inside load_obs (the only user here): this module is on the import path
 # of the OpenDA wrapper (via models.simstrat), launched 21×/step, and a top-level `import pandas`
 # cost ~2.6s per process for nothing.
@@ -96,11 +94,20 @@ def resolve_progress(cfg, no_progress_flag=False):
     return sys.stderr.isatty()
 
 
+class _NullBar:
+    def update(self, *a, **k): pass
+    def set_postfix_str(self, *a, **k): pass
+    def close(self, *a, **k): pass
+
+
 def make_progress(total, enabled, desc=None):
     """Return a tqdm bar with consistent styling. When `enabled` is False the bar
     is a no-op (update/set_postfix do nothing), so callers need no branching to
     advance it — they only branch to keep the plain logger.info lines when off."""
-    return tqdm(total=total, disable=not enabled, desc=desc,
+    if not enabled:
+        return _NullBar()
+    from tqdm import tqdm
+    return tqdm(total=total, disable=False, desc=desc,
                 unit="day", dynamic_ncols=True, leave=True)
 
 
