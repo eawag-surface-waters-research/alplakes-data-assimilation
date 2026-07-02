@@ -1,0 +1,1172 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://eawag-surface-waters-research.github.io/alplakes-data-assimilation/project-proposal/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../literature-review/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Project Proposal - Alplakes Data Assimilation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#data-assimilation-framework-for-operational-lake-modelling-in-canton-ticino" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Alplakes Data Assimilation" class="md-header__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Alplakes Data Assimilation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Project Proposal
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Proposal
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../literature-review/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Literature Review
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../onboarding/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Onboarding
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Alplakes Data Assimilation" class="md-nav__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    Alplakes Data Assimilation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Proposal
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Proposal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#project-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project-description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project Description
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Project Description">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#problem-statement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Problem statement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-missing-link-data-assimilation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Missing Link: Data Assimilation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-operational-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Operational Capabilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current Operational Capabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-situ-observation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In situ observation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#satellite-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Satellite Data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operational-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational Models
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technical-infrastructure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Infrastructure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-solution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed Solution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposed Solution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-library-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Library Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#technical-approach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Approach
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Technical Approach">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#modular-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modular Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#openda-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenDA Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quality-assurance-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quality Assurance Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extensibility-by-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extensibility by Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expected-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expected Impact
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conclusion
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../literature-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Literature Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#project-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project-description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project Description
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Project Description">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#problem-statement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Problem statement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-missing-link-data-assimilation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Missing Link: Data Assimilation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-operational-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Operational Capabilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current Operational Capabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-situ-observation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In situ observation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#satellite-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Satellite Data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operational-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational Models
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technical-infrastructure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Infrastructure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-solution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed Solution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposed Solution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-library-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Library Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#technical-approach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Approach
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Technical Approach">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#modular-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modular Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#openda-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenDA Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quality-assurance-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quality Assurance Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extensibility-by-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extensibility by Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expected-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expected Impact
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conclusion
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="data-assimilation-framework-for-operational-lake-modelling-in-canton-ticino">Data Assimilation Framework for Operational Lake Modelling in Canton Ticino<a class="headerlink" href="#data-assimilation-framework-for-operational-lake-modelling-in-canton-ticino" title="Permanent link">&para;</a></h1>
+<p>James Runnalls, Eawag</p>
+<p>Damien Bouffard, Eawag &amp; UNIL</p>
+<p>Martin Schmid, Eawag</p>
+<h2 id="project-overview">Project Overview<a class="headerlink" href="#project-overview" title="Permanent link">&para;</a></h2>
+<p>We propose developing a <strong>data assimilation framework</strong> to enhance the accuracy and reliability of operational one-dimensional (1D) lake models in Canton Ticino. This framework will integrate real-time observations with numerical models to improve predictions of lake thermal structure, providing water managers with more precise forecasting capabilities. Through its flexible, open-source architecture and scalable design, the framework will establish a standardized foundation for operational lake forecasting that can be deployed across Switzerland.</p>
+<h2 id="project-description">Project Description<a class="headerlink" href="#project-description" title="Permanent link">&para;</a></h2>
+<h3 id="problem-statement">Problem statement<a class="headerlink" href="#problem-statement" title="Permanent link">&para;</a></h3>
+<p>While the operational models integrated into Alplakes successfully capture day-to-day variations in lake dynamics, they suffer from small inaccuracies, which can limit the use of such models. The errors result from:</p>
+<ul>
+<li>Simplified physics and model parameters  </li>
+<li>Inaccurate forcing data (meteorology) that cannot accurately represent the conditions for the entire lake</li>
+</ul>
+<p>We have two choices: focusing on consistency (continuous model runs) or accuracy (frequent re-initialization). Re-initializing models to match observations creates discontinuous jumps in the timeseries, breaking the physical consistency needed for trend analysis and scenario studies. Yet allowing models to run freely means accepting growing inaccuracy over time. </p>
+<h3 id="the-missing-link-data-assimilation">The Missing Link: Data Assimilation<a class="headerlink" href="#the-missing-link-data-assimilation" title="Permanent link">&para;</a></h3>
+<p>To solve this challenge, we propose the use of a data assimilation tool that will create a continuous connection between models and observations, maintaining both accuracy and consistency over any timescale. Currently, the observation network and models operate in parallel but rarely communicate. Observations are used to validate model performance after the fact, but not to correct models during operation. This means we're not extracting full value from either investment—models don't benefit from real-time observations, and observations don't inform predictions beyond initial conditions. </p>
+<h2 id="current-operational-capabilities">Current Operational Capabilities<a class="headerlink" href="#current-operational-capabilities" title="Permanent link">&para;</a></h2>
+<p>Eawag and Canton Ticino have already invested significantly in lake monitoring and modelling infrastructure, providing the needed data and models to allow:</p>
+<ul>
+<li><strong>Providing lake hydrodynamic forecasting capabilities:</strong> 5-day predictions for planning and decision-making.  </li>
+<li><strong>Providing continuous timeseries</strong>: Structured data pipeline and gap filling between observations with physically consistent estimates   </li>
+<li><strong>Scenario analysis</strong>: Testing "what-if" situations for management decisions   </li>
+<li><strong>Climate projections</strong>: Understanding long-term trends and impacts </li>
+</ul>
+<p>Currently, the system integrates:</p>
+<h3 id="in-situ-observation">In situ observation<a class="headerlink" href="#in-situ-observation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Operational in-situ monitoring network with temperature chains and meteorological stations deployed across major lakes   </li>
+<li>Automated data transmission and storage systems providing near real-time observations </li>
+</ul>
+<h3 id="satellite-data">Satellite Data<a class="headerlink" href="#satellite-data" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Routine acquisition of Landsat Collection 2 (Landsat-8, Landsat-9) thermal imagery   </li>
+<li>Processing chains for lake surface temperature and water quality parameters   </li>
+<li>Archive of historical satellite observations for validation </li>
+</ul>
+<h3 id="operational-models">Operational Models<a class="headerlink" href="#operational-models" title="Permanent link">&para;</a></h3>
+<ul>
+<li>1D hydrodynamic models (Simstrat) running daily for major lakes   </li>
+<li>Automated forecasting system producing 5-day predictions   </li>
+<li>Web-based visualization platform for model outputs (<a href="https://www.alplakes.eawag.ch/">Alplakes</a>)   </li>
+<li>Established workflows for model initialization and forcing data (<a href="https://github.com/Eawag-AppliedSystemAnalysis/operational-simstrat">Operational-Simstrat</a>) </li>
+</ul>
+<h3 id="technical-infrastructure">Technical Infrastructure<a class="headerlink" href="#technical-infrastructure" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Dedicated computational resources for model simulations   </li>
+<li>REST API for managing observations and model outputs   </li>
+<li>Operational staff familiar with current systems </li>
+</ul>
+<p>This existing infrastructure means we can focus resources entirely on developing and implementing the data assimilation layer, rather than building basic capabilities from scratch. </p>
+<h2 id="proposed-solution">Proposed Solution<a class="headerlink" href="#proposed-solution" title="Permanent link">&para;</a></h2>
+<p>We will develop <strong>AlplakesDA</strong> - a modular, open-source Python library for operational lake data assimilation. This library will provide a production-ready toolkit that seamlessly integrates observations with lake models. </p>
+<h3 id="core-library-features">Core Library Features<a class="headerlink" href="#core-library-features" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Plug-and-play data assimilation</strong> for Simstrat (extendable to other models)   </li>
+<li><strong>Automated observation processing</strong> from multiple sources (in-situ, satellite, meteorological)   </li>
+<li><strong>Ensemble-based uncertainty quantification</strong> with configurable ensemble sizes   </li>
+<li><strong>Real-time quality assurance</strong> for incoming observations   </li>
+<li><strong>Flexible assimilation scheduling</strong>    </li>
+<li><strong>Performance monitoring</strong> with validation metrics and diagnostic outputs </li>
+</ul>
+<p>The library will be configuration-driven, requiring no code changes for operational adjustments. </p>
+<h2 id="technical-approach">Technical Approach<a class="headerlink" href="#technical-approach" title="Permanent link">&para;</a></h2>
+<h3 id="modular-architecture">Modular Architecture<a class="headerlink" href="#modular-architecture" title="Permanent link">&para;</a></h3>
+<p>AlplakesDA will be organized into independent, replaceable modules: </p>
+<ul>
+<li><strong>Observation Handlers</strong>: Processors for satellite (Sentinel, Landsat), in-situ (CTD, thermistor chains), and meteorological data sources   </li>
+<li><strong>Model Interfaces</strong>: Wrapper for Simstrat, with abstract base classes for easy addition of new models   </li>
+<li><strong>Assimilation Core</strong>: OpenDA integration providing Ensemble Kalman Filter with localization and inflation   </li>
+<li><strong>Quality Assurance</strong>: Comprehensive QA/QC including range checks, spike detection, spatial consistency tests, and climatological validation   </li>
+<li><strong>Observation Operators</strong>: Tools for interpolation, averaging, and variable transformation between model and observation spaces   </li>
+<li><strong>Diagnostics Suite</strong>: Validation metrics, visualization tools, and automated reporting </li>
+</ul>
+<h3 id="openda-integration">OpenDA Integration<a class="headerlink" href="#openda-integration" title="Permanent link">&para;</a></h3>
+<p>The library will leverage OpenDA, a proven open-source data assimilation platform used operationally worldwide. OpenDA provides robust, well-tested implementations of: </p>
+<ul>
+<li>Ensemble Kalman Filter (EnKF) with various flavors   </li>
+<li>Localization methods to handle spatially sparse observations   </li>
+<li>Parallel ensemble management for computational efficiency   </li>
+<li>Established interfaces to multiple modelling systems </li>
+</ul>
+<h3 id="quality-assurance-pipeline">Quality Assurance Pipeline<a class="headerlink" href="#quality-assurance-pipeline" title="Permanent link">&para;</a></h3>
+<p>All observations will pass through a multi-stage QA process: </p>
+<ul>
+<li>Physical bounds checking (temperature, velocity ranges)   </li>
+<li>Temporal consistency analysis (spike and drift detection) </li>
+</ul>
+<h3 id="extensibility-by-design">Extensibility by Design<a class="headerlink" href="#extensibility-by-design" title="Permanent link">&para;</a></h3>
+<p>The modular structure ensures easy expansion: </p>
+<ul>
+<li><strong>New observation types</strong>: Drone measurements, citizen science data, or IoT sensors can be added by implementing standard interfaces   </li>
+<li><strong>Additional models</strong>: 3D models (Delft3D, MITgcm) or other 1D models can be integrated through model wrappers   </li>
+<li><strong>Alternative DA methods</strong>: Variational approaches or particle filters can be added alongside EnKF   </li>
+<li><strong>Multiple lakes</strong>: Configuration files allow deployment to new water bodies without code modification   </li>
+</ul>
+<h2 id="expected-impact">Expected Impact<a class="headerlink" href="#expected-impact" title="Permanent link">&para;</a></h2>
+<p>By adding data assimilation to our existing capabilities, we expect: </p>
+<ul>
+<li><strong>Significant reduction in model errors</strong> for lake temperature    </li>
+<li><strong>Quantified uncertainty</strong> enabling risk-based decision-making   </li>
+<li><strong>Reduced manual intervention</strong> through automated parameter updating   </li>
+<li><strong>Increased usage of data by stakeholders</strong> due to improved reliability  </li>
+</ul>
+<h2 id="conclusion">Conclusion<a class="headerlink" href="#conclusion" title="Permanent link">&para;</a></h2>
+<p>This project represents a logical and cost-effective evolution of Canton Ticino's lake monitoring and prediction capabilities. By adding data assimilation to our already-operational observation and modelling systems, we can dramatically improve forecast accuracy without duplicating infrastructure investments. The modular approach ensures that current operations continue uninterrupted while we enhance their capabilities. </p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

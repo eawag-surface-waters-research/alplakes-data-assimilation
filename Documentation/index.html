@@ -1,0 +1,755 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://eawag-surface-waters-research.github.io/alplakes-data-assimilation/Documentation/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Documentation: Data Assimilation Module for Simstrat - Alplakes Data Assimilation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#documentation-data-assimilation-module-for-simstrat" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Alplakes Data Assimilation" class="md-header__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Alplakes Data Assimilation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Documentation: Data Assimilation Module for Simstrat
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../project-proposal/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Proposal
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../literature-review/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Literature Review
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../onboarding/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Onboarding
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Alplakes Data Assimilation" class="md-nav__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    Alplakes Data Assimilation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../project-proposal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Proposal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../literature-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Literature Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-d-hydrodynamic-modelling-with-data-assimilation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1-D Hydrodynamic Modelling with Data Assimilation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#forcing-perturbation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forcing Perturbation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-theory-behind-particle-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Theory Behind Particle Filters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ensemble-kalman-filter-details-important-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ensemble Kalman Filter: Details &amp; Important Concepts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assimilation-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assimilation Strategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filtering-internal-wave" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering Internal Wave
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extension-to-3d-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extension to 3D Models
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="documentation-data-assimilation-module-for-simstrat">Documentation: Data Assimilation Module for Simstrat<a class="headerlink" href="#documentation-data-assimilation-module-for-simstrat" title="Permanent link">&para;</a></h1>
+<h2 id="1-d-hydrodynamic-modelling-with-data-assimilation">1-D Hydrodynamic Modelling with Data Assimilation<a class="headerlink" href="#1-d-hydrodynamic-modelling-with-data-assimilation" title="Permanent link">&para;</a></h2>
+<p>A couple of examples of 1-D hydrodynamic modelling that integrate DA as an essential step in their pipeline exist, showing the feasibility and multiple advantages of implementing such a module also for Simstrat. Kourzeneva (2014) provides an influential example using an extended Kalman filter (EKF)-based method to assimilate lake water surface temperature (LWST) observations into the lake model/parameterisation scheme FLake; the analysed variables are the mean water temperature (T), the bottom temperature (Tb), the mixed layer depth (h) and the shape factor (CT). Thomas et al. (2020) developed and tested a near-term iterative forecasting system that predicts the physical behaviour (hydrodynamics) of reservoirs while quantifying different sources of uncertainty and including DA as an integral process too. It explicitly partitions uncertainty into components such as model structure, parameters, and drivers, giving clearer insight into which factors most influence forecast reliability; meteorology is identified as a major source of uncertainty. Building on this framework, Wander et al. (2024) follows up by responding to the question: if initial conditions uncertainty isn't the dominant source of uncertainty, how often do you actually need to assimilate? For a 1-day-ahead forecast horizon, daily assimilation was the most skilled, while weekly data assimilation was most skilled at longer horizons (8–35 days). 3D examples are also available in the literature. These are still relevant, on one hand because we have the ambition to eventually extend our module to further models, and on the other hand because they allow us to understand how transferable processes are handled in these examples, such as the essential process of generating perturbations in forecast inputs. </p>
+<h2 id="forcing-perturbation">Forcing Perturbation<a class="headerlink" href="#forcing-perturbation" title="Permanent link">&para;</a></h2>
+<p>Safin et al. (2022) avoid the perturbation problem altogether, driving each particle with a different member of the 21-member COSMO-E NWP ensemble; the ensemble itself represents forcing uncertainty, preserving physical cross-variable correlations without a statistical noise model. Simstrat requires a single station-based forcing time series, so we adopt the Baracchini-style (Baracchini et al., 2020) parametric perturbation approach. The forcing uncertainty has three components: station measurement error (small, negligible for MeteoSwiss stations), representativeness error (station vs. lake-mean conditions — the dominant term), and structural error in the flux computation. The spatial reanalysis provides a direct estimate of the representativeness component: averaging reanalysis grid cells over the lake gives a lake-mean time series, and the station-minus-lake-mean residuals sample the representativeness error distribution.</p>
+<p>Perturbation statistics are derived from these residuals and we need to account for the fact that real-world forcing errors are not random in time. We generated meteorological forcing ensembles by modeling the residuals between reanalysis data (ICON) and in-situ observations for 2025. After preprocessing, including temporal alignment and transformation of wind speed and direction into Cartesian components $u = -V \sin\theta$ and $v = -V \cos\theta$, residuals were computed as $r_t = X_t^{rean} - X_t^{obs}$ for each variable $X \in {U, V, G}$ (zonal wind, meridional wind, global radiation). Assuming stationarity, each residual series was modeled independently as a first-order autoregressive process:</p>
+<p>$r_t = \phi r_{t-1} + \epsilon_t$, where $\phi \approx \mathrm{corr}(r_t, r_{t-1})$ and $\epsilon_t \sim N(0, \sigma_\epsilon^2)$, with $\sigma_{\varepsilon} = \sigma_r (1 - \phi^2)^{1/2}$ chosen to preserve the observed variance.</p>
+<p>Stochastic perturbation trajectories $\eta_t^{(m)}$ were then drawn for $m = 1, \dots, 20$ via $\eta_t^{(m)} = \phi\eta_{t-1}^{(m)} + \epsilon_t^{(m)}$ and added to the observed series to form ensemble members $X_t^{(m)} = X_t^{obs} + \eta_t^{(m)}$. Physical constraints were enforced by clipping global radiation to non-negative values $X_t^{(m)} = \max(0, X_t^{(m)})$ and suppressing perturbations during nighttime (i.e., when observed radiation is zero). Autoregressive model adequacy was assessed via autocorrelation consistency $\rho(k) = \phi^k$, residual Gaussianity, and ensemble spread diagnostics. In this first implementation cross-variable correlations are assumed negligible for this subset of variables, and spatial correlations are not considered because we use a single mean value from the lake reanalysis.</p>
+<h2 id="the-theory-behind-particle-filters">The Theory Behind Particle Filters<a class="headerlink" href="#the-theory-behind-particle-filters" title="Permanent link">&para;</a></h2>
+<p>The particle filter is a Monte Carlo method for solving the Bayesian filtering problem, where the goal is to sequentially estimate the posterior distribution $p(x_k \mid y_{1:k})$ of a hidden state $x_k$ given observations $y_{1:k}$. Instead of computing this distribution analytically, it is approximated by a set of $M$ weighted particles,</p>
+<p>$$p_k(x) \approx \sum_{i=1}^M w_k^i \delta(x - x_k^i)$$, where $x_k^i$ are samples and $w_k^i$ are normalized weights. </p>
+<p>The algorithm alternates between a forecast (prediction) step and an analysis (update) step: particles are first propagated through the dynamical model $$x_{k+1}^i = M_{k+1}(x_k^i)$$, which approximates the prior $p(x_{k+1} \mid y_{1:k})$, and then their weights are updated using Bayes’ rule based on the likelihood of the new observation:</p>
+<p>$$w_{k+1}^i \propto w_k^i \, p(y_{k+1} \mid x_{k+1}^i)$$, followed by normalization $\sum_{i=1}^M w_{k+1}^i = 1$. </p>
+<p>Over time, however, the weights tend to collapse onto a few particles (a phenomenon known as degeneracy), making the approximation inefficient; to mitigate this, a resampling step can be introduced, where particles are redrawn with probability proportional to their weights and reset to equal weights $w_{k+1}^i = 1/M$, effectively focusing computational effort on high-likelihood regions of the state space (bootstrap technique). In the limit $M \to \infty$, this sequential importance sampling scheme converges to the true Bayesian solution, making particle filters a powerful and flexible tool for nonlinear and non-Gaussian state estimation problems.</p>
+<h2 id="ensemble-kalman-filter-details-important-concepts">Ensemble Kalman Filter: Details &amp; Important Concepts<a class="headerlink" href="#ensemble-kalman-filter-details-important-concepts" title="Permanent link">&para;</a></h2>
+<p>Sequential data assimilation methods (such as the Ensemble Kalman Filter) update the model state each time new observations become available. Instead of explicitly solving equations for the evolution of uncertainty, they approximate it by running an ensemble of model simulations, letting the system dynamics naturally generate error correlations. The forecast error covariance matrix P is estimated from the spread of the ensemble: its diagonal elements represent the variance (uncertainty) of temperature at each depth, while the off-diagonal elements capture how errors at different depths are correlated, reflecting physical processes like vertical mixing or stratification. When assimilating a temperature profile, the ensemble mean provides the best prior (forecast) estimate, and the covariance determines how observational information is propagated through the system. For instance, if only surface temperature is observed, the Kalman gain uses the covariance</p>
+<p>$$K(z) = \frac{P^f(z, z_{\text{surf}})}{P^f(z_{\text{surf}}, z_{\text{surf}}) + R_{\text{surf}}}$$</p>
+<p>to adjust subsurface layers through the analysis update</p>
+<p>$$T^a_j(z) = T^f_j(z) + K(z)\,\bigl(y_{\text{surf}} - T^f_j(z_{\text{surf}})\bigr):$$ depths strongly correlated with the surface are updated more, while weakly correlated layers remain largely unchanged. After updating all ensemble members, the analysis mean represents the posterior temperature profile, optimally combining model and observations, and the updated ensemble spread reflects the remaining uncertainty. However, this approach is computationally expensive because the forecast model must be run for each ensemble member, and small ensemble sizes can lead to sampling errors and an underrepresentation of the true error covariance, degrading assimilation performance. It's not the type of perturbation that matters, but whether the ensemble represents realistic uncertainty in the system. Perturbing forcing (e.g., wind, radiation, precipitation) is popular because it injects variability in a physically meaningful, realistic-error way (errors propagate naturally through dynamics) and it creates flow-dependent errors (correctly correlated errors). So if the ensemble correctly samples the true uncertainty distribution, the method works regardless of how you generated it.</p>
+<h2 id="assimilation-strategy">Assimilation Strategy<a class="headerlink" href="#assimilation-strategy" title="Permanent link">&para;</a></h2>
+<p>For the MVP we aim to first use a particle-filter-type assimilation process. We start with particle filters because of the straight forward implementation, overall simplicity, and because it allows to assimilate the observed data without touching the model states of Simstrat that are stored in FORTRAN's binary format, which in the MVP results in a cleamner implementation. This method also removes the chance of producing unphisycal steps and in most cases avoids "jumps" in the temperature timeseries. For the theorethical background refer above. Conceptually N ensemble members are propagated forward, each driven by an independently perturbed forcing time series. Perturbations f(t) are based on statistics (standard deviation, autocorrelation) derived from the lake-mean reanalysis minus station residuals. At each observation time, the best-performing particle (or a set of likely particles) is identified and its state copied to all other particles (or states resampled based on likelyhood), which then continue to forecast with their own independent perturbed forcing sequences. The winning perturbations could be logged to diagnose any systematic forcing correction. </p>
+<p>A second implementation replaces the best-particle selection/survival of the fittest with an ensemble Kalman filter (see above for more details) update: the ensemble cross-covariance is used to compute a corrected state from all members, which is then propagated to the next observation cycle. Assimilation can essentially be applied to model parameters, inputs, forcing, or state — which can also be modified jointly. For our case the Simstrat model is already calibrated for Lake Lugano, so we see little reason to start updating calibrated parameters for now. Updating the forcing instead of the state can provide multiple advantages: physical consistency is ensured, and error attribution is more fitting. On the other hand, state correction is more agnostic about the error source, can better compensate for any kind of model deficiency, and has been shown to produce much more significant improvements compared to updating only parameters and forcing. A negative of the latter could be the generation of shocks in the temperature time series, which however can be limited by frequent assimilation of observations and by keeping the corrections small. Given the scarcity of published EnKF-based forcing correction examples for lakes and oceans, however, we need to consider the state update as the more standard strategy forward.</p>
+<h2 id="filtering-internal-wave">Filtering Internal Wave<a class="headerlink" href="#filtering-internal-wave" title="Permanent link">&para;</a></h2>
+<p>The assimilation of observed lake temperature profiles into one-dimensional hydrodynamic lake models such as Simstrat can be challenged by unresolved sub-daily variability in the water column. In particular, temperature observations near and below the thermocline frequently exhibit short-term oscillations caused by internal waves and basin-scale seiches. These processes induce rapid vertical displacements of isotherms, leading to strong temporal fluctuations in measured temperatures at fixed depths.</p>
+<p>Because internal wave dynamics are not represented in Simstrat, the model cannot reproduce these observed sub-daily oscillatory behaviors in temperature profiles. As a result, direct assimilation of high-frequency temperature observations may introduce inconsistencies between the model state and the observations. This mismatch can destabilize the assimilation procedure, generate spurious corrections, and reduce the reliability of the assimilated results</p>
+<p>Therefore, a key challenge is to develop assimilation strategies that account for unresolved internal wave variability while preserving the physical consistency and numerical stability of the lake model. To address this issue, we develop an adaptive low-pass filter whose window size varies both in depth and time as a function of stratification strength. The filter window at each depth and timestep is defined as the sum of two components: a baseline temporal smoothing term and an additional adaptive component that increases in regions and periods of strong stratification, where internal wave activity is expected to be more pronounced.</p>
+<p><strong>Step 0 — Gradient smoothing</strong></p>
+<p>Raw local gradients are first smoothed with a causal <code>GRAD_SMOOTH_H</code>-hour trailing mean (parameter $W_s$) to reduce noise before driving the window:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>\bar{g}(z,t) = \frac{1}{W_s}\int_{t-W_s}^{t} \left|\frac{\partial T}{\partial z}(z,\tau)\right| d\tau
+</code></pre></div>
+<p>Depths shallower than <code>THERMO_DEPTH_MIN</code> are set to zero (surface layer dominated by solar heating, not internal waves).</p>
+<p><strong>Component 1 — Gradient-driven (thermocline)</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>W_\text{grad}(z,t) = \text{clip}\!\left(\frac{W_\text{MAX} \cdot \bar{g}(z,t)}{G_\text{MAX}},\ W_\text{MIN},\ W_\text{MAX}\right)
+</code></pre></div>
+<p><code>G_MAX</code> is the gradient value that maps to <code>W_MAX</code> (default: 95th percentile of $\bar{g}$ across thermocline depths, auto-computed).</p>
+<p><strong>Component 2 — Depth floor (below thermocline)</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>W_\text{floor}(z,t) = \text{clip}\!\left(\frac{z - z_{tc}(t)}{\max\!\left(D_\text{ref} - z_{tc}(t),\; 1\right)},\ 0,\ 1\right) \cdot (W_\text{DEEP} - W_\text{MIN})
+</code></pre></div>
+<p>where $z_{tc}(t) = \arg\max_z \bar{g}(z,t)$ is the time-varying thermocline depth (depth of peak smoothed gradient). This component is zero when the peak gradient falls below <code>THERMO_GRAD_MIN</code> (no active stratification, e.g. winter). The $\max(\cdot, 1)$ in the denominator guards against division by zero when $z_{tc} \geq D_\text{ref}$.</p>
+<p><strong>Final window</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>W(z,t) = \text{clip}\!\left(W_\text{grad}(z,t) + W_\text{floor}(z,t),\ W_\text{MIN},\ W_\text{MAX}\right)
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Zone</th>
+<th>Dominant component</th>
+<th>Typical window</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$z &lt;$ <code>THERMO_DEPTH_MIN</code></td>
+<td>none ($\bar{g} = 0$ forced)</td>
+<td>$W_\text{MIN}$</td>
+</tr>
+<tr>
+<td>thermocline</td>
+<td>$W_\text{grad}$</td>
+<td>up to $W_\text{MAX}$</td>
+</tr>
+<tr>
+<td>below thermocline</td>
+<td>$W_\text{floor}$ ramps with depth</td>
+<td>$W_\text{MIN}$ → $W_\text{DEEP}$</td>
+</tr>
+</tbody>
+</table>
+<p>Applied as a causal trailing box filter (no lookahead, online-compatible).</p>
+<p><img alt="Adaptive Filter" src="../images/adaptive_filter.png" /></p>
+<p>raw hourly temperature in thin transparent blue against the adaptively
+filtered signal in red. The gap between the two lines represents the high-frequency variability the filter removed at
+that depth — narrow near the surface (short window, little smoothing), wider near and below the thermocline (longer
+window, more aggressive smoothing). The last plot makes the seasonal behaviour of the filter directly visible — windows grow during summer
+stratification (strong thermocline gradient activates both the gradient-driven and depth-floor components) and collapse
+toward W_MIN in winter when the water column is well-mixed.</p>
+<p>We provide this filtering approach as an optional component that can be integrated into the assimilation workflow of alplakes_da. At the current stage, the results do not show a substantial improvement from the filtering procedure, likely because the assimilation already applies averaged corrections over a one-day window, which partially mitigates the impact of sub-daily oscillations.</p>
+<p>Nevertheless, this implementation serves as a proof of concept and demonstrates how adaptive filtering strategies can be flexibly incorporated within the framework. We consider this filtering step a promising direction for future research, particularly for higher-frequency assimilation setups or applications where unresolved internal wave variability has a stronger impact. However, due to project priorities and time constraints, further development and evaluation of the approach are left for future work.</p>
+<h2 id="extension-to-3d-models">Extension to 3D Models<a class="headerlink" href="#extension-to-3d-models" title="Permanent link">&para;</a></h2>
+<p>When expanding our module to include 3D models, a couple of considerations are needed. First, there is a need for spatio-temporal forcing perturbation accounting both for spatial and temporal correlations. Second, observation location matters much more: in 3D, an observation at one location primarily constrains the state near that location, and localization becomes essential to avoid spurious correlations and keep computational costs low. Finally, ensemble size becomes a serious constraint — examples in 3D use around 20 ensemble members, while for 1D they use up to 400 because the computational load is small.</p>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<p>Baracchini, T., Chu, P. Y., ˇSukys, J., Lieberherr, G., Wunderle, S., W¨uest, A., and Bouffard, D.
+(2020). Data assimilation of in situ and satellite remote sensing data to 3d hydrodynamic lake
+models: a case study using delft3d-flow v4. 03 and openda v2. 4. Geoscientific Model Development,
+13(3):1267–1284.</p>
+<p>Kourzeneva, E. (2014). Assimilation of lake water surface temperature observations using an extended
+kalman filter. Tellus A: Dynamic Meteorology and Oceanography, 66(1):21510.</p>
+<p>Safin, A., Bouffard, D., Ozdemir, F., Ramon, C. L., Runnalls, J., Georgatos, F., Minaudo, C., and
+ˇSukys, J. (2022). A bayesian data assimilation framework for lake 3d hydrodynamic models with a
+physics-preserving particle filtering method using spux-mitgcm v1. Geoscientific Model Development,
+15(20):7715–7730.</p>
+<p>Thomas, R. Q., Figueiredo, R. J., Daneshmand, V., Bookout, B. J., Puckett, L. K., and Carey, C. C.
+(2020). A near-term iterative forecasting system successfully predicts reservoir hydrodynamics and
+partitions uncertainty in real time. Water Resources Research, 56(11):e2019WR026138.</p>
+<p>Wander, H. L., Thomas, R. Q., Moore, T. N., Lofton, M. E., Breef-Pilz, A., and Carey, C. C. (2024).
+Data assimilation experiments inform monitoring needs for near-term ecological forecasts in a eutrophic
+reservoir. Ecosphere, 15(2):e4752.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
