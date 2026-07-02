@@ -341,7 +341,10 @@ def start_containers(args, max_workers=None):
     less startup/footprint. `max_workers` is unused here now (single container); per-member
     concurrency is the exec ThreadPool in run_window_parallel."""
     name  = _container_name(args)
-    mount = args["ensemble_base"].replace("\\", "/")
+    mount = args["ensemble_base"]
+    if args.get("docker_dir") and args.get("repo_dir"):
+        mount = os.path.join(args["docker_dir"], os.path.relpath(mount, args["repo_dir"]))
+    mount = mount.replace("\\", "/")
     subprocess.run(f"docker rm -f {name}", shell=True, capture_output=True)   # drop a stale one
     cmd = (
         f"docker run -d --name {name} "
