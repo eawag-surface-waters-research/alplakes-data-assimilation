@@ -12,7 +12,7 @@ blocks. --lake picks one block (the only one by default) and merges it on top:
 
   {"engine": "python|openda", "model": "simstrat",
    "algorithm": "EnKF|PF",           # python: + par_file / results_dir / inflation
-   "filter": "EnKF|DEnKF|EnSR|PF",   # openda:  + openda_bin
+                                     # openda: EnKF|DEnKF|EnSR|PF, + openda_bin
    "n_members": ..., "start_date": ..., "end_date": ..., "sigma_obs": ...,
    "lakes": {"<lake>": {"reanalysis_lake": ..., "lake_bbox": ..., "lake_key": ...}}}
 

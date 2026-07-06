@@ -211,7 +211,7 @@ def summarize_from_config(cfg, model_name="simstrat"):
                          for i in range(1, n_members + 1)]
         report_summary("python", label, member_files, lake, obs_csv, ensemble_base)
     elif engine == "openda":
-        filter_type = cfg.get("filter", "EnKF")
+        filter_type = cfg.get("algorithm", "EnKF")
         default_dir = f"run/openda_{model_name}_{lake}_{filter_type.lower()}"
         openda_dir  = resolve_root(cfg.get("openda_dir") or default_dir)
         work_base   = os.path.join(openda_dir, "Results")

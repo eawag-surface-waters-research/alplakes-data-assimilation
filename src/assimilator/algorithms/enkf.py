@@ -288,7 +288,9 @@ def run_enkf_daily(args, model):
             current = window_end
 
         bar.close()
-        model.accumulate_mean(member_ids, args)   # one-shot: ensemble-mean trajectory from full T_out.dat
+        member_files = [os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "T_out.dat")
+                        for i in member_ids]
+        model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from full T_out.dat
         logger.info(f"Done. {days_run} days run, {days_updated} EnKF updates applied.")
         return days_run, days_updated
 

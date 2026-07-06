@@ -1,7 +1,7 @@
 {
     "engine":     "openda",
     "model":      "simstrat",
-    "filter":     "EnSR",
+    "algorithm":  "EnSR",
     "openda_bin": "/mnt/c/Users/toschith/Documents/Work/openda_3.4.0/bin",
 
     "n_members":   20,

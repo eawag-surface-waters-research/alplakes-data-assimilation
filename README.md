@@ -72,7 +72,7 @@ Edit these top-level fields in the run config:
 | `inflation` | Variance inflation (native EnKF only); `1.0` = off |
 | `sigma_scale` | Scales forcing-perturbation strength to widen spread (`1.0` = none) |
 | `rng_seed` | Seed for reproducible runs |
-| `filter` | OpenDA only: `EnKF` / `DEnKF` / `EnSR` / `PF` |
+| `algorithm` | DA scheme — native: `EnKF` / `PF`; OpenDA: `EnKF` / `DEnKF` / `EnSR` / `PF` |
 
 Useful CLI flags:
 

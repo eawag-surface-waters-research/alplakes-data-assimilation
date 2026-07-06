@@ -46,7 +46,8 @@ import numpy as np
 # The OpenDA wrapper imports read_snapshot/write_snapshot from this module 21×/step and those use
 # only numpy; a top-level `import pandas` cost ~2.6s per process launch for nothing. (numpy ~0.7s.)
 
-from ..functions import ROOT, GENERAL, resolve_src, verify_args
+from ..functions import (ROOT, GENERAL, resolve_src, verify_args,
+                         start_persistent_container, stop_persistent_container)
 
 logger = logging.getLogger(__name__)
 
@@ -204,14 +205,13 @@ def clear_member_outputs(ensemble_base, member_ids, results_dir):
                     os.remove(os.path.join(rdir, fname))
 
 
-def accumulate_mean(member_ids, args):
-    """Write the ensemble-mean trajectory to args['mean_traj_path'] from each member's
-    (full, accumulated) T_out.dat. One-shot: call once after the run. Averages across
+def accumulate_mean(member_files, mean_path):
+    """Write the ensemble-mean trajectory to `mean_path` from the members' (full,
+    accumulated) T_out.dat files. One-shot: call once after the run. Averages across
     whatever members are present at each timestamp, so it tolerates a member missing a
     failed window."""
     import pandas as pd
-    def _read(i):
-        path = os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "T_out.dat")
+    def _read(path):
         if not os.path.exists(path):
             return None
         df = pd.read_csv(path)
@@ -219,12 +219,12 @@ def accumulate_mean(member_ids, args):
         return df
 
     with concurrent.futures.ThreadPoolExecutor() as pool:
-        frames = [f for f in pool.map(_read, member_ids) if f is not None]
+        frames = [f for f in pool.map(_read, member_files) if f is not None]
     if not frames:
         return
     time_col = frames[0].columns[0]
     mean_df  = pd.concat(frames).groupby(time_col, as_index=False).mean()
-    mean_df.to_csv(args["mean_traj_path"], index=False)
+    mean_df.to_csv(mean_path, index=False)
 
 
 def mean_traj_path(ensemble_base, algorithm):
@@ -340,28 +340,15 @@ def start_containers(args, max_workers=None):
     Simstrat paths are workdir-relative, so a single mount of the parent serves every member — far
     less startup/footprint. `max_workers` is unused here now (single container); per-member
     concurrency is the exec ThreadPool in run_window_parallel."""
-    name  = _container_name(args)
-    mount = args["ensemble_base"]
-    if args.get("docker_dir") and args.get("repo_dir"):
-        mount = os.path.join(args["docker_dir"], os.path.relpath(mount, args["repo_dir"]))
-    mount = mount.replace("\\", "/")
-    subprocess.run(f"docker rm -f {name}", shell=True, capture_output=True)   # drop a stale one
-    cmd = (
-        f"docker run -d --name {name} "
-        f"-v {mount}:{args['simstrat_workdir']} "
-        f"--entrypoint sleep "
-        f"eawag/simstrat:{args['simstrat_version']} infinity"
-    )
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"container start failed ({name}): {result.stderr.strip()}")
+    name = _container_name(args)
+    start_persistent_container(args, name, args["ensemble_base"], args["simstrat_workdir"],
+                               f"eawag/simstrat:{args['simstrat_version']}")
     logger.info(f"Started 1 persistent container ({name}) for {len(args['member_ids'])} members.")
 
 
 def stop_containers(args):
     name = _container_name(args)
-    subprocess.run(f"docker stop {name}", shell=True, capture_output=True)
-    subprocess.run(f"docker rm   {name}", shell=True, capture_output=True)
+    stop_persistent_container(name)
     logger.info(f"Container stopped and removed ({name}).")
 
 

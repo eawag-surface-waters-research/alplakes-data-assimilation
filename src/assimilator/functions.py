@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import logging
+import subprocess
 from datetime import datetime, timezone
 
 # pandas is imported lazily inside load_obs (the only user here): this module is on the import path
@@ -132,6 +133,27 @@ def resolve_max_workers(cfg, n_members):
     return workers
 
 
+def start_persistent_container(cfg, name, mount, target, image):
+    if cfg.get("docker_dir") and cfg.get("repo_dir"):
+        mount = os.path.join(cfg["docker_dir"], os.path.relpath(mount, cfg["repo_dir"]))
+    mount = mount.replace("\\", "/")
+    subprocess.run(f"docker rm -f {name}", shell=True, capture_output=True)
+    cmd = (
+        f"docker run -d --name {name} "
+        f"-v {mount}:{target} "
+        f"--entrypoint sleep "
+        f"{image} infinity"
+    )
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"container start failed ({name}): {result.stderr.strip()}")
+
+
+def stop_persistent_container(name):
+    subprocess.run(f"docker stop {name}", shell=True, capture_output=True)
+    subprocess.run(f"docker rm   {name}", shell=True, capture_output=True)
+
+
 def log_obs_summary(obs, obs_path, label="Obs"):
     """Log the loaded + depth-filtered observation set (count, depths, time span, source).
     Setup-time narrative shared by the native engines, so the log shows exactly what will be
@@ -148,12 +170,11 @@ def log_obs_summary(obs, obs_path, label="Obs"):
 # A run-config-echo header and a result footer, in ONE layout shared by both engines, so two runs'
 # logs line up at the cross-validation junctions: A (same config?) and D (same result?). Defined
 # here once so the native engines (run_enkf/run_pf) and OpenDA (run_openda) can't drift apart, and
-# using a standardized key vocabulary (engine= algo=/filter= window= n_members= sigma_obs= ...).
+# using a standardized key vocabulary (engine= algo= window= n_members= sigma_obs= ...).
 
 def _run_selector(cfg):
-    """The engine's algorithm/filter label for the header & footer (vocab: 'algo=' or 'filter=')."""
-    engine = cfg.get("engine", "python")
-    return f"algo={cfg.get('algorithm')}" if engine == "python" else f"filter={cfg.get('filter')}"
+    """The DA-scheme label for the header & footer (both engines read cfg['algorithm'])."""
+    return f"algo={cfg.get('algorithm')}"
 
 
 def log_run_header(cfg):
