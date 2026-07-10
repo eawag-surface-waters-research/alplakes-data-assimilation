@@ -71,8 +71,27 @@ Edit these top-level fields in the run config:
 | `sigma_obs` | Observation error σ (°C); smaller = trust the data more |
 | `inflation` | Variance inflation (native EnKF only); `1.0` = off |
 | `sigma_scale` | Scales forcing-perturbation strength to widen spread (`1.0` = none) |
-| `rng_seed` | Seed for reproducible runs |
+| `rng_seed` | Seed for reproducible runs (drives the forcing AND the EnKF obs perturbations) |
+| `window_mode` | Native engines: `obs` (default — one forecast+analysis window per observation time, like OpenDA) or `daily` (legacy fixed noon-to-noon windows) |
 | `algorithm` | DA scheme — native: `EnKF` / `PF`; OpenDA: `EnKF` / `DEnKF` / `EnSR` / `PF` |
+
+## Operational continuation
+
+A run continued in slices (e.g. a daily pipeline extending `end_date` each day, with
+`"reset": false`) produces **exactly the same outputs** as one continuous run over the same
+period:
+
+- All randomness is keyed by `(rng_seed, absolute time)` — the AR(1) forcing noise per forcing
+  row and the EnKF observation perturbations per analysis instant — never by position in the
+  run, so a draw for a given instant is identical however the period is chunked.
+- The AR(1) forcing-perturbation chain persists its state per member/variable in
+  `run/<lake>/perturbation_state.json` and resumes it on the next invocation (recent window
+  boundaries are kept, so re-running a slice is idempotent).
+- With `window_mode: "obs"` the assimilation instants are the observation times themselves,
+  independent of how the period is split.
+
+The chain cold-starts (first forcing row unperturbed) on a fresh run dir, on `"reset": true`,
+or when the perturbation parameters (`rng_seed`, `sigma_scale`, `n_members`, phi/sigma) change.
 
 Useful CLI flags:
 

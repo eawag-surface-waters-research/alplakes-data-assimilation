@@ -188,6 +188,8 @@ def log_run_header(cfg):
     knobs = [f"sigma_obs={cfg.get('sigma_obs')}"]
     if engine == "python" and cfg.get("inflation") is not None:
         knobs.append(f"inflation={cfg.get('inflation')}")
+    if engine == "python":
+        knobs.append(f"window_mode={cfg.get('window_mode', 'obs')}")
     knobs += [f"sigma_scale={cfg.get('sigma_scale', 1.0)}", f"rng_seed={cfg.get('rng_seed', 42)}"]
     logger.info("      " + "  ".join(knobs))
     logger.info(f"      obs={os.path.relpath(resolve_obs_path(cfg), ROOT)}")
@@ -292,6 +294,46 @@ def resolve_obs_path(cfg):
     absolute) if given, else observations/<lake>/temperature.csv."""
     override = cfg.get("obs_file")
     return resolve_root(override) if override else os.path.join(ROOT, "observations", cfg["lake"], "temperature.csv")
+
+
+def obs_window_boundaries(obs_df, start_date, end_date):
+    """Assimilation-window boundaries for obs-driven stepping (window_mode="obs"): every distinct
+    observation time in (start_date, end_date], plus end_date as the final boundary so the model is
+    always advanced to the end of the run window (the tail window has no obs, hence no update).
+
+    Chunk-invariant by construction: the boundaries depend only on the observations, so an
+    operational run continued in daily slices steps through the SAME windows (and assimilates at
+    the same instants) as one continuous run over the whole period. This is also OpenDA's rule
+    (analysisTimes type="fromObservationTimes"), so the two engines step alike."""
+    times = sorted(t.to_pydatetime() for t in obs_df["time"].drop_duplicates())
+    bounds = [t for t in times if start_date < t <= end_date]
+    if not bounds or bounds[-1] < end_date:
+        bounds.append(end_date)
+    return bounds
+
+
+# ---------------------------------------------------------------------------
+# Time-keyed RNG streams (operational reproducibility)
+# ---------------------------------------------------------------------------
+#   Rule: every random draw that influences the assimilation result is keyed by
+#   (rng_seed, stream id, absolute time) — never by position in the run. A draw for a given
+#   instant is then identical no matter how the period is chunked, so an operational run
+#   continued each day reproduces a continuous run exactly. Streams are registered here (one
+#   integer per consumer) so two consumers can never collide on the same key.
+
+RNG_STREAMS = {
+    "forcing_U":    0,   # perturbate.py: AR(1) noise per forcing row (step = s since Simstrat epoch)
+    "forcing_V":    1,
+    "forcing_GLOB": 2,
+    "enkf_obs":     3,   # enkf.py: obs-perturbation draw per analysis (step = unix s of window_end)
+}
+
+
+def time_keyed_rng(rng_seed, stream, step):
+    """A numpy Generator for one (stream, absolute-time) key. `step` is a non-negative integer
+    time coordinate; its epoch/unit may differ per stream (the stream id separates them)."""
+    import numpy as np
+    return np.random.default_rng([int(rng_seed), RNG_STREAMS[stream], int(step)])
 
 
 def to_utc(iso_str):

@@ -1,15 +1,14 @@
 import os
 import time
-import math
 import logging
 import concurrent.futures
 import numpy as np
 import pandas as pd
 from datetime import timedelta
 
-from ..functions import (load_obs, filter_obs_to_model_depths,
+from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
                          verify_args, build_python_run_args, make_progress, log_obs_summary,
-                         log_run_header, log_run_footer)
+                         log_run_header, log_run_footer, time_keyed_rng)
 from ..summarize import report_summary
 
 logger = logging.getLogger(__name__)
@@ -20,7 +19,10 @@ REQUIRED_ENKF_ENSEMBLE = ["sigma_obs"]      # run config; obs error std, shared 
 
 
 # ---------------------------------------------------------------------------
-# The Python Ensemble Kalman Filter, run as a daily-window loop.
+# The Python Ensemble Kalman Filter, run as a window loop. Windows are bounded by the
+# observation times by default (window_mode="obs" — one forecast+analysis per obs time,
+# like OpenDA's fromObservationTimes); window_mode="daily" keeps the legacy fixed
+# noon-to-noon daily stepping.
 # ---------------------------------------------------------------------------
 
 # Note: this averages every depth's observations over the WHOLE daily window,
@@ -46,8 +48,9 @@ def window_obs_vector(obs_df, window_start, window_end, model):
 def window_obs_vector_consistent(obs_df, window_start, window_end, model):
     """Pick, per depth, the single observation nearest the window END (vs window_obs_vector's
     daily mean). The EnKF assimilates into the end-of-window snapshot, so the obs nearest that
-    instant is temporally consistent with the model state. window_end must be noon to match the
-    OpenDA reference, which the daily loop ensures by anchoring the windows noon-to-noon.
+    instant is temporally consistent with the model state. In window_mode="obs" every window_end
+    IS an observation time, so this reduces to the boundary obs; in the legacy daily mode the
+    noon-to-noon anchoring puts window_end on noon, matching the OpenDA reference.
 
     Window is (window_start, window_end]: the inclusive upper bound selects the bin labeled
     exactly window_end (the centered noon bin from load_obs) — a half-open `<` would drop it and
@@ -127,7 +130,7 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
     return X_a, diags
 
 
-def run_enkf_daily(args, model):
+def run_enkf_loop(args, model):
     member_ids  = args["member_ids"]
     sigma_obs   = args["sigma_obs"]
     inflation   = args["inflation"]
@@ -152,55 +155,77 @@ def run_enkf_daily(args, model):
     log_obs_summary(obs, args["obs_path"])
     start_date = args["start_date"]
     end_date   = args["end_date"]
-    rng        = np.random.default_rng()
+    # Obs-perturbation rng: re-derived per analysis inside the loop, keyed by
+    # (rng_seed, analysis instant), so a run continued in slices draws the same
+    # perturbations as one continuous run (see functions.time_keyed_rng).
+    rng_seed   = args.get("rng_seed", 42)
 
-    # Observation selector per daily window (run-arg "obs_selector", default "window_end"):
-    #   "window_end" -> window_obs_vector_consistent (single reading nearest window_end;
-    #                   DEFAULT — instantaneous update at the snapshot instant. With a noon-
-    #                   anchored start_date (e.g. ...T12:00:00) window_end == noon, matching
-    #                   the OpenDA reference's instantaneous-noon assimilation.)
-    #   "mean"       -> window_obs_vector            (daily mean per depth; opt-in)
-    _OBS_SELECTORS = {"mean": window_obs_vector, "window_end": window_obs_vector_consistent}
-    obs_selector_name = args.get("obs_selector", "window_end")
-    if obs_selector_name not in _OBS_SELECTORS:
-        raise ValueError(f"unknown obs_selector '{obs_selector_name}'; choose from {sorted(_OBS_SELECTORS)}")
-    select_obs = _OBS_SELECTORS[obs_selector_name]
+    window_mode = args.get("window_mode", "obs")
+    if window_mode not in ("obs", "daily"):
+        raise ValueError(f"unknown window_mode '{window_mode}'; choose 'obs' or 'daily'")
 
-    logger.info(f"Daily EnKF: {start_date.date()} → {end_date.date()} "
-                f"({(end_date - start_date).days} days, {len(member_ids)} members, "
-                f"σ_obs={sigma_obs} °C, inflation={inflation}, obs_selector={obs_selector_name})")
+    if window_mode == "obs":
+        # Windows bounded by the observation times (+ a tail window to end_date with no update),
+        # like OpenDA's analysisTimes fromObservationTimes. Every window ends at an obs instant,
+        # so the end-of-window snapshot IS the analysis state and the per-window obs pick
+        # (window_obs_vector_consistent, (start, end]) reduces to the boundary obs. Chunk-
+        # invariant: the analysis instants depend only on the observations, not on how the
+        # period is split across pipeline invocations.
+        current    = start_date
+        boundaries = obs_window_boundaries(obs, start_date, end_date)
+        select_obs = window_obs_vector_consistent
+        logger.info(f"Obs-driven EnKF: {start_date.date()} → {end_date.date()} "
+                    f"({len(boundaries)} windows — one per obs time + tail, "
+                    f"{len(member_ids)} members, σ_obs={sigma_obs} °C, inflation={inflation})")
+    else:
+        # Legacy fixed daily stepping. Observation selector per daily window (run-arg
+        # "obs_selector", default "window_end"):
+        #   "window_end" -> window_obs_vector_consistent (single reading nearest window_end;
+        #                   instantaneous update at the snapshot instant, noon-anchored to match
+        #                   the OpenDA reference's instantaneous-noon assimilation.)
+        #   "mean"       -> window_obs_vector            (daily mean per depth; opt-in)
+        _OBS_SELECTORS = {"mean": window_obs_vector, "window_end": window_obs_vector_consistent}
+        obs_selector_name = args.get("obs_selector", "window_end")
+        if obs_selector_name not in _OBS_SELECTORS:
+            raise ValueError(f"unknown obs_selector '{obs_selector_name}'; choose from {sorted(_OBS_SELECTORS)}")
+        select_obs = _OBS_SELECTORS[obs_selector_name]
 
-    model.start_containers(args, max_workers=max_workers)
-    try:
         # Instantaneous-noon update (default obs_selector="window_end"): anchor the windows so
-        # each window_end lands on noon, matching the OpenDA reference's noon assimilation.
-        # Equivalent to a <start_date>T12:00 start, but done here so the shared start_date (also
-        # consumed by PF and the OpenDA config renderer) stays a plain date. The warmup snapshot
-        # becomes the IC at this first noon.
+        # each window_end lands on noon. Equivalent to a <start_date>T12:00 start, but done here
+        # so the shared start_date (also consumed by PF and the OpenDA config renderer) stays a
+        # plain date. The warmup snapshot becomes the IC at this first noon.
         current = start_date
         if obs_selector_name == "window_end":
             noon    = start_date.replace(hour=12, minute=0, second=0, microsecond=0)
             current = noon if noon >= start_date else noon + timedelta(days=1)
             logger.info(f"Noon-anchored windows: first window {current.isoformat()} → {(current + timedelta(days=1)).isoformat()}")
-        days_run     = 0
-        days_updated = 0
+        boundaries = []
+        b = current
+        while b < end_date:
+            b = min(b + timedelta(days=1), end_date)
+            boundaries.append(b)
+        logger.info(f"Daily EnKF: {start_date.date()} → {end_date.date()} "
+                    f"({len(boundaries)} days, {len(member_ids)} members, "
+                    f"σ_obs={sigma_obs} °C, inflation={inflation}, obs_selector={obs_selector_name})")
 
-        # One progress bar per run instead of a log line per day. Disabled for
+    model.start_containers(args, max_workers=max_workers)
+    try:
+        windows_run     = 0
+        windows_updated = 0
+
+        # One progress bar per run instead of a log line per window. Disabled for
         # server runs (resolved upstream into args["progress"]); when off, the
-        # per-day logger.info below still fires. total is the window count from
-        # the dates — tqdm tolerates overflow if the last (clamped) window nudges it.
+        # per-window logger.info below still fires.
         progress = args.get("progress", False)
-        total    = max(1, math.ceil((end_date - current).total_seconds() / 86400))
-        bar      = make_progress(total, progress, desc=f"EnKF {args['lake']}")
+        bar      = make_progress(max(1, len(boundaries)), progress, desc=f"EnKF {args['lake']}")
 
-        while current < end_date:
-            window_end = min(current + timedelta(days=1), end_date)
-            t_day      = time.perf_counter()
+        for window_end in boundaries:
+            t_day = time.perf_counter()
 
-            t0       = time.perf_counter()
-            failed   = model.run_window(current, window_end, args, max_workers=max_workers)
-            days_run += 1
-            t_docker = time.perf_counter() - t0
+            t0          = time.perf_counter()
+            failed      = model.run_window(current, window_end, args, max_workers=max_workers)
+            windows_run += 1
+            t_docker    = time.perf_counter() - t0
 
             y_obs, sim_depths, obs_depths = select_obs(obs, current, window_end, model)
 
@@ -229,6 +254,9 @@ def run_enkf_daily(args, model):
 
                         # Note: Assuming lake levels of different members the same, T column too. Intentional.
                         H          = build_H(z_vol, lake_lev, sim_depths)
+                        # Obs-perturbation draw keyed by the analysis instant: identical whether
+                        # the period is run in one go or continued operationally in slices.
+                        rng        = time_keyed_rng(rng_seed, "enkf_obs", int(window_end.timestamp()))
                         X_a, diags = enkf_update(X_f, y_obs, H, sigma_obs, inflation=inflation, rng=rng)
 
                         def _write_T(col_i):
@@ -241,15 +269,17 @@ def run_enkf_daily(args, model):
                         with concurrent.futures.ThreadPoolExecutor() as pool:
                             pool.map(_write_T, enumerate(readable))
 
-                        n_updated    = len(readable)
-                        days_updated += 1
+                        n_updated       = len(readable)
+                        windows_updated += 1
 
                         if diags is not None:
                             valid_mask = diags.pop("_valid_mask")
                             innov_vec  = diags.pop("_innov_vec")
                             K_arr      = diags.pop("_K")
 
-                            pd.DataFrame([{"date": current.date(), **diags}]).to_csv(
+                            # Diagnostics are stamped with the ANALYSIS instant (window_end) —
+                            # the time the obs was assimilated — not the window-start date.
+                            pd.DataFrame([{"date": window_end.isoformat(), **diags}]).to_csv(
                                 diag_path, mode="a",
                                 header=not os.path.exists(diag_path), index=False,
                             )
@@ -257,7 +287,7 @@ def run_enkf_daily(args, model):
                             full_innov = np.full(len(y_obs), np.nan)
                             full_innov[np.array(valid_mask)] = innov_vec
                             pd.DataFrame([{
-                                "date": current.date(),
+                                "date": window_end.isoformat(),
                                 **{f"d_{d}": round(float(v), 6) for d, v in zip(obs_depths, full_innov)}
                             }]).to_csv(innov_path, mode="a", header=not os.path.exists(innov_path), index=False)
 
@@ -267,7 +297,7 @@ def run_enkf_daily(args, model):
                             std_depths = np.arange(0, int(lake_lev) + 1)
                             K_interp   = np.interp(std_depths, depth_fs[sort_idx], K_mean[sort_idx])
                             pd.DataFrame([{
-                                "date": current.date(),
+                                "date": window_end.isoformat(),
                                 **{f"K_{d}": round(float(v), 8) for d, v in enumerate(K_interp)}
                             }]).to_csv(kgain_path, mode="a", header=not os.path.exists(kgain_path), index=False)
 
@@ -277,12 +307,12 @@ def run_enkf_daily(args, model):
             timing  = f"docker={t_docker:.1f}s  enkf={t_enkf:.1f}s  total={t_total:.1f}s"
             obs_str = f"n_obs={len(y_obs)}  n_updated={n_updated}" if y_obs is not None else "no obs"
             status  = f"failed={failed}" if failed else "ok"
-            # Per-day detail always goes to the log file (file_only keeps it off the console —
+            # Per-window detail always goes to the log file (file_only keeps it off the console —
             # see main.py); the console shows the bar instead when progress is on.
-            logger.info(f"  {current.date()}  {obs_str}  [{status}]  [{timing}]",
+            logger.info(f"  {current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}  {obs_str}  [{status}]  [{timing}]",
                         extra={"file_only": True})
             if progress:
-                bar.set_postfix_str(f"{current.date()}  {obs_str}  [{status}]")
+                bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  {obs_str}  [{status}]")
                 bar.update(1)
 
             current = window_end
@@ -291,20 +321,20 @@ def run_enkf_daily(args, model):
         member_files = [os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "T_out.dat")
                         for i in member_ids]
         model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from full T_out.dat
-        logger.info(f"Done. {days_run} days run, {days_updated} EnKF updates applied.")
-        return days_run, days_updated
+        logger.info(f"Done. {windows_run} windows run, {windows_updated} EnKF updates applied.")
+        return windows_run, windows_updated
 
     finally:
         model.stop_containers(args)
 
 
 # ---------------------------------------------------------------------------
-# End-to-end EnKF run (validate -> build args -> daily loop -> summarise)
+# End-to-end EnKF run (validate -> build args -> window loop -> summarise)
 # ---------------------------------------------------------------------------
 
 def run_enkf(run_raw, ensemble_raw, ensemble_base, n_members, model):
     """Native EnKF engine driver: validate run args, build the merged args, run the
-    daily EnKF loop, then write the posterior summary + skill report to the run folder (run/<lake>/).
+    EnKF window loop, then write the posterior summary + skill report to the run folder (run/<lake>/).
     `model` is the selected forward model (see assimilator.models)."""
     verify_args(run_raw, REQUIRED_RUN + REQUIRED_ENKF)
     verify_args(ensemble_raw, REQUIRED_ENKF_ENSEMBLE)
@@ -312,9 +342,9 @@ def run_enkf(run_raw, ensemble_raw, ensemble_base, n_members, model):
 
     log_run_header(ensemble_raw)
     t0 = time.perf_counter()
-    days_run, days_updated = run_enkf_daily(args, model)
+    windows_run, windows_updated = run_enkf_loop(args, model)
 
     member_files = [os.path.join(ensemble_base, f"ensemble{i}", args["results_dir"], "T_out.dat")
                     for i in args["member_ids"]]
     out_csv, skill = report_summary("python", "EnKF", member_files, args["lake"], args["obs_path"], ensemble_base)
-    log_run_footer(ensemble_raw, skill, days_run, days_updated, time.perf_counter() - t0, out_csv)
+    log_run_footer(ensemble_raw, skill, windows_run, windows_updated, time.perf_counter() - t0, out_csv)

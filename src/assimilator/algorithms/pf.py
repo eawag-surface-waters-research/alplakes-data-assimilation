@@ -1,14 +1,13 @@
 import os
 import shutil
 import time
-import math
 import concurrent.futures
 import numpy as np
 from datetime import timedelta
 
 import logging
 
-from ..functions import (load_obs, filter_obs_to_model_depths,
+from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
                          verify_args, build_python_run_args, make_progress, log_obs_summary,
                          log_run_header, log_run_footer)
 from ..summarize import report_summary
@@ -18,7 +17,10 @@ logger = logging.getLogger(__name__)
 REQUIRED_RUN = ["algorithm", "results_dir", "par_file"]
 
 # ---------------------------------------------------------------------------
-# The Python Particle Filter (a simple "best member, resample-to-all" scheme), run as a daily-window loop.
+# The Python Particle Filter (a simple "best member, resample-to-all" scheme), run as a window
+# loop. Windows are bounded by the observation times by default (window_mode="obs", matching
+# the EnKF and OpenDA's fromObservationTimes); window_mode="daily" keeps the legacy fixed
+# noon-to-noon daily stepping.
 # ---------------------------------------------------------------------------
 # Note: this is NOT a real Bayesian particle filter. There are no importance weights, no
 # likelihood, and no resampling proportional to fit -- copy_best_to_all() just clones the single
@@ -39,8 +41,17 @@ def compute_depth_weights(obs_df, model):
     return {model.obs_to_sim_col(d): float(wt) for d, wt in zip(depths, w)}
 
 
-def rmse_in_window(sim_df, obs_df, window_start, window_end, depth_weights, model):
-    obs_win = obs_df[(obs_df["time"] >= window_start) & (obs_df["time"] < window_end)]
+def _obs_in_window(obs_df, window_start, window_end, closed):
+    """Obs inside one window. closed="right" -> (start, end]: used in window_mode="obs", where
+    the window's obs sits exactly on window_end (the assimilation instant), mirroring the EnKF's
+    window convention. closed="left" -> [start, end): the legacy daily-window convention."""
+    if closed == "right":
+        return obs_df[(obs_df["time"] > window_start) & (obs_df["time"] <= window_end)]
+    return obs_df[(obs_df["time"] >= window_start) & (obs_df["time"] < window_end)]
+
+
+def rmse_in_window(sim_df, obs_df, window_start, window_end, depth_weights, model, closed="left"):
+    obs_win = _obs_in_window(obs_df, window_start, window_end, closed)
     n_obs_raw = len(obs_win)
     if obs_win.empty:
         return np.nan, 0, 0
@@ -78,7 +89,7 @@ def copy_best_to_all(best_id, member_ids, args):
         pool.map(lambda dst: shutil.copy2(src, dst), targets)
 
 
-def run_pf_daily(args, model):
+def run_pf_loop(args, model):
     member_ids  = args["member_ids"]
     max_workers = args.get("max_workers")
 
@@ -99,37 +110,58 @@ def run_pf_daily(args, model):
     start_date    = args["start_date"]
     end_date      = args["end_date"]
 
-    logger.info(f"Daily PF: {start_date.date()} → {end_date.date()} "
-                f"({(end_date - start_date).days} days, {len(member_ids)} members)")
     logger.info(f"Depth weights: { {d: round(w, 2) for d, w in depth_weights.items()} }")
+
+    window_mode = args.get("window_mode", "obs")
+    if window_mode not in ("obs", "daily"):
+        raise ValueError(f"unknown window_mode '{window_mode}'; choose 'obs' or 'daily'")
+
+    if window_mode == "obs":
+        # Windows bounded by the observation times (+ a tail window to end_date with no obs,
+        # hence no best-copy), like the EnKF and OpenDA's fromObservationTimes. Chunk-invariant:
+        # the window boundaries depend only on the observations, not on how the period is split
+        # across pipeline invocations. Scoring uses (start, end] so the boundary obs belongs to
+        # the window that ends on it.
+        current    = start_date
+        boundaries = obs_window_boundaries(obs, start_date, end_date)
+        closed     = "right"
+        logger.info(f"Obs-driven PF: {start_date.date()} → {end_date.date()} "
+                    f"({len(boundaries)} windows — one per obs time + tail, {len(member_ids)} members)")
+    else:
+        # Legacy fixed daily stepping. Noon-anchor the daily windows so PF scores noon-to-noon,
+        # matching the daily EnKF (whose default window_end lands on noon) instead of the
+        # midnight-to-midnight a plain-date start_date would give. start_date stays a plain date
+        # (shared with EnKF and the OpenDA renderer); the shift is applied locally here.
+        noon    = start_date.replace(hour=12, minute=0, second=0, microsecond=0)
+        current = noon if noon >= start_date else noon + timedelta(days=1)
+        logger.info(f"Noon-anchored windows: first window {current.isoformat()} → {(current + timedelta(days=1)).isoformat()}")
+        boundaries = []
+        b = current
+        while b < end_date:
+            b = min(b + timedelta(days=1), end_date)
+            boundaries.append(b)
+        closed = "left"
+        logger.info(f"Daily PF: {start_date.date()} → {end_date.date()} "
+                    f"({len(boundaries)} days, {len(member_ids)} members)")
 
     model.start_containers(args, max_workers=max_workers)
     try:
-        # Noon-anchor the daily windows so PF scores noon-to-noon, matching the EnKF
-        # reference (whose default window_end lands on noon) instead of the midnight-to-
-        # midnight a plain-date start_date would give. start_date stays a plain date
-        # (shared with EnKF and the OpenDA renderer); the shift is applied locally here.
-        noon        = start_date.replace(hour=12, minute=0, second=0, microsecond=0)
-        current     = noon if noon >= start_date else noon + timedelta(days=1)
-        logger.info(f"Noon-anchored windows: first window {current.isoformat()} → {(current + timedelta(days=1)).isoformat()}")
-        days_run    = 0
-        days_copied = 0
+        windows_run    = 0
+        windows_copied = 0
 
-        # One progress bar per run instead of a log line per day (see enkf.py).
-        # Disabled for server runs via args["progress"]; when off the per-day
-        # logger.info lines below still fire. total tolerates clamped-window overflow.
+        # One progress bar per run instead of a log line per window (see enkf.py).
+        # Disabled for server runs via args["progress"]; when off the per-window
+        # logger.info lines below still fire.
         progress = args.get("progress", False)
-        total    = max(1, math.ceil((end_date - current).total_seconds() / 86400))
-        bar      = make_progress(total, progress, desc=f"PF {args['lake']}")
+        bar      = make_progress(max(1, len(boundaries)), progress, desc=f"PF {args['lake']}")
 
-        while current < end_date:
-            window_end = min(current + timedelta(days=1), end_date)
-            t_day      = time.perf_counter()
+        for window_end in boundaries:
+            t_day = time.perf_counter()
 
-            t0       = time.perf_counter()
-            failed   = model.run_window(current, window_end, args, max_workers=max_workers)
-            days_run += 1
-            t_docker = time.perf_counter() - t0
+            t0          = time.perf_counter()
+            failed      = model.run_window(current, window_end, args, max_workers=max_workers)
+            windows_run += 1
+            t_docker    = time.perf_counter() - t0
 
             def _load_and_score(i):
                 if i in failed:
@@ -143,7 +175,8 @@ def run_pf_daily(args, model):
                     # correctness-neutral. The full T_out.dat stays intact for accumulate_mean.
                     sim = model.load_T_window(os.path.join(args["ensemble_base"], f"ensemble{i}"),
                                               args, current, window_end)
-                    rmse, n_raw, n_matched = rmse_in_window(sim, obs, current, window_end, depth_weights, model)
+                    rmse, n_raw, n_matched = rmse_in_window(sim, obs, current, window_end,
+                                                            depth_weights, model, closed=closed)
                     return i, rmse, n_raw, n_matched
                 except Exception:
                     return i, np.nan, 0, 0
@@ -165,23 +198,23 @@ def run_pf_daily(args, model):
                 best_id   = min(valid, key=lambda x: x[1])[0]
                 best_rmse = min(r for _, r in valid)
                 copy_best_to_all(best_id, member_ids, args)
-                days_copied += 1
+                windows_copied += 1
                 status = f"failed={failed}" if failed else "ok"
-                # Per-day detail always to the log file (file_only keeps it off the console —
+                # Per-window detail always to the log file (file_only keeps it off the console —
                 # see main.py); the console shows the bar instead when progress is on.
-                logger.info(f"  {current.date()}  best=ensemble{best_id:02d}  RMSE={best_rmse:.4f} °C  "
-                            f"obs_raw={n_obs_raw}  matched={n_matched}  [{status}]  [{timing}]",
+                logger.info(f"  {current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}  best=ensemble{best_id:02d}  "
+                            f"RMSE={best_rmse:.4f} °C  obs_raw={n_obs_raw}  matched={n_matched}  [{status}]  [{timing}]",
                             extra={"file_only": True})
                 if progress:
-                    bar.set_postfix_str(f"{current.date()}  best=ens{best_id:02d}  RMSE={best_rmse:.3f}  [{status}]")
+                    bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  best=ens{best_id:02d}  RMSE={best_rmse:.3f}  [{status}]")
             else:
-                obs_win = obs[(obs["time"] >= current) & (obs["time"] < window_end)]
+                obs_win = _obs_in_window(obs, current, window_end, closed)
                 status  = f"  failed={failed}" if failed else ""
-                logger.info(f"  {current.date()}  no obs — snapshots unchanged  "
+                logger.info(f"  {current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}  no obs — snapshots unchanged  "
                             f"obs_raw={len(obs_win)}  matched={n_matched}{status}  [{timing}]",
                             extra={"file_only": True})
                 if progress:
-                    bar.set_postfix_str(f"{current.date()}  no obs{status}")
+                    bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  no obs{status}")
             if progress:
                 bar.update(1)
 
@@ -191,29 +224,29 @@ def run_pf_daily(args, model):
         member_files = [os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "T_out.dat")
                         for i in member_ids]
         model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from full T_out.dat
-        logger.info(f"Done. {days_run} windows run, {days_copied} best-copy steps applied.")
-        return days_run, days_copied
+        logger.info(f"Done. {windows_run} windows run, {windows_copied} best-copy steps applied.")
+        return windows_run, windows_copied
 
     finally:
         model.stop_containers(args)
 
 
 # ---------------------------------------------------------------------------
-# End-to-end PF run (validate -> build args -> daily loop -> summarise)
+# End-to-end PF run (validate -> build args -> window loop -> summarise)
 # ---------------------------------------------------------------------------
 
 def run_pf(run_raw, ensemble_raw, ensemble_base, n_members, model):
     """Native PF engine driver: validate run args, build the merged args, run the
-    daily PF loop, then write the posterior summary + skill report to the run folder (run/<lake>/).
+    PF window loop, then write the posterior summary + skill report to the run folder (run/<lake>/).
     `model` is the selected forward model (see assimilator.models)."""
     verify_args(run_raw, REQUIRED_RUN)
     args = build_python_run_args(run_raw, ensemble_raw, ensemble_base, n_members, model)
 
     log_run_header(ensemble_raw)
     t0 = time.perf_counter()
-    days_run, days_copied = run_pf_daily(args, model)
+    windows_run, windows_copied = run_pf_loop(args, model)
 
     member_files = [os.path.join(ensemble_base, f"ensemble{i}", args["results_dir"], "T_out.dat")
                     for i in args["member_ids"]]
     out_csv, skill = report_summary("python", "PF", member_files, args["lake"], args["obs_path"], ensemble_base)
-    log_run_footer(ensemble_raw, skill, days_run, days_copied, time.perf_counter() - t0, out_csv)
+    log_run_footer(ensemble_raw, skill, windows_run, windows_copied, time.perf_counter() - t0, out_csv)
