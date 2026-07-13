@@ -10,7 +10,7 @@ and needs none of these deps.
 
 Folds the former fetch_contours / retrieve / parse_json / lake_mean / logging_utils.
 
-Usage:  python notebooks/perturbations_from_icon.py args/run_enkf.json [--check]
+Usage:  python notebooks/perturbations_from_icon.py args/run_enkf.json [--lake L | --lakes a,b,c] [--check]
 """
 import os
 import sys
@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.join(_ROOT, "src"))
 
 from assimilator.functions import (
     ROOT, API_BASE, VARIABLES, verify_args, resolve_src, merge_lake_args,
+    select_lakes, run_lake_batch,
 )
 from assimilator.models.simstrat import SIMSTRAT_REF_YEAR
 
@@ -346,7 +347,13 @@ def fit(raw_args: dict, run_check: bool = False) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fit AR(1) forcing-noise stats from ICON")
     parser.add_argument("arg_file", help="Path to a run config JSON (e.g. args/run_enkf.json)")
-    parser.add_argument("--lake", default=None, help="Lake to fit from the config's \"lakes\" block")
+    lake_grp = parser.add_mutually_exclusive_group()
+    lake_grp.add_argument("--lake", default=None, help="Lake to fit from the config's \"lakes\" block")
+    lake_grp.add_argument("--lakes", default=None,
+                          help="Comma-separated lakes to fit in sequence (e.g. a,b,c), or 'all' for "
+                               "every block in the config's \"lakes\". Each lake is fitted fully "
+                               "before the next; a failure is logged and the batch continues, "
+                               "exiting non-zero if any lake failed.")
     parser.add_argument("--check", action="store_true", help="Also write the QA check.png")
     cli = parser.parse_args()
 
@@ -359,4 +366,16 @@ if __name__ == "__main__":
         raise ValueError(f"Args file not found: {cli.arg_file}")
 
     with open(arg_file) as f:
-        fit(merge_lake_args(json.load(f), lake=cli.lake), run_check=cli.check)
+        raw = json.load(f)
+
+    # --lakes fits several blocks in sequence (each lake hits the ICON API independently, so one
+    # lake's API failure shouldn't cost the whole sweep); --lake is the single-lake case, where
+    # run_lake_batch re-raises and the traceback/exit code are unchanged.
+    lakes  = select_lakes(raw, cli.lakes, cli.lake)
+    failed = run_lake_batch(
+        lakes,
+        lambda lake: fit(merge_lake_args(raw, lake=lake), run_check=cli.check),
+        what="fitted",
+    )
+    if failed:
+        sys.exit(1)

@@ -8,7 +8,8 @@ Step 2 is skipped when already done (override: --force-copy); step 3 (perturbate
 requires a committed perturbations/<lake>.json and errors if it is missing.
 Each run config is one JSON: engine/model selection + engine knobs + the run window
 (n_members, dates, sigma_obs, ...) at top level, plus a "lakes" map of lake-identity
-blocks. --lake picks one block (the only one by default) and merges it on top:
+blocks. --lake picks one block (the only one by default) and merges it on top; --lakes runs
+several blocks in sequence, isolating each lake's failure from the rest of the batch:
 
   {"engine": "python|openda", "model": "simstrat",
    "algorithm": "EnKF|PF",           # python: + par_file / results_dir / inflation
@@ -16,8 +17,9 @@ blocks. --lake picks one block (the only one by default) and merges it on top:
    "n_members": ..., "start_date": ..., "end_date": ..., "sigma_obs": ...,
    "lakes": {"<lake>": {"reanalysis_lake": ..., "lake_bbox": ..., "lake_key": ...}}}
 
-    python src/main.py args/run_enkf.json   [--lake <name>] [-m simstrat] [--force-*]
-    python src/main.py args/run_openda.json [--lake <name>] [--skip-oda]  # openda: WSL + Docker
+    python src/assimilate.py args/run_enkf.json   [--lake <name>] [-m simstrat] [--force-*]
+    python src/assimilate.py args/run_enkf.json   --lakes geneva,thun,zug   # or --lakes all
+    python src/assimilate.py args/run_openda.json [--lake <name>] [--skip-oda]  # openda: WSL + Docker
 
 The forward model is selected with -m/--model (default: simstrat; see models.MODELS).
 """
@@ -32,7 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # put src/ on t
 
 from assimilator.perturbate      import perturbator, load_perturbations
 from assimilator.models          import get_model
-from assimilator.functions       import ROOT, resolve_src, load_json, load_obs, resolve_obs_path, merge_lake_args, resolve_progress, display_path
+from assimilator.functions       import ROOT, resolve_src, load_json, load_obs, resolve_obs_path, merge_lake_args, resolve_progress, display_path, select_lakes, run_lake_batch
 from assimilator.algorithms.enkf import run_enkf
 from assimilator.algorithms.pf   import run_pf
 from assimilator.openda.adapter import run_openda
@@ -126,6 +128,26 @@ def run(cfg, model="simstrat", skip_oda=False, force=None):
     logger.info("=== pipeline complete ===")
 
 
+def build_lake_cfg(raw, lake, cli):
+    """Merge one lake's block onto the top-level knobs, then layer the CLI overrides on top.
+    Split out of __main__ so a --lakes batch can rebuild the config per lake — each lake needs its
+    own merge (ensemble_base, bbox, obs path all differ), so the config cannot be built once."""
+    cfg = merge_lake_args(raw, lake=lake)   # pick the lake block, flatten
+    # CLI file overrides win over the config keys (resolved downstream against the repo root).
+    if cli.obs_file:
+        cfg["obs_file"] = cli.obs_file
+    if cli.perturbations_file:
+        cfg["perturbations_file"] = cli.perturbations_file
+    # Progress bar on/off (CLI --no-progress > config "progress" > TTY auto-detect), carried in
+    # cfg so both engines read the same flag.
+    cfg["progress"] = resolve_progress(cfg, cli.no_progress)
+    # Parallelism cap: CLI --max-workers overrides the config key; both engines resolve the actual
+    # worker count (auto = min(cpu, members)) from cfg via functions.resolve_max_workers.
+    if cli.max_workers is not None:
+        cfg["max_workers"] = cli.max_workers
+    return cfg
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="End-to-end data-assimilation pipeline (Python or OpenDA)")
     parser.add_argument("arg_file", help="Pipeline config JSON (e.g. args/run_enkf.json)")
@@ -133,9 +155,15 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", default=None,
                         help="Forward model to run; overrides the arg file's \"model\" field "
                              "(default: simstrat; see models.MODELS)")
-    parser.add_argument("--lake", default=None,
+    lake_grp = parser.add_mutually_exclusive_group()
+    lake_grp.add_argument("--lake", default=None,
                         help="Lake to run from the config's \"lakes\" block "
                              "(default: the only block, if there is just one)")
+    lake_grp.add_argument("--lakes", default=None,
+                        help="Comma-separated lakes to run in sequence (e.g. a,b,c), or 'all' for "
+                             "every block in the config's \"lakes\". Each lake runs fully before "
+                             "the next; a failure is logged and the batch continues, exiting "
+                             "non-zero if any lake failed.")
     parser.add_argument("--obs-file", default=None,
                         help="Observation CSV, overriding the config's \"obs_file\" "
                              "(default: observations/<lake>/temperature.csv)")
@@ -173,22 +201,17 @@ if __name__ == "__main__":
     # raw config BEFORE merge_lake_args, since that's where ensemble_base picks up its run_root default.
     if cli.run_root:
         raw["run_root"] = cli.run_root
-    cfg = merge_lake_args(raw, lake=cli.lake)   # pick the --lake block, flatten
-    # CLI file overrides win over the config keys (resolved downstream against the repo root).
-    if cli.obs_file:
-        cfg["obs_file"] = cli.obs_file
-    if cli.perturbations_file:
-        cfg["perturbations_file"] = cli.perturbations_file
-    # Progress bar on/off resolved once here (CLI --no-progress > config "progress" >
-    # TTY auto-detect) and carried in cfg so both engines read the same flag.
-    cfg["progress"] = resolve_progress(cfg, cli.no_progress)
-    # Parallelism cap: CLI --max-workers overrides the config key; both engines resolve the
-    # actual worker count (auto = min(cpu, members)) from cfg via functions.resolve_max_workers.
-    if cli.max_workers is not None:
-        cfg["max_workers"] = cli.max_workers
-    # Model selection: CLI -m wins, else the arg file's "model" field, else simstrat.
-    model = cli.model or cfg.get("model") or "simstrat"
-    run(cfg,
-        model=model,
-        skip_oda=cli.skip_oda,
-        force={"copy": cli.force_copy})
+    # Model selection: CLI -m wins, else the arg file's "model" field, else simstrat. Read from the
+    # raw config (top-level key), so it is resolved once for the whole batch rather than per lake.
+    model = cli.model or raw.get("model") or "simstrat"
+
+    # --lakes runs several blocks in sequence; --lake (or neither) is the single-lake case, where
+    # run_lake_batch re-raises so the traceback and exit code are unchanged.
+    lakes  = select_lakes(raw, cli.lakes, cli.lake)
+    failed = run_lake_batch(
+        lakes,
+        lambda lake: run(build_lake_cfg(raw, lake, cli), model=model,
+                         skip_oda=cli.skip_oda, force={"copy": cli.force_copy}),
+    )
+    if failed:
+        sys.exit(1)
