@@ -1,0 +1,25 @@
+{
+  "lake": "aegeri",
+  "reanalysis_lake": "ageri",
+  "source": "ICON KENDA-CH1 - control Forcing.dat",
+  "fit_window": {
+    "start": "2025-01-01",
+    "end": "2025-12-31"
+  },
+  "n_timesteps": 8736,
+  "fitted_on": "2026-07-09",
+  "variables": {
+    "U": {
+      "phi": 0.585521,
+      "sigma": 1.098439
+    },
+    "V": {
+      "phi": 0.71615,
+      "sigma": 1.09594
+    },
+    "GLOB": {
+      "phi": 0.511792,
+      "sigma": 55.452649
+    }
+  }
+}

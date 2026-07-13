@@ -1,0 +1,25 @@
+{
+  "lake": "greifensee",
+  "reanalysis_lake": "greifensee",
+  "source": "ICON KENDA-CH1 - control Forcing.dat",
+  "fit_window": {
+    "start": "2025-01-01",
+    "end": "2025-12-31"
+  },
+  "n_timesteps": 8736,
+  "fitted_on": "2026-07-08",
+  "variables": {
+    "U": {
+      "phi": 0.792141,
+      "sigma": 0.987272
+    },
+    "V": {
+      "phi": 0.567623,
+      "sigma": 0.88425
+    },
+    "GLOB": {
+      "phi": 0.434138,
+      "sigma": 54.803736
+    }
+  }
+}

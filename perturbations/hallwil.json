@@ -1,0 +1,25 @@
+{
+  "lake": "hallwil",
+  "reanalysis_lake": "hallwil",
+  "source": "ICON KENDA-CH1 - control Forcing.dat",
+  "fit_window": {
+    "start": "2025-01-01",
+    "end": "2025-12-31"
+  },
+  "n_timesteps": 8736,
+  "fitted_on": "2026-07-09",
+  "variables": {
+    "U": {
+      "phi": 0.736605,
+      "sigma": 1.090674
+    },
+    "V": {
+      "phi": 0.622856,
+      "sigma": 1.058931
+    },
+    "GLOB": {
+      "phi": 0.565647,
+      "sigma": 58.878016
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "lake": "murten",
+  "reanalysis_lake": "murten",
+  "source": "ICON KENDA-CH1 - control Forcing.dat",
+  "fit_window": {
+    "start": "2025-01-01",
+    "end": "2025-12-31"
+  },
+  "n_timesteps": 8736,
+  "fitted_on": "2026-07-09",
+  "variables": {
+    "U": {
+      "phi": 0.604646,
+      "sigma": 1.016643
+    },
+    "V": {
+      "phi": 0.73913,
+      "sigma": 1.099282
+    },
+    "GLOB": {
+      "phi": 0.471183,
+      "sigma": 56.218319
+    }
+  }
+}

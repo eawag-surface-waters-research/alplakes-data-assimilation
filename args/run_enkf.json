@@ -21,6 +21,12 @@
             "reanalysis_lake":  "lugano",
             "lake_bbox":        [45.89, 8.85, 46.03, 9.13],
             "lake_key":         "lugano"
-        }
+        },
+        "aegeri":     {"reanalysis_lake": "ageri",      "lake_bbox": [47.10, 8.61, 47.14, 8.67], "lake_key": "ageri",      "obs_file": "observations/aegeri/temperature_noon.csv"},
+        "geneva":     {"reanalysis_lake": "geneva",     "lake_bbox": [46.20, 6.14, 46.52, 6.93], "lake_key": "geneva",     "obs_file": "observations/geneva/temperature_noon.csv"},
+        "greifensee": {"reanalysis_lake": "greifensee", "lake_bbox": [47.32, 8.65, 47.38, 8.71], "lake_key": "greifensee", "obs_file": "observations/greifensee/temperature_noon.csv"},
+        "hallwil":    {"reanalysis_lake": "hallwil",    "lake_bbox": [47.24, 8.19, 47.31, 8.23], "lake_key": "hallwil",    "obs_file": "observations/hallwil/temperature_noon.csv"},
+        "maggiore":   {"reanalysis_lake": "maggiore",   "lake_bbox": [45.72, 8.48, 46.18, 8.87], "lake_key": "maggiore",   "obs_file": "observations/maggiore/temperature_noon.csv"},
+        "murten":     {"reanalysis_lake": "murten",     "lake_bbox": [46.90, 7.04, 46.97, 7.14], "lake_key": "murten",     "obs_file": "observations/murten/temperature_noon.csv"}
     }
 }

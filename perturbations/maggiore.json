@@ -1,0 +1,25 @@
+{
+  "lake": "maggiore",
+  "reanalysis_lake": "maggiore",
+  "source": "ICON KENDA-CH1 - control Forcing.dat",
+  "fit_window": {
+    "start": "2025-01-01",
+    "end": "2025-12-31"
+  },
+  "n_timesteps": 8736,
+  "fitted_on": "2026-07-08",
+  "variables": {
+    "U": {
+      "phi": 0.654535,
+      "sigma": 0.810542
+    },
+    "V": {
+      "phi": 0.827062,
+      "sigma": 0.761446
+    },
+    "GLOB": {
+      "phi": 0.58314,
+      "sigma": 49.37367
+    }
+  }
+}

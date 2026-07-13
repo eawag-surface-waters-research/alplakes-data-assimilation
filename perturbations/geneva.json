@@ -1,0 +1,25 @@
+{
+  "lake": "geneva",
+  "reanalysis_lake": "geneva",
+  "source": "ICON KENDA-CH1 - control Forcing.dat",
+  "fit_window": {
+    "start": "2025-01-01",
+    "end": "2025-12-31"
+  },
+  "n_timesteps": 8736,
+  "fitted_on": "2026-07-08",
+  "variables": {
+    "U": {
+      "phi": 0.834118,
+      "sigma": 0.810185
+    },
+    "V": {
+      "phi": 0.890048,
+      "sigma": 0.877875
+    },
+    "GLOB": {
+      "phi": 0.548759,
+      "sigma": 47.843148
+    }
+  }
+}
