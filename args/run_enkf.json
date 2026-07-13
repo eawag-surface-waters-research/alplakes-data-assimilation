@@ -11,6 +11,7 @@
     "start_date":  "2025-01-01",
     "end_date":    "2025-12-31",
     "sigma_obs":   0.5,
+    "sigma_common": 0.1,
     "rng_seed":    42,
     "sigma_scale": 1.0,
     "save_intermediates": false,
@@ -18,6 +19,11 @@
 
     "lakes": {
         "upperlugano": {
+            "reanalysis_lake":  "lugano",
+            "lake_bbox":        [45.89, 8.85, 46.03, 9.13],
+            "lake_key":         "lugano"
+        },
+        "lowerlugano": {
             "reanalysis_lake":  "lugano",
             "lake_bbox":        [45.89, 8.85, 46.03, 9.13],
             "lake_key":         "lugano"

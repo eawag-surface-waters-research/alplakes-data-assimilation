@@ -295,9 +295,20 @@ def _output_lines(depths):
     return "\n".join(lines)
 
 
+def _std_for(obs_std, depth):
+    """The standardDeviation to stamp on one depth's timeSeries. `obs_std` is either the scalar
+    every depth used to share, or a {depth: sigma} mapping (the adapter's per-depth sigma, derived
+    from the fitted sigma_rep table). One value per depth is all this format can carry — the time
+    and station-count dependence the native engines apply lives outside what OpenDA can express."""
+    if isinstance(obs_std, dict):
+        return obs_std.get(float(depth), next(iter(obs_std.values())))
+    return obs_std
+
+
 def _obs_formatter_rows(depths, obs_std):
     return "\n".join(
-        f'  <timeSeries id="T_{depth_label(d)}" status="use" standardDeviation="{obs_std}">'
+        f'  <timeSeries id="T_{depth_label(d)}" status="use" '
+        f'standardDeviation="{_std_for(obs_std, d):g}">'
         f'T_{depth_label(d)}_real.csv</timeSeries>'
         for d in depths
     )

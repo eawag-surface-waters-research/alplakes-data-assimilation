@@ -61,8 +61,9 @@ import subprocess
 from assimilator.functions import (verify_args, resolve_src, resolve_root, resolve_obs_path,
                                    merge_lake_args, make_progress, log_run_header, log_run_footer,
                                    resolve_max_workers, resolve_run_root, display_path,
-                                   start_persistent_container, stop_persistent_container)
+                                   start_persistent_container, stop_persistent_container, load_obs)
 from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
+from assimilator.sigma_rep import load_sigma_rep, sigma_obs_by_depth, log_sigma_summary
 from assimilator.summarize import report_summary
 from .config import FILTERS, render as render_oda
 
@@ -131,6 +132,37 @@ def _model_output_depths(inputs_dir):
     return depths
 
 
+def _noon_obs_for_sigma(raw, obs_depths):
+    """The observations OpenDA will actually assimilate — the noon reading of each day inside the
+    run window, at the kept depths — so its per-depth sigma is averaged over exactly that set and
+    not over hours OpenDA never sees."""
+    import pandas as pd     # local: this module is on the import-time-sensitive OpenDA path
+    obs = load_obs(resolve_obs_path(raw))
+    obs = obs[obs["depth"].isin(obs_depths) & (obs["time"].dt.hour == OBS_TARGET_HOUR)]
+    if raw.get("start_date"):
+        obs = obs[obs["time"] >= pd.Timestamp(raw["start_date"], tz="UTC")]
+    if raw.get("end_date"):
+        obs = obs[obs["time"] <= pd.Timestamp(raw["end_date"], tz="UTC") + pd.Timedelta(days=1)]
+    return obs
+
+
+def _collapse_stations(stations):
+    """One obs from the stations reporting in a (depth, hour) bin — the OpenDA-side twin of
+    functions.load_obs's two-stage collapse. `stations` is {station: [value_sum, n, weight_sum]}.
+
+    Stage 1 gives each station its own in-hour mean (value_sum / n), so a station that sampled
+    twice as often does not count twice. Stage 2 takes the weighted mean of those, weighting each
+    station by its own mean weight — the knob that lets a sheltered-bay site count for less than a
+    pelagic one against a 1D column."""
+    num = den = 0.0
+    for value_sum, n, weight_sum in stations.values():
+        value  = value_sum  / n
+        weight = weight_sum / n
+        num += value * weight
+        den += weight
+    return num / den
+
+
 def _build_observations(raw, openda_dir, model_inputs):
     """Build the OpenDA stochObserver obs files from the raw profile CSV.
 
@@ -154,13 +186,22 @@ def _build_observations(raw, openda_dir, model_inputs):
     min_days       = raw.get("obs_min_days", 1)
     target_minutes = OBS_TARGET_HOUR * 60
 
-    # acc[depth][day_str] = [sum, count] over samples in the centered noon hour [11:30, 12:30).
-    # Mirrors functions.load_obs's centered hourly bin, so OpenDA and the native engines assimilate
-    # byte-identical obs. (A day with no sample in that hour emits no obs, like load_obs's empty bin.)
-    acc = defaultdict(lambda: defaultdict(lambda: [0.0, 0]))
+    # acc[depth][day_str][station] = [value_sum, n, weight_sum] over samples in the centered noon
+    # hour [11:30, 12:30). Keyed by STATION, because the collapse to one obs is two-stage and must
+    # mirror functions.load_obs exactly or the two engines stop assimilating the same numbers (the
+    # whole point of the cross-validation): first the hourly mean WITHIN each station, then the
+    # weighted mean ACROSS stations (see _collapse_stations). A flat sum over all rows would instead
+    # weight each station by how often it happened to sample — and would let a QC-rejected station
+    # back in. (A day with no sample in that hour emits no obs, like load_obs's empty bin.)
+    acc = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: [0.0, 0, 0.0])))
     with open(obs_csv, newline="") as f:
         for row in csv.DictReader(f):
             if not row.get("value"):
+                continue
+            # weight <= 0 is a QC reject (a failed sensor); the row stays in the CSV but never
+            # reaches the assimilated value. Absent column = single-station lake, unit weight.
+            weight = float(row["weight"]) if row.get("weight") else 1.0
+            if weight <= 0:
                 continue
             day_str = row["time"][:10]
             day = date.fromisoformat(day_str)
@@ -170,9 +211,10 @@ def _build_observations(raw, openda_dir, model_inputs):
             if not (target_minutes - 30 <= minutes < target_minutes + 30):
                 continue
             depth = float(row["depth"])
-            cell = acc[depth][day_str]
+            cell = acc[depth][day_str][row.get("station") or "_single"]
             cell[0] += float(row["value"])
             cell[1] += 1
+            cell[2] += weight
 
     depths = sorted(d for d in acc if len(acc[d]) >= min_days)
 
@@ -198,8 +240,8 @@ def _build_observations(raw, openda_dir, model_inputs):
         with open(out_path, "w", newline="") as f:
             f.write("time,value\n")
             for day_str in sorted(records):
-                s, c = records[day_str]
-                f.write(f"{_noon_simstrat_day(day_str, ref_date):.6f},{s / c:.6f}\n")
+                value = _collapse_stations(records[day_str])
+                f.write(f"{_noon_simstrat_day(day_str, ref_date):.6f},{value:.6f}\n")
     logger.info(f"  wrote {len(depths)} depth files -> {os.path.relpath(stoch_dir, ROOT)}")
 
     # Distinct analysis (noon-obs) times across the kept depths = how many forecast/analysis
@@ -481,15 +523,28 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
                 f"(image={image}, container={container})")
 
     # --- 5. render filter config + run OpenDA ------------------------------
-    # Note: obs error std comes from the run config's "sigma_obs" (the same key the native
-    # EnKF reads), so the two engines can't silently diverge. (config.py's internal param is still
-    # named obs_std.)
+    # Observation error. Both engines read the same run config, but they can NOT be made identical
+    # here, and the difference is a property of OpenDA's config format, not a bug: its stochObserver
+    # carries ONE standardDeviation per depth time series (config.py::_obs_formatter_rows), for the
+    # whole run — so it cannot express the per-observation sigma the native engines resolve from
+    # (depth, month, n_stations). OpenDA therefore gets the RMS, over the observations actually
+    # assimilated, of the sigma the native engine would have used at that depth: the closest single
+    # number the format admits. With no sigma_rep table (every single-station lake) the two collapse
+    # to the same scalar sigma_obs and the engines agree exactly, as before.
+    sigma_table = load_sigma_rep(ensemble_raw)
+    sigma_by_depth = sigma_obs_by_depth(_noon_obs_for_sigma(ensemble_raw, obs_depths),
+                                        ensemble_raw, sigma_table)
+    log_sigma_summary(ensemble_raw, sigma_table, by_depth=sigma_by_depth)
+    if sigma_table is not None:
+        logger.warning("[sigma] OpenDA gets one sigma per depth (its stochObserver has no "
+                       "per-observation std): the native engines vary sigma by month and station "
+                       "count, OpenDA cannot. Expect the two engines to differ on this lake.")
     # OpenDA runs n_members + 1 instances (the main/control model + every member), so the cap is
     # n_members+1 — matching the original full-parallel maxThreads. (auto = min(cpu, n_members+1).)
     max_threads = resolve_max_workers(cfg, n_members + 1)
     oda_file = render_oda(openda_dir, filter_type, n_members, obs_depths,
                           ensemble_raw["start_date"], ensemble_raw["end_date"],
-                          obs_std=ensemble_raw.get("sigma_obs", 0.5), max_threads=max_threads)
+                          obs_std=sigma_by_depth, max_threads=max_threads)
     logger.info(f"[5/5] rendered {oda_file} + chain for filter={filter_type} "
                 f"(Results/work0..N, {len(obs_depths)} obs depths, maxThreads={max_threads})")
     # OpenDA launch: build the full OpenDA environment in-process from cfg["openda_bin"] (the dir

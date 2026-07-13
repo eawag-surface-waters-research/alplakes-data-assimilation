@@ -166,6 +166,16 @@ def log_obs_summary(obs, obs_path, label="Obs"):
                 f"{obs['time'].min().date()}..{obs['time'].max().date()} "
                 f"<- {os.path.relpath(obs_path, ROOT)}")
 
+    # Multi-station only: say how many stations backed each reading and how far apart they sat.
+    # That spread IS the representativeness error sigma_rep — the floor on how well a 1D column can
+    # ever match these obs — so it belongs in the log next to the sigma_obs the run actually used.
+    if "n_stations" in obs.columns and obs["n_stations"].max() > 1:
+        multi = obs[obs["n_stations"] >= 2]
+        logger.info(f"{label}: stations/reading min={int(obs['n_stations'].min())} "
+                    f"max={int(obs['n_stations'].max())}; across-station spread over "
+                    f"{len(multi)} multi-station readings: median {multi['spread'].median():.3f} "
+                    f"RMS {(multi['spread'] ** 2).mean() ** 0.5:.3f} degC")
+
 
 # A run-config-echo header and a result footer, in ONE layout shared by both engines, so two runs'
 # logs line up at the cross-validation junctions: A (same config?) and D (same result?). Defined
@@ -261,12 +271,34 @@ def discover_n_members(ensemble_base):
 # Observations (model-agnostic: read the obs CSV, map depths, filter to model grid)
 # ---------------------------------------------------------------------------
 
-# Hourly mean, centered on the label: the value at HH:00 is the mean of samples in
-# [HH-30min, HH+30min), computed by flooring (time + 30min) to the hour. Centering aligns the
-# obs with Simstrat's instantaneous hourly output, so the noon assimilation pairs the noon obs
-# with the noon state. Labels stay on the hour, so the PF's obs<->T_out time intersection
-# (rmse_in_window) is unaffected.
+# Collapse the raw obs to one value per (depth, hour) in TWO deliberately separate stages. They
+# have different error semantics, and doing them in a single groupby (as this used to) silently
+# conflates them and destroys what stage 2 is there to measure:
+#
+#   1. TEMPORAL, WITHIN each station — the hourly mean, centered on the label: the value at HH:00
+#      is the mean of samples in [HH-30min, HH+30min), computed by flooring (time + 30min) to the
+#      hour. Centering aligns the obs with Simstrat's instantaneous hourly output, so the noon
+#      assimilation pairs the noon obs with the noon state. Labels stay on the hour, so the PF's
+#      obs<->T_out time intersection (rmse_in_window) is unaffected.
+#
+#   2. SPATIAL, ACROSS stations — the weighted mean of the stations reporting that hour. A 1D
+#      column model has no state that can explain horizontal structure, so station-to-station
+#      differences at one depth are representativeness error, not signal. Passing the stations
+#      through as separate rows would let the filter treat N strongly correlated observations as N
+#      independent constraints: it would over-weight that depth and collapse the ensemble spread.
+#      Averaging instead asserts the errors are perfectly correlated — far closer to the truth.
+#
+# The across-station scatter that stage 2 collapses is the only direct estimate of that
+# representativeness error, so it is returned rather than discarded: `spread` (across-station std,
+# NaN for a single station) and `n_stations` are what a depth-dependent R should be built from.
 def load_obs(obs_path):
+    """One row per (depth, hour): the QC'd, weighted station mean, plus the across-station spread.
+
+    weight <= 0 marks a QC reject (e.g. a probe out of the water reading air temperature) and never
+    reaches the assimilated value — but the row stays in the CSV, since a deleted sensor failure is
+    an invisible one. CSVs with no 'station'/'weight' columns (the single-station lakes) collapse to
+    exactly the previous behaviour: one station, unit weight, spread = NaN.
+    """
     import pandas as pd
     obs = pd.read_csv(obs_path)
     # ISO8601, not a single inferred format: obs CSVs mix whole-second and fractional-second
@@ -274,8 +306,26 @@ def load_obs(obs_path):
     # locks onto row 0's format and rejects the rest.
     obs["time"] = pd.to_datetime(obs["time"], utc=True, format="ISO8601")
     obs["time"] = (obs["time"] + pd.Timedelta(minutes=30)).dt.floor("1h")
-    obs = obs.groupby(["depth", "time"])["value"].mean().reset_index()
-    return obs
+
+    if "station" not in obs.columns:
+        obs["station"] = "_single"
+    if "weight" not in obs.columns:
+        obs["weight"] = 1.0
+    obs = obs[obs["weight"] > 0]
+
+    # 1. temporal, within station (a station's weight for the hour = the mean of its kept samples')
+    per_station = obs.groupby(["depth", "time", "station"], as_index=False).agg(
+        value=("value", "mean"), weight=("weight", "mean"))
+
+    # 2. spatial, across stations. spread is the UNweighted std — a dispersion estimate, not an
+    # estimate of the mean — and is NaN at n_stations == 1 (std of one sample), which is correct:
+    # a lone station gives no information about horizontal variability.
+    per_station["_wv"] = per_station["value"] * per_station["weight"]
+    agg = per_station.groupby(["depth", "time"], as_index=False).agg(
+        _wv=("_wv", "sum"), _w=("weight", "sum"),
+        n_stations=("station", "size"), spread=("value", "std"))
+    agg["value"] = agg["_wv"] / agg["_w"]
+    return agg[["depth", "time", "value", "n_stations", "spread"]]
 
 
 def filter_obs_to_model_depths(obs_df, model_depths):

@@ -9,6 +9,7 @@ from datetime import timedelta
 from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
                          verify_args, build_python_run_args, make_progress, log_obs_summary,
                          log_run_header, log_run_footer, time_keyed_rng)
+from ..sigma_rep import load_sigma_rep, resolve_sigma_obs, log_sigma_summary
 from ..summarize import report_summary
 
 logger = logging.getLogger(__name__)
@@ -36,13 +37,16 @@ REQUIRED_ENKF_ENSEMBLE = ["sigma_obs"]      # run config; obs error std, shared 
 def window_obs_vector(obs_df, window_start, window_end, model):
     obs_win = obs_df[(obs_df["time"] >= window_start) & (obs_df["time"] < window_end)]
     if obs_win.empty:
-        return None, None, None
-    mean_per_depth = obs_win.groupby("depth")["value"].mean().dropna()
-    if mean_per_depth.empty:
-        return None, None, None
-    obs_depths = list(mean_per_depth.index)
+        return None, None, None, None
+    per_depth = obs_win.groupby("depth").agg(value=("value", "mean"),
+                                             n_stations=("n_stations", "mean")).dropna(subset=["value"])
+    if per_depth.empty:
+        return None, None, None, None
+    obs_depths = list(per_depth.index)
     sim_depths = [model.obs_to_sim_col(d) for d in obs_depths]
-    return mean_per_depth.values, sim_depths, obs_depths
+    # n_stations is the window MEAN (this selector averages several hours into one obs), so it is
+    # the effective station count behind that average — which is what divides sigma_rep^2 in R.
+    return per_depth["value"].values, sim_depths, obs_depths, per_depth["n_stations"].values
 
 
 def window_obs_vector_consistent(obs_df, window_start, window_end, model):
@@ -58,16 +62,18 @@ def window_obs_vector_consistent(obs_df, window_start, window_end, model):
     window, so it can't be assimilated on two consecutive days."""
     obs_win = obs_df[(obs_df["time"] > window_start) & (obs_df["time"] <= window_end)]
     if obs_win.empty:
-        return None, None, None
+        return None, None, None, None
     nearest = (obs_win.assign(_d=(obs_win["time"] - pd.Timestamp(window_end)).abs())
                       .sort_values("_d")
                       .groupby("depth", sort=False).first()
                       .sort_index())
     if nearest.empty:
-        return None, None, None
+        return None, None, None, None
     obs_depths = list(nearest.index)
     sim_depths = [model.obs_to_sim_col(d) for d in obs_depths]
-    return nearest["value"].values, sim_depths, obs_depths
+    # One real reading per depth, so n_stations is that reading's own station count — the number
+    # of stations whose mean this obs actually is (see functions.load_obs).
+    return nearest["value"].values, sim_depths, obs_depths, nearest["n_stations"].values
 
 
 # inherits the surface-alignment assumption from read_snapshot_T (z_volume
@@ -153,6 +159,13 @@ def run_enkf_loop(args, model):
     obs        = load_obs(args["obs_path"])
     obs        = filter_obs_to_model_depths(obs, model.model_output_depths(args["ensemble_base"]))
     log_obs_summary(obs, args["obs_path"])
+
+    # Observation-error model. None (no fitted table) => sigma stays the scalar sigma_obs and this
+    # run is bit-for-bit what it was before sigma_rep existed; otherwise sigma is resolved per
+    # observation from (depth, month, n_stations) at each analysis. See assimilator.sigma_rep.
+    sigma_table = load_sigma_rep(args)
+    log_sigma_summary(args, sigma_table)
+
     start_date = args["start_date"]
     end_date   = args["end_date"]
     # Obs-perturbation rng: re-derived per analysis inside the loop, keyed by
@@ -227,7 +240,7 @@ def run_enkf_loop(args, model):
             windows_run += 1
             t_docker    = time.perf_counter() - t0
 
-            y_obs, sim_depths, obs_depths = select_obs(obs, current, window_end, model)
+            y_obs, sim_depths, obs_depths, n_stations = select_obs(obs, current, window_end, model)
 
             t_enkf    = 0.0
             n_updated = 0
@@ -257,7 +270,12 @@ def run_enkf_loop(args, model):
                         # Obs-perturbation draw keyed by the analysis instant: identical whether
                         # the period is run in one go or continued operationally in slices.
                         rng        = time_keyed_rng(rng_seed, "enkf_obs", int(window_end.timestamp()))
-                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_obs, inflation=inflation, rng=rng)
+                        # sigma per observation: the season (window_end's month) and the number of
+                        # stations behind each reading both move it. Falls back to the scalar
+                        # sigma_obs where no sigma_rep entry exists (every single-station depth).
+                        sigma_vec  = resolve_sigma_obs(obs_depths, n_stations, window_end,
+                                                       args, sigma_table)
+                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_vec, inflation=inflation, rng=rng)
 
                         def _write_T(col_i):
                             col, i = col_i
