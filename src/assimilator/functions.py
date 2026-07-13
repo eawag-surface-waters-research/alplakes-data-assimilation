@@ -268,8 +268,11 @@ def discover_n_members(ensemble_base):
 # (rmse_in_window) is unaffected.
 def load_obs(obs_path):
     import pandas as pd
-    obs = pd.read_csv(obs_path, parse_dates=["time"])
-    obs["time"] = pd.to_datetime(obs["time"], utc=True)
+    obs = pd.read_csv(obs_path)
+    # ISO8601, not a single inferred format: obs CSVs mix whole-second and fractional-second
+    # timestamps (e.g. "...17:00:21+00:00" and "...12:00:00.5+00:00"), and pandas 2.x otherwise
+    # locks onto row 0's format and rejects the rest.
+    obs["time"] = pd.to_datetime(obs["time"], utc=True, format="ISO8601")
     obs["time"] = (obs["time"] + pd.Timedelta(minutes=30)).dt.floor("1h")
     obs = obs.groupby(["depth", "time"])["value"].mean().reset_index()
     return obs
