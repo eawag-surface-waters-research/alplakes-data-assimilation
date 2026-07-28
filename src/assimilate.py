@@ -139,6 +139,11 @@ if __name__ == "__main__":
     parser.add_argument("--obs-file", default=None,
                         help="Observation CSV, overriding the config's \"obs_file\" "
                              "(default: observations/<lake>/temperature.csv)")
+    parser.add_argument("--filtered", action="store_true",
+                        help="Assimilate the adaptively low-pass filtered observations instead of the "
+                             "raw ones: the configured obs file with a \"_filtered\" suffix, e.g. "
+                             "temperature_noon.csv -> temperature_noon_filtered.csv. Generate it "
+                             "first with notebooks/filter_observations.py. --obs-file overrides this")
     parser.add_argument("--perturbations-file", default=None,
                         help="AR(1) calibration JSON, overriding the config's \"perturbations_file\" "
                              "(default: perturbations/<lake>.json)")
@@ -174,8 +179,25 @@ if __name__ == "__main__":
     if cli.run_root:
         raw["run_root"] = cli.run_root
     cfg = merge_lake_args(raw, lake=cli.lake)   # pick the --lake block, flatten
+    # --filtered swaps in the adaptively low-pass filtered companion of whatever series this lake
+    # already assimilates, by suffixing the stem: temperature_noon.csv -> temperature_noon_filtered.csv.
+    # Deriving it from the configured obs_file rather than hardcoding temperature_filtered.csv is what
+    # keeps the analysis cadence intact -- most lakes assimilate one thinned value per day, and
+    # pointing them at the full hourly filtered series would be a different experiment, not a
+    # filtered version of the same one.
+    if cli.filtered:
+        base       = cfg.get("obs_file") or os.path.join("observations", cfg["lake"], "temperature.csv")
+        stem, ext  = os.path.splitext(base)
+        candidate  = f"{stem}_filtered{ext}"
+        if not os.path.isfile(os.path.join(ROOT, candidate)):
+            raise SystemExit(f"--filtered: {candidate} not found — generate it first with\n"
+                             f"    python notebooks/filter_observations.py {cli.arg_file} --lake {cfg['lake']}")
+        cfg["obs_file"] = candidate
+        logger.info(f"--filtered: assimilating {candidate}")
     # CLI file overrides win over the config keys (resolved downstream against the repo root).
     if cli.obs_file:
+        if cli.filtered:
+            logger.warning("--obs-file given alongside --filtered: using --obs-file")
         cfg["obs_file"] = cli.obs_file
     if cli.perturbations_file:
         cfg["perturbations_file"] = cli.perturbations_file
