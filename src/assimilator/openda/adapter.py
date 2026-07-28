@@ -64,6 +64,8 @@ from assimilator.functions import (verify_args, resolve_src, resolve_root, resol
                                    start_persistent_container, stop_persistent_container)
 from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
 from assimilator.summarize import report_summary
+from assimilator.functions import load_obs
+from assimilator.sigma_rep import load_sigma_rep, sigma_obs_by_depth, log_sigma_summary
 from .config import FILTERS, render as render_oda
 
 logger = logging.getLogger(__name__)
@@ -483,9 +485,22 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # OpenDA runs n_members + 1 instances (the main/control model + every member), so the cap is
     # n_members+1 — matching the original full-parallel maxThreads. (auto = min(cpu, n_members+1).)
     max_threads = resolve_max_workers(cfg, n_members + 1)
+    # If the lake has a fitted observation-error table, give OpenDA the per-depth sigma the native
+    # engine would have used (RMS over the observations, since the stochObserver format allows one
+    # standardDeviation per depth and no month dependence). Without this OpenDA would keep the
+    # scalar while the native engine used the table, and the two engines would no longer be
+    # comparable — which is the whole point of running both.
+    sigma_table = load_sigma_rep(ensemble_raw)
+    obs_std = ensemble_raw.get("sigma_obs", 0.5)
+    if sigma_table is not None:
+        # Re-read the assimilated series to weight the RMS by the observations actually present.
+        # Cheap: this is the thinned obs_file OpenDA assimilates, not the full raw record.
+        obs_for_sigma = load_obs(resolve_obs_path(ensemble_raw))
+        obs_std = sigma_obs_by_depth(obs_for_sigma, ensemble_raw, sigma_table)
+        log_sigma_summary(ensemble_raw, sigma_table, by_depth=obs_std)
     oda_file = render_oda(openda_dir, filter_type, n_members, obs_depths,
                           ensemble_raw["start_date"], ensemble_raw["end_date"],
-                          obs_std=ensemble_raw.get("sigma_obs", 0.5), max_threads=max_threads)
+                          obs_std=obs_std, max_threads=max_threads)
     logger.info(f"[5/5] rendered {oda_file} + chain for filter={filter_type} "
                 f"(Results/work0..N, {len(obs_depths)} obs depths, maxThreads={max_threads})")
     # OpenDA launch: build the full OpenDA environment in-process from cfg["openda_bin"] (the dir

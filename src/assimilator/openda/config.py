@@ -296,8 +296,22 @@ def _output_lines(depths):
 
 
 def _obs_formatter_rows(depths, obs_std):
+    """`obs_std` may be a scalar or a {depth: sigma} mapping.
+
+    The mapping is how the fitted observation-error model reaches OpenDA: its stochObserver carries
+    one standardDeviation per depth time series, so it can express the DEPTH dependence of sigma but
+    not the month or n_stations dependence the native engine applies per observation. Passing the
+    per-depth RMS (assimilator.sigma_rep.sigma_obs_by_depth) is the closest this format admits. The
+    two engines therefore differ within a season by design -- far less than leaving OpenDA on the
+    scalar while the native engine uses the table, which would make any comparison meaningless.
+    """
+    def sigma_for(d):
+        if isinstance(obs_std, dict):
+            return obs_std.get(float(d), obs_std.get(d, DEFAULT_OBS_STD))
+        return obs_std
+
     return "\n".join(
-        f'  <timeSeries id="T_{depth_label(d)}" status="use" standardDeviation="{obs_std}">'
+        f'  <timeSeries id="T_{depth_label(d)}" status="use" standardDeviation="{sigma_for(d)}">'
         f'T_{depth_label(d)}_real.csv</timeSeries>'
         for d in depths
     )

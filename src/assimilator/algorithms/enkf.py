@@ -10,6 +10,7 @@ from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_bounda
                          verify_args, build_python_run_args, make_progress, log_obs_summary,
                          log_run_header, log_run_footer, time_keyed_rng)
 from ..summarize import report_summary
+from ..sigma_rep import load_sigma_rep, resolve_sigma_obs, log_sigma_summary
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,10 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
 def run_enkf_loop(args, model):
     member_ids  = args["member_ids"]
     sigma_obs   = args["sigma_obs"]
+    # Fitted observation-error table for this lake, or None. Loaded once: it is a climatology, so
+    # nothing about it changes between windows. None keeps the scalar sigma_obs path exactly as it
+    # was, which is what every lake without a table gets.
+    sigma_table = load_sigma_rep(args)
     inflation   = args["inflation"]
     max_workers = args.get("max_workers")
     diag_path   = args["diag_path"]
@@ -208,6 +213,10 @@ def run_enkf_loop(args, model):
                     f"({len(boundaries)} days, {len(member_ids)} members, "
                     f"σ_obs={sigma_obs} °C, inflation={inflation}, obs_selector={obs_selector_name})")
 
+    # The "σ_obs=" in the header above no longer tells the whole story once a table is present, so
+    # say explicitly which observation-error model this run is using.
+    log_sigma_summary(args, sigma_table)
+
     model.start_containers(args, max_workers=max_workers)
     try:
         windows_run     = 0
@@ -257,7 +266,13 @@ def run_enkf_loop(args, model):
                         # Obs-perturbation draw keyed by the analysis instant: identical whether
                         # the period is run in one go or continued operationally in slices.
                         rng        = time_keyed_rng(rng_seed, "enkf_obs", int(window_end.timestamp()))
-                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_obs, inflation=inflation, rng=rng)
+                        # Per-observation sigma: sigma_common^2 + sigma_rep(depth, month)^2 / N.
+                        # Resolved per window because the month selects the season, and returned as
+                        # the scalar sigma_obs when the lake has no fitted table, so a lake without
+                        # one behaves exactly as before. n_stations is 1 until load_obs carries it.
+                        sigma_vec  = resolve_sigma_obs(obs_depths, np.ones(len(obs_depths)),
+                                                       window_end, args, sigma_table)
+                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_vec, inflation=inflation, rng=rng)
 
                         def _write_T(col_i):
                             col, i = col_i
