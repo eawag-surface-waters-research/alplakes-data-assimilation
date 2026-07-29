@@ -106,6 +106,10 @@ def _noon_simstrat_day(day_str, ref_date):
 
 
 def _utc_minutes_since_midnight(iso_str):
+    # Drop sub-second precision before parsing: Python 3.10's datetime.fromisoformat rejects more
+    # than 6 fractional digits, and obs timestamps can carry nanoseconds
+    # (e.g. "2025-01-01 05:00:01.104000092+00:00"). Whole-second resolution is all this needs.
+    iso_str = re.sub(r"\.\d+", "", iso_str)
     dt = datetime.fromisoformat(iso_str)
     if dt.tzinfo is not None:
         dt = dt.astimezone(timezone.utc)

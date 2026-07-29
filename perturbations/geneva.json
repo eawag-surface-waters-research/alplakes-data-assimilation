@@ -1,54 +1,54 @@
 {
-  "lake": "upperlugano",
-  "reanalysis_lake": "lugano",
+  "lake": "geneva",
+  "reanalysis_lake": "geneva",
   "source": "ICON KENDA-CH1 - control Forcing.dat",
   "fit_window": {
     "start": "2025-01-01",
     "end": "2025-12-31"
   },
-  "n_timesteps": 8713,
-  "fitted_on": "2026-06-18",
+  "n_timesteps": 8736,
+  "fitted_on": "2026-07-08",
   "variables": {
     "U": {
-      "phi": 0.754079,
-      "sigma": 0.588286
+      "phi": 0.910584,
+      "sigma": 0.607102
     },
     "V": {
-      "phi": 0.819307,
-      "sigma": 0.715974
+      "phi": 0.890048,
+      "sigma": 0.877875
     },
     "GLOB": {
-      "phi": 0.86973,
-      "sigma": 25.717083
+      "phi": 0.832335,
+      "sigma": 31.72106
     }
   },
   "persistence": {
     "bound": "envelope",
     "stationary_std": {
-      "U": 0.895707,
-      "V": 1.248745,
-      "GLOB": 52.108704
+      "U": 1.468828,
+      "V": 1.925727,
+      "GLOB": 57.229974
     },
     "bounds": {
       "lower": {
         "source": "icon-residual",
         "tau_h": {
-          "U": 2.375,
-          "V": 2.709,
-          "GLOB": 1.387
+          "U": 5.513,
+          "V": 8.585,
+          "GLOB": 1.666
         },
         "variables": {
           "U": {
-            "phi": 0.656318,
-            "sigma": 0.675797
+            "phi": 0.834118,
+            "sigma": 0.810185
           },
           "V": {
-            "phi": 0.691316,
-            "sigma": 0.902284
+            "phi": 0.890048,
+            "sigma": 0.877875
           },
           "GLOB": {
-            "phi": 0.486352,
-            "sigma": 45.530656
+            "phi": 0.548759,
+            "sigma": 47.843148
           }
         }
       },
@@ -56,22 +56,22 @@
         "source": "clearness",
         "fitted_on": "2026-07-29",
         "tau_h": {
-          "U": 3.543,
-          "V": 5.018,
-          "GLOB": 7.165
+          "U": 10.676,
+          "V": 5.966,
+          "GLOB": 5.449
         },
         "variables": {
           "U": {
-            "phi": 0.754079,
-            "sigma": 0.588286
+            "phi": 0.910584,
+            "sigma": 0.607102
           },
           "V": {
-            "phi": 0.819307,
-            "sigma": 0.715974
+            "phi": 0.845671,
+            "sigma": 1.02777
           },
           "GLOB": {
-            "phi": 0.86973,
-            "sigma": 25.717083
+            "phi": 0.832335,
+            "sigma": 31.72106
           }
         }
       },
@@ -79,26 +79,26 @@
         "source": "componentwise max(lower, upper)",
         "from": {
           "U": "upper",
-          "V": "upper",
+          "V": "lower",
           "GLOB": "upper"
         },
         "tau_h": {
-          "U": 3.543,
-          "V": 5.018,
-          "GLOB": 7.165
+          "U": 10.676,
+          "V": 8.585,
+          "GLOB": 5.449
         },
         "variables": {
           "U": {
-            "phi": 0.754079,
-            "sigma": 0.588286
+            "phi": 0.910584,
+            "sigma": 0.607102
           },
           "V": {
-            "phi": 0.819307,
-            "sigma": 0.715974
+            "phi": 0.890048,
+            "sigma": 0.877875
           },
           "GLOB": {
-            "phi": 0.86973,
-            "sigma": 25.717083
+            "phi": 0.832335,
+            "sigma": 31.72106
           }
         }
       }

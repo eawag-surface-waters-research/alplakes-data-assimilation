@@ -237,6 +237,42 @@ def merge_lake_args(cfg, lake=None):
 # ---------------------------------------------------------------------------
 # General helpers
 # ---------------------------------------------------------------------------
+def select_lakes(cfg, lakes=None, lake=None):
+    """Resolve which lake block(s) a CLI asked for. `lakes` ("a,b,c", or "all" for every block in
+    the config) wins over the single `lake`. Returns a list of names — [None] means "let
+    merge_lake_args auto-pick", which keeps a one-block config runnable with no flag at all."""
+    if not lakes:
+        return [lake]
+    if lakes.strip() == "all":
+        if not cfg.get("lakes"):
+            raise ValueError("--lakes all requires a \"lakes\" block in the config")
+        return list(cfg["lakes"])
+    return [s.strip() for s in lakes.split(",") if s.strip()]
+
+
+def run_lake_batch(lakes, run_one, what="ok"):
+    """Run `run_one(lake)` for each lake in turn, and return the ones that failed.
+
+    A single lake re-raises untouched, so its traceback and exit code are exactly what they were
+    before --lakes existed. In a batch, one lake's failure is logged and the rest still run — an
+    overnight sweep of a dozen lakes shouldn't be lost to one bad forcing file. The caller decides
+    what a failure is worth (both current callers exit non-zero)."""
+    batch  = len(lakes) > 1
+    failed = []
+    for lake in lakes:
+        try:
+            run_one(lake)
+        except Exception:                    # noqa: BLE001 — isolate each lake in a batch
+            if not batch:
+                raise
+            logger.exception(f"lake '{lake}' FAILED — continuing with the rest of the batch")
+            failed.append(lake)
+    if batch:
+        logger.info(f"=== batch complete: {len(lakes) - len(failed)}/{len(lakes)} {what}"
+                    + (f"; failed: {', '.join(failed)}" if failed else "") + " ===")
+    return failed
+
+
 def verify_args(args, required):
     for key in required:
         if key not in args:
@@ -268,8 +304,11 @@ def discover_n_members(ensemble_base):
 # (rmse_in_window) is unaffected.
 def load_obs(obs_path):
     import pandas as pd
-    obs = pd.read_csv(obs_path, parse_dates=["time"])
-    obs["time"] = pd.to_datetime(obs["time"], utc=True)
+    obs = pd.read_csv(obs_path)
+    # ISO8601, not a single inferred format: obs CSVs mix whole-second and fractional-second
+    # timestamps (e.g. "...17:00:21+00:00" and "...12:00:00.5+00:00"), and pandas 2.x otherwise
+    # locks onto row 0's format and rejects the rest. Only visible once more than one lake is run.
+    obs["time"] = pd.to_datetime(obs["time"], utc=True, format="ISO8601")
     obs["time"] = (obs["time"] + pd.Timedelta(minutes=30)).dt.floor("1h")
     obs = obs.groupby(["depth", "time"])["value"].mean().reset_index()
     return obs

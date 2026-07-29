@@ -16,8 +16,11 @@ the next slice resumes the AR(1) chain instead of restarting it from zero. Cold 
 (perturbation 0 at the first row) happens only on a fresh run dir, on "reset": true,
 or when the perturbation parameters change.
 
-Fitting the AR(1) stats from ICON (the heavy, once-per-lake step that produces the
-JSON) lives in notebooks/perturbations_from_icon.py.
+Fitting the AR(1) stats (the once-per-lake step that produces the JSON) lives in
+notebooks/perturbations_fit.py. That JSON's `variables` is a verbatim copy of one of two
+stored persistence bounds — see that script for why phi is bracketed rather than measured.
+This module reads `variables` and nothing else, so a legacy calibration with no bounds
+block loads unchanged.
 """
 import os
 import sys
@@ -120,7 +123,7 @@ def load_perturbations(args: dict) -> dict:
     json_path = perturbations_path(args)
     if not os.path.isfile(json_path):
         raise FileNotFoundError(
-            f"{json_path} not found — fit it with notebooks/perturbations_from_icon.py "
+            f"{json_path} not found — fit it with notebooks/perturbations_fit.py --icon "
             f"(needs the ICON API / EAWAG VPN).")
     with open(json_path, encoding="utf-8") as f:
         params = json.load(f)
@@ -132,6 +135,16 @@ def load_perturbations(args: dict) -> dict:
            if not (isinstance(variables.get(v), dict) and {"phi", "sigma"} <= variables[v].keys())]
     if bad:
         raise ValueError(f"{json_path}: malformed calibration — {bad} each need 'phi' and 'sigma'")
+
+    # Say which end of the persistence bracket this run is on. phi is bracketed, not measured
+    # (notebooks/perturbations_fit.py), so a run is only interpretable alongside that choice —
+    # and the two ends differ by 5x in tau. Silent on a legacy calibration that has no bounds.
+    bound = (params.get("persistence") or {}).get("bound")
+    if bound:
+        src = params["persistence"]["bounds"][bound].get("source", "?")
+        taus = params["persistence"]["bounds"][bound].get("tau_h", {})
+        logger.info(f"{args['lake']}: persistence bound = {bound} ({src}); tau_h "
+                    + ", ".join(f"{v}={t:.2f}" for v, t in taus.items()))
     return params
 
 
