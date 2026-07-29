@@ -4,7 +4,7 @@
 `check_fit.png`   — per perturbed variable: residual ACF vs fitted phi^k, residual
                     distribution vs fitted Gaussian, and a preview perturbed ensemble.
 
-Called by notebooks/perturbations_from_icon.py when run with --check; not a standalone CLI.
+Called by notebooks/perturbations_fit.py when run with --icon --check; not a standalone CLI.
 """
 import os
 import sys
@@ -162,7 +162,7 @@ def _fit_check(args: dict, fit_df, params: dict) -> str:
 def check(args: dict, flat_df=None, mean_df=None, contours=None, fit_df=None, params=None):
     """QA plots. Acquisition QA (grid mask + lake-mean series -> check.png) whenever the
     acquisition data is given; fit QA (residual ACF / distribution / preview ensemble ->
-    check_fit.png) whenever fit_df + params are given (from perturbations_from_icon)."""
+    check_fit.png) whenever fit_df + params are given (from perturbations_fit --icon)."""
     paths = []
     if flat_df is not None and mean_df is not None and contours is not None:
         paths.append(_acquisition_check(args, flat_df, mean_df, contours))
