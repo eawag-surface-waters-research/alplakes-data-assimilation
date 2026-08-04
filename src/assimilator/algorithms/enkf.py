@@ -6,11 +6,12 @@ import numpy as np
 import pandas as pd
 from datetime import timedelta
 
-from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
+from ..functions import (ROOT, load_obs, filter_obs_to_model_depths, obs_window_boundaries,
                          verify_args, build_python_run_args, make_progress, log_obs_summary,
                          log_run_header, log_run_footer, time_keyed_rng)
 from ..summarize import report_summary
 from ..sigma_rep import load_sigma_rep, resolve_sigma_obs, log_sigma_summary
+from .. import localization
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,10 @@ def build_H(z_volume, lake_level, sim_depths):
     return H
 
 # wikipedia cross checked
-def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
+def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None, loc=None):
+    """`loc`, when given, is the (rho_state_obs, rho_obs_obs) pair from
+    localization.build_matrices() covering ALL obs rows; the valid mask is applied here so the
+    caller can build them once per window without knowing which obs turn out to be NaN."""
     if rng is None:
         rng = np.random.default_rng()
 
@@ -96,13 +100,30 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
 
     N     = X_f.shape[1]
     x_bar = X_f.mean(axis=1, keepdims=True)
-    A     = (X_f - x_bar) * inflation
+
+    # Localization confines inflation to the cells it can actually update. Inflating globally would
+    # multiply the anomalies of every cell below the taper's reach by `inflation` on EVERY analysis
+    # with no observation able to pull them back — K is exactly zero down there once localized, so
+    # nothing damps it (measured: x1.1 per analysis, x1e15 over a year of daily windows). Unlocalized
+    # runs kept that bounded only through the spurious deep gain this taper exists to remove.
+    rho_so = None if loc is None else loc[0][:, valid]
+    infl   = inflation
+    if rho_so is not None:
+        infl = np.where((rho_so > 0).any(axis=1), inflation, 1.0)[:, None]
+    A     = (X_f - x_bar) * infl
     X_inf = x_bar + A
 
     HA   = H_v @ A
     PHT  = A @ HA.T / (N - 1)
     HPHT = HA @ HA.T / (N - 1)
-    # Numerical decision taken fully by Clude Code: Kalman gain K = PHT @ inv(HPHT+R), 
+    # Schur-product both covariances with the Gaspari-Cohn taper, killing the sampling-noise
+    # correlations that dominate off-diagonal at N=20. Both factors are positive definite, so by
+    # the Schur product theorem HPHT+R stays invertible below. HPHT itself is unaffected by the
+    # tapered inflation above: every observed cell is by construction inside the taper's reach.
+    if loc is not None:
+        PHT  = PHT  * rho_so
+        HPHT = HPHT * loc[1][np.ix_(valid, valid)]
+    # Numerical decision taken fully by Clude Code: Kalman gain K = PHT @ inv(HPHT+R),
     # via solve (not inv) for stability; transposes turn the right-inverse into solve's
     # left-inverse (S symmetric, so S.T == S).
     K    = np.linalg.solve((HPHT + R).T, PHT.T).T
@@ -139,6 +160,10 @@ def run_enkf_loop(args, model):
     # was, which is what every lake without a table gets.
     sigma_table = load_sigma_rep(args)
     inflation   = args["inflation"]
+    # Vertical localization: off unless asked for, so existing runs are bit-for-bit unchanged.
+    localize    = bool(args.get("localization", False))
+    loc_kw, loc_src = localization.load_params(args["lake"], ROOT, args)
+    logged_loc  = False   # summarize() once per run, not once per window
     max_workers = args.get("max_workers")
     diag_path   = args["diag_path"]
     innov_path  = args["innov_depth_path"]
@@ -181,7 +206,8 @@ def run_enkf_loop(args, model):
         select_obs = window_obs_vector_consistent
         logger.info(f"Obs-driven EnKF: {start_date.date()} → {end_date.date()} "
                     f"({len(boundaries)} windows — one per obs time + tail, "
-                    f"{len(member_ids)} members, σ_obs={sigma_obs} °C, inflation={inflation})")
+                    f"{len(member_ids)} members, σ_obs={sigma_obs} °C, inflation={inflation}, "
+                    f"localization={'on' if localize else 'off'})")
     else:
         # Legacy fixed daily stepping. Observation selector per daily window (run-arg
         # "obs_selector", default "window_end"):
@@ -211,7 +237,8 @@ def run_enkf_loop(args, model):
             boundaries.append(b)
         logger.info(f"Daily EnKF: {start_date.date()} → {end_date.date()} "
                     f"({len(boundaries)} days, {len(member_ids)} members, "
-                    f"σ_obs={sigma_obs} °C, inflation={inflation}, obs_selector={obs_selector_name})")
+                    f"σ_obs={sigma_obs} °C, inflation={inflation}, obs_selector={obs_selector_name}, "
+                    f"localization={'on' if localize else 'off'})")
 
     # The "σ_obs=" in the header above no longer tells the whole story once a table is present, so
     # say explicitly which observation-error model this run is using.
@@ -263,6 +290,22 @@ def run_enkf_loop(args, model):
 
                         # Note: Assuming lake levels of different members the same, T column too. Intentional.
                         H          = build_H(z_vol, lake_lev, sim_depths)
+
+                        # Vertical localization (opt-in). Rebuilt per window: both the obs depths
+                        # present and the lake level move. z_vol is height above bottom, so the
+                        # depth below surface is lake_lev - z_vol — the same convention build_H
+                        # uses via obs_to_sim_col (depth -> -depth).
+                        loc = None
+                        if localize:
+                            state_depths = lake_lev - np.asarray(z_vol, dtype=float)
+                            loc = localization.build_matrices(state_depths, obs_depths, **loc_kw)
+                            if not logged_loc:
+                                logger.info(f"localization radius L0={loc_kw['L0']:.2f} m "
+                                            f"slope={loc_kw['slope']:.3f} <- {loc_src}")
+                                logger.info(localization.summarize(state_depths, obs_depths,
+                                                                   **loc_kw))
+                                logged_loc = True
+
                         # Obs-perturbation draw keyed by the analysis instant: identical whether
                         # the period is run in one go or continued operationally in slices.
                         rng        = time_keyed_rng(rng_seed, "enkf_obs", int(window_end.timestamp()))
@@ -272,7 +315,8 @@ def run_enkf_loop(args, model):
                         # one behaves exactly as before. n_stations is 1 until load_obs carries it.
                         sigma_vec  = resolve_sigma_obs(obs_depths, np.ones(len(obs_depths)),
                                                        window_end, args, sigma_table)
-                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_vec, inflation=inflation, rng=rng)
+                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_vec, inflation=inflation,
+                                                 rng=rng, loc=loc)
 
                         def _write_T(col_i):
                             col, i = col_i

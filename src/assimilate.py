@@ -161,6 +161,10 @@ def build_lake_cfg(raw, lake, cli):
         cfg["obs_file"] = cli.obs_file
     if cli.perturbations_file:
         cfg["perturbations_file"] = cli.perturbations_file
+    # Vertical localization: --localization turns it on; without the flag the config key
+    # (default off) stands, so a config that opts in doesn't need the flag on every run.
+    if cli.localization:
+        cfg["localization"] = True
     # Progress bar on/off (CLI --no-progress > config "progress" > TTY auto-detect), carried in
     # cfg so both engines read the same flag.
     cfg["progress"] = resolve_progress(cfg, cli.no_progress)
@@ -198,6 +202,13 @@ if __name__ == "__main__":
     parser.add_argument("--perturbations-file", default=None,
                         help="AR(1) calibration JSON, overriding the config's \"perturbations_file\" "
                              "(default: perturbations/<lake>.json)")
+    parser.add_argument("--localization", action="store_true",
+                        help="Python EnKF only: taper the forecast covariances with the depth-dependent "
+                             "Gaspari-Cohn function (see assimilator/localization.py), suppressing the "
+                             "spurious long-range correlations of a 20-member ensemble. NOTE: cells below "
+                             "roughly 50 m then receive no update at all and free-run. Overrides the "
+                             "config's \"localization\" key; radius knobs are config-only "
+                             "(\"localization_L0\" / \"localization_slope\"), else localization/<lake>.json")
     parser.add_argument("--force-copy",       action="store_true", help="Re-run step 2 even if present")
     parser.add_argument("--no-progress", action="store_true",
                         help="Disable the progress bar (auto-disabled when stderr is not a TTY). "
