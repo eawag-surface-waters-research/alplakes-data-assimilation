@@ -7,9 +7,14 @@ logs/*
 !logs/.gitkeep
 observations/*
 !observations/.gitkeep
+filter/*
+!filter/.gitkeep
 
-# Local-only scratch
+# Local-only scratch and experiments
 local/
+localization/
+experiments/
+
 
 # varia
 __pycache__/
