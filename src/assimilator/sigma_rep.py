@@ -11,7 +11,7 @@ seventeen times too large in the deep.
 
 Sigma is therefore resolved per observation as
 
-    sigma_i^2  =  sigma_common^2  +  sigma_rep(depth_i, month_i)^2 / N_i
+    sigma_i^2  =  sigma_common^2  +  (scale * sigma_rep(depth_i, month_i))^2 / N_i
 
   sigma_rep    the depth- and season-dependent representativeness error, FITTED from the
                observations and the lake's free run by notebooks/sigma_rep_from_obs.py ->
@@ -22,6 +22,10 @@ Sigma is therefore resolved per observation as
   sigma_common the part no station can see in itself -- instrument error, plus the slower
                representativeness error the fitted term does not cover. A config scalar, not
                fitted. See DEFAULT_SIGMA_COMMON for why it is not optional.
+
+  scale        "sigma_rep_scale", default 1.0 (so omitting it changes nothing). The fitted table is
+               a lower bound -- the estimator sees only the sub-daily band -- and this is the factor
+               that lifts it to the level the innovations imply. See resolve_sigma_rep_scale.
 
 Deliberately CLIMATOLOGICAL, not instantaneous: sigma_rep is a fitted function of (depth, month),
 never the spread of the hour being assimilated. An instantaneous estimate would correlate with the
@@ -61,13 +65,30 @@ def depth_key(d):
     return f"{float(d):g}"
 
 
-def resolve_sigma_common(cfg, depth):
-    """sigma_common for one depth. Accepts a scalar, or a depth-keyed step function
+def _depth_stepped(spec, depth, default):
+    """A config value that is either a scalar or a depth-keyed step function
 
-        "sigma_common": {"0": 0.2, "7": 0.1}
+        {"0": 0.2, "7": 0.1}
 
     read as "0.2 from 0 m down, 0.1 from 7 m down" -- the value of the deepest key at or above
-    `depth`.
+    `depth`. Shared by sigma_common and sigma_rep_scale so the two spell depth-dependence the same
+    way in a run config.
+    """
+    if spec is None:
+        return float(default)
+    if not isinstance(spec, dict):
+        return float(spec)
+    # deepest breakpoint at or above this depth; above every breakpoint -> the shallowest value
+    edges = sorted((float(k), float(v)) for k, v in spec.items())
+    value = edges[0][1]
+    for z, v in edges:
+        if float(depth) >= z:
+            value = v
+    return float(value)
+
+
+def resolve_sigma_common(cfg, depth):
+    """sigma_common for one depth -- a scalar or a depth-keyed step function (see _depth_stepped).
 
     WHY it may need to be depth-dependent. sigma_common carries the error a station cannot see in
     itself: its offset from the pelagic column the 1D model represents. That offset is largest at
@@ -79,17 +100,43 @@ def resolve_sigma_common(cfg, depth):
     Note what a depth step buys and what it does not: it absorbs a persistent bias as variance, so
     it improves calibration, not accuracy -- a warm surface analysis stays warm, the filter just
     stops being overconfident about it. A bias correction on the innovation is the accurate fix.
+
+    And note what it CANNOT do: sigma_common has no month argument. Fitting it to close the
+    innovation budget year-round lands it near the summer requirement and over-damps winter. Where
+    the shortfall is seasonal, sigma_rep_scale is the term to move -- see resolve_sigma_rep_scale.
     """
-    sc = cfg.get("sigma_common", DEFAULT_SIGMA_COMMON)
-    if not isinstance(sc, dict):
-        return float(sc)
-    # deepest breakpoint at or above this depth; above every breakpoint -> the shallowest value
-    edges = sorted((float(k), float(v)) for k, v in sc.items())
-    value = edges[0][1]
-    for z, v in edges:
-        if float(depth) >= z:
-            value = v
-    return float(value)
+    return _depth_stepped(cfg.get("sigma_common"), depth, DEFAULT_SIGMA_COMMON)
+
+
+def resolve_sigma_rep_scale(cfg, depth):
+    """Multiplier on the fitted sigma_rep -- a scalar or a depth-keyed step function. Default 1.0,
+    i.e. the table is used exactly as fitted and behaviour is unchanged.
+
+    WHY a multiplier is a legitimate knob and not a fudge. The fitted sigma_rep is a LOWER BOUND by
+    construction: the estimator is sqrt(mean within-day var(obs) - mean within-day var(free run)),
+    so it measures only the sub-daily band and cannot see representativeness error at synoptic
+    scales. A multiplier says "the sub-daily band is a fraction 1/scale of the whole", which is
+    exactly the missing piece, and it inherits sigma_rep's depth profile AND its month dependence
+    rather than imposing a new shape.
+
+    Measured on the 2025 seven-lake run (local/sigma/fit_sigma_common.py), one scale per lake brings
+    the pooled NIS to ~1 in BOTH seasons, where a year-round sigma_common fitted to the same budget
+    leaves the mixed season at 0.26-0.86. Fitted values, on RAW observations, ran 1.14 (aegeri) to
+    2.18 (maggiore).
+
+    THE SCALE IS A PROPERTY OF THE OBSERVATION SERIES, NOT OF THE LAKE. Refitted on the adaptively
+    filtered series (uniform window, 2026-08), the same seven lakes wanted 1.88 (murten) to 3.08
+    (hallwil) -- roughly double, because the filter removes most of the sub-daily band the estimator
+    measures while leaving the synoptic-scale error it cannot see, so the fitted table drops and the
+    shortfall the multiplier has to cover grows. Refit whenever the assimilated series changes; a
+    scale carried over from a differently filtered series is wrong in a direction that is invisible
+    in the log line.
+
+    Prefer a scalar. A depth-stepped scale is accepted for symmetry, but fitting one per depth band
+    on a single year overfits -- the fit wanted 3.9x on greifensee's top 2.5 m and 5.4x at 25 m on
+    hallwil, on a handful of depths each.
+    """
+    return _depth_stepped(cfg.get("sigma_rep_scale"), depth, 1.0)
 
 
 def sigma_rep_path(cfg):
@@ -118,7 +165,14 @@ def load_sigma_rep(cfg):
     # table applied to filtered observations overstates R several-fold at the thermocline.
     src = str(table.get("source", ""))
     obs_file = str(cfg.get("obs_file", ""))
-    if ("_filtered" in obs_file) != ("_filtered" in src):
+    # Filename markers, because the pairing is expressed by convention and nothing else records it.
+    # "new" joined "filtered" when the uniform-window series were thinned to temperature_new_h??_1d
+    # -- those ARE filtered, and matching on "_filtered" alone made the guard fire on every one of
+    # them. A marker list is fragile by nature: any future series naming has to be added here, and
+    # the failure is a spurious warning rather than a wrong R, which is the safe direction.
+    marks = ("_filtered", "temperature_new")
+    is_filtered = lambda s: any(m in s for m in marks)          # noqa: E731
+    if is_filtered(obs_file) != is_filtered(src):
         logger.warning(f"[sigma] {os.path.relpath(path, ROOT)} was fitted on "
                        f"'{src.split(' (buoy)')[0]}' but this run assimilates "
                        f"'{obs_file or 'observations/<lake>/temperature.csv'}' — refit sigma_rep on "
@@ -157,7 +211,9 @@ def resolve_sigma_obs(depths, n_stations, when, cfg, table):
         # No fitted entry for this depth -> keep the scalar. Mixing a fitted depth and a fallback
         # depth in one vector is fine and intended.
         sc = resolve_sigma_common(cfg, d)
-        out[i] = sigma_obs if rep is None else float(np.sqrt(sc ** 2 + rep ** 2 / n[i]))
+        ks = resolve_sigma_rep_scale(cfg, d)
+        out[i] = (sigma_obs if rep is None
+                  else float(np.sqrt(sc ** 2 + (ks * rep) ** 2 / n[i])))
     return out
 
 
@@ -180,11 +236,12 @@ def sigma_obs_by_depth(obs_df, cfg, table):
         months = g["time"].dt.month.to_numpy()
         n = g["n_stations"].to_numpy(dtype=float) if "n_stations" in g else np.ones(len(g))
         sigma_common = resolve_sigma_common(cfg, d)
+        rep_scale = resolve_sigma_rep_scale(cfg, d)
         vals = []
         for m, ni in zip(months, np.where(n >= 1, n, 1.0)):
             rep = _sigma_rep_at(table, d, m)
             vals.append(sigma_obs if rep is None
-                        else np.sqrt(sigma_common ** 2 + rep ** 2 / ni))
+                        else np.sqrt(sigma_common ** 2 + (rep_scale * rep) ** 2 / ni))
         out[float(d)] = float(np.sqrt(np.mean(np.square(vals))))
     return out
 
@@ -200,8 +257,13 @@ def log_sigma_summary(cfg, table, by_depth=None):
     sc_txt = (f"{sc} degC" if not isinstance(sc, dict) else
               "depth-stepped " + ", ".join(f">={float(k):g}m: {float(v)}"
                                            for k, v in sorted(sc.items(), key=lambda kv: float(kv[0]))))
-    logger.info(f"[sigma] sigma^2 = sigma_common^2 + sigma_rep(depth, month)^2 / n_stations  "
-                f"(sigma_common={sc_txt}, fallback sigma_obs={cfg['sigma_obs']} degC)")
+    ks = cfg.get("sigma_rep_scale", 1.0)
+    ks_txt = (f"{ks:g}" if not isinstance(ks, dict) else
+              "depth-stepped " + ", ".join(f">={float(k):g}m: {float(v)}"
+                                           for k, v in sorted(ks.items(), key=lambda kv: float(kv[0]))))
+    logger.info(f"[sigma] sigma^2 = sigma_common^2 + (scale * sigma_rep(depth, month))^2 / n_stations"
+                f"  (sigma_common={sc_txt}, scale={ks_txt}, "
+                f"fallback sigma_obs={cfg['sigma_obs']} degC)")
     logger.info(f"[sigma] sigma_rep fitted at {len(depths)} depth(s) "
                 f"{depths[0]}-{depths[-1]} m <- {os.path.relpath(sigma_rep_path(cfg), ROOT)}"
                 + (f" ({table['estimator'][:60]}...)" if table.get("estimator") else ""))
