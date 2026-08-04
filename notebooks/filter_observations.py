@@ -80,6 +80,7 @@ import sys
 import json
 import logging
 import argparse
+import datetime as dt
 
 import numpy as np
 import pandas as pd
@@ -100,7 +101,26 @@ DEFAULTS = {
     "THERMO_DEPTH_MIN":  4.0,   # m      - above this the gradient term is zero; None = derive
     "THERMO_GRAD_MIN":  0.1,    # degC/m - min peak gradient for the lake to count as stratified
     "DT_FILT":         60,      # min    - resolution the filter runs at
-    "MAX_NAN_FRAC":    0.30,    # -      - drop a depth if it is emptier than this
+    "MAX_NAN_FRAC":    1.00,    # -      - drop a depth emptier than this WHILE DEPLOYED. 1.0 =
+                                #          never, which is the intent: admission is now decided per
+                                #          VALUE by MIN_SUPPORT/MAX_AGE_FACTOR below, not per depth.
+                                #          Set back to 0.30 to restore the old channel gate.
+    "MIN_SUPPORT":     0.25,    # -      - a smoothed value needs this share of its window to be
+                                #          real samples, else it is not emitted. Guards "a 504 h
+                                #          mean of one reading", which the old code allowed (n > 0).
+    "MAX_AGE_FACTOR":  1.50,    # -      - and those samples' mean age may exceed the ideal (W-1)/2
+                                #          by at most this factor. Guards the window that is filled
+                                #          entirely from BEFORE a gap and then presented as "now".
+    "MAX_GRAD_SPAN_M": 10.0,    # m      - how far _gradient_field will reach for a reporting
+                                #          neighbour before giving up. A difference taken over more
+                                #          than this smears the thermocline rather than resolving
+                                #          it, and no gradient beats a misleading one. "graded"
+                                #          WINDOW_MODE only.
+    "WINDOW_MODE": "uniform",   # -      - "uniform": W = W_MAX below THERMO_DEPTH_MIN, zero above,
+                                #          constant in time (see _windows). "graded": the original
+                                #          W_grad + W_floor, kept for comparison. Under "uniform",
+                                #          G_MAX / W_DEEP / DEEP_REF / THERMO_GRAD_MIN / GRAD_SMOOTH_H
+                                #          / MAX_GRAD_SPAN_M are all unused.
 }
 
 # Knobs for the automatic THERMO_DEPTH_MIN derivation. Not per-lake parameters: they define the
@@ -112,6 +132,10 @@ THERMO_DEPTH_CAP   = 15.0   # m - nor deeper: past here we would be declining to
                             # thermocline, which is the whole point of the filter
 STRAT_MIN_STEPS_D  = 30     # days of stratified record below which the season mask is abandoned
 MIN_SAMPLES_PER_DAY = 4     # below this the record carries no sub-daily variability to remove
+TRUTH_MIN_FRAC     = 2/3    # share of the 24 h centred window _truth_proxy needs before it will
+                            # return a value rather than NaN. Same class as the knobs above: it
+                            # defines the calibration criterion, so it is not per-lake and not
+                            # fittable. See _truth_proxy for what min_periods=1 was costing.
 
 
 def raw_obs_path(cfg, root=ROOT):
@@ -134,6 +158,43 @@ def raw_obs_path(cfg, root=ROOT):
 
 def filter_params_path(lake, root=ROOT):
     return os.path.join(root, "filter", f"{lake}.json")
+
+
+# Parameters the filter DERIVES from the record when they are left at None. They are whole-record
+# statistics, so a value derived today is not the value derived next month: every rerun on a longer
+# record silently re-tunes the filter, and G_MAX in particular is a plain rescale of W_MAX (see the
+# module docstring), so letting it drift moves every window on the lake.
+#
+# Hence they are PINNED ON FIRST DERIVATION rather than on request. Deriving them once is
+# unavoidable -- a new lake has nothing to reuse -- but deriving them EVERY time is a silent loss of
+# reproducibility, and defaults should not need to be remembered. `--rederive` recomputes and
+# repins deliberately; `--no-freeze` derives without recording, for a throwaway experiment.
+DERIVED = ("G_MAX", "THERMO_DEPTH_MIN")
+
+
+def freeze_params(lake, resolved, root=ROOT):
+    """Write the DERIVED parameters into filter/<lake>.json so later runs reuse them verbatim.
+
+    Merges into an existing file rather than replacing it: calibrate_filter.py owns the fitted
+    knobs there and must not be clobbered by a freeze."""
+    path = filter_params_path(lake, root)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    doc = {}
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+    block = doc.setdefault("params", {})
+    for k in DERIVED:
+        if resolved.get(k) is not None:
+            block[k] = round(float(resolved[k]), 6)
+    doc["frozen_on"] = dt.date.today().isoformat()
+    doc["frozen_note"] = ("G_MAX/THERMO_DEPTH_MIN pinned from the record as it stood on this date; "
+                          "delete them to go back to deriving per run")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(doc, f, indent=2)
+        f.write("\n")
+    logger.info(f"  froze {', '.join(DERIVED)} -> {os.path.relpath(path, root)}")
+    return path
 
 
 def load_params(lake, cfg=None, root=ROOT):
@@ -281,29 +342,109 @@ def _gradient_field(piv, depths, p):
 
     The lower neighbour is searched upward past any depth shallower than THERMO_DEPTH_MIN, so the
     surface layer's temperature never contaminates a thermocline gradient.
+
+    NEIGHBOURS ARE CHOSEN PER TIMESTEP, from the depths that actually reported at that instant.
+    Fixing them once by position (the earlier behaviour) made every depth's gradient hostage to its
+    neighbour's availability: one sparse channel blanked the gradient at the two good channels
+    around it, so admitting a patchy depth damaged depths that were never in question. That coupling
+    was the last place where WHICH DEPTHS ARE ADMITTED still changed the windows everywhere, and
+    with Phase 2 keeping every channel in the grid it would only have grown. Searching outward at
+    each timestep instead means a missing neighbour widens the difference rather than voiding it,
+    and the gradient depends on the DATA present, not on the admission list.
+
+    The span is not capped: a wide difference across a sparse column is a smeared estimate of the
+    gradient, but it is an estimate, where the alternative is none. `MAX_GRAD_SPAN_M` bounds how
+    far it will reach before giving up.
     """
     zmin = p["THERMO_DEPTH_MIN"]
     T = piv.values
+    ok = np.isfinite(T)
     G = np.full_like(T, np.nan)
-    for i in range(len(depths)):
-        i_lo = next((j for j in range(i - 1, -1, -1) if depths[j] >= zmin), None)
-        i_hi = i + 1 if i + 1 < len(depths) else None
-        if i_lo is not None and i_hi is not None:
-            G[:, i] = np.abs(T[:, i_hi] - T[:, i_lo]) / (depths[i_hi] - depths[i_lo])
-        elif i_hi is not None:
-            G[:, i] = np.abs(T[:, i_hi] - T[:, i]) / (depths[i_hi] - depths[i])
-        elif i_lo is not None:
-            G[:, i] = np.abs(T[:, i] - T[:, i_lo]) / (depths[i] - depths[i_lo])
+    n = len(depths)
+    eligible = np.array([z >= zmin for z in depths])
+    for i in range(n):
+        if not eligible[i]:
+            continue
+        # nearest reporting depth above (but no shallower than zmin) and below, per timestep
+        lo_z = np.full(len(T), np.nan)
+        lo_T = np.full(len(T), np.nan)
+        for j in range(i - 1, -1, -1):
+            if not eligible[j]:
+                break                                  # past the surface exclusion: stop, do not wrap
+            take = np.isnan(lo_T) & ok[:, j] & (depths[i] - depths[j] <= p["MAX_GRAD_SPAN_M"])
+            lo_z[take], lo_T[take] = depths[j], T[take, j]
+            if not np.isnan(lo_T).any():
+                break
+        hi_z = np.full(len(T), np.nan)
+        hi_T = np.full(len(T), np.nan)
+        for j in range(i + 1, n):
+            take = np.isnan(hi_T) & ok[:, j] & (depths[j] - depths[i] <= p["MAX_GRAD_SPAN_M"])
+            hi_z[take], hi_T[take] = depths[j], T[take, j]
+            if not np.isnan(hi_T).any():
+                break
+        # one-sided against this depth's own value when only one side reported
+        both = ~np.isnan(lo_T) & ~np.isnan(hi_T)
+        only_hi = ~both & ~np.isnan(hi_T) & ok[:, i]
+        only_lo = ~both & ~np.isnan(lo_T) & ok[:, i]
+        with np.errstate(invalid="ignore", divide="ignore"):
+            G[both, i] = np.abs(hi_T[both] - lo_T[both]) / (hi_z[both] - lo_z[both])
+            G[only_hi, i] = np.abs(hi_T[only_hi] - T[only_hi, i]) / (hi_z[only_hi] - depths[i])
+            G[only_lo, i] = np.abs(T[only_lo, i] - lo_T[only_lo]) / (depths[i] - lo_z[only_lo])
     g = pd.DataFrame(G, index=piv.index, columns=piv.columns)
     g[[d for d in g.columns if d < zmin]] = 0.0
     return g
 
 
 def _windows(piv, depths, p):
-    """Per (time, depth) smoothing window in hours."""
+    """Per (time, depth) smoothing window in hours.
+
+    Two forms, selected by WINDOW_MODE:
+
+    "uniform" (default) -- W = W_MAX at every depth at or below THERMO_DEPTH_MIN, zero above, and
+        constant in time. W_MAX is the internal-seiche period (notebooks/calibrate_filter.py), and
+        a trailing box of exactly one period nulls that oscillation and all its harmonics at the
+        least lag able to do so. The seiche is a BASIN mode: one period, felt at every depth where
+        there is a gradient to displace. What varies with depth is its AMPLITUDE, not its
+        timescale -- measured on upperlugano the 12-36 h band holds 44% of the variance at 11 m and
+        36% at 40 m. So the same window is the right window everywhere, and the graded form below
+        was solving a problem that does not exist.
+
+        Retires G_MAX, THERMO_GRAD_MIN, W_DEEP and DEEP_REF, and with them a class of defects the
+        graded form kept producing: a window that drifts as the record grows (G_MAX is a
+        whole-record percentile), that depends on which depths passed QC (the grid sets the
+        derivative), that goes stale after an outage, and that switches itself off in winter.
+        A constant needs no observation, so none of those can occur.
+
+        It also removes the 504 h deep window, which cost ~10 days of lag to attack a band holding
+        ~1% of the deep variance -- everything at depth lives under a week.
+
+        What is given up: the graded form smoothed harder on a strongly stratified day than a weak
+        one. Under a fixed period that adaptivity is unnecessary, because nulling a frequency does
+        not depend on its amplitude. Winter now gets the same window as August; the lake moves
+        slowly then, so the lag cost is small but not nil.
+
+    "graded" -- the original W_grad + W_floor. Kept so the two can be compared on identical data,
+        and because it is the form every committed filtered series was produced with.
+    """
+    if p.get("WINDOW_MODE", "uniform") == "uniform":
+        W = pd.DataFrame(0.0, index=piv.index, columns=piv.columns)
+        cols = [d for d in piv.columns if d >= p["THERMO_DEPTH_MIN"]]
+        if not cols:
+            raise ValueError(f"no observation depth at or below THERMO_DEPTH_MIN="
+                             f"{p['THERMO_DEPTH_MIN']:g} m — nothing to filter")
+        W[cols] = p["W_MAX"]
+        logger.info(f"  uniform window {p['W_MAX']:g} h at {len(cols)} depths >= "
+                    f"{p['THERMO_DEPTH_MIN']:g} m; shallower depths untouched")
+        return W, p.get("G_MAX")
+
     grad = _gradient_field(piv, depths, p)
     gs   = max(1, int(p["GRAD_SMOOTH_H"] * 60 / p["DT_FILT"]))
-    grad = grad.rolling(gs, center=False, min_periods=gs // 2).mean().ffill().bfill().fillna(0.0)
+    # ffill is BOUNDED and bfill is gone. Carrying the last gradient forever meant that after
+    # greifensee's 50-day outage the sharpness deciding W was 50 days stale; bfill filled the
+    # record's opening from data that had not happened yet. Past the bound the gradient term goes
+    # to zero and W falls back to W_floor alone -- the depth ramp, which needs no observation.
+    grad = (grad.rolling(gs, center=False, min_periods=gs // 2).mean()
+                .ffill(limit=gs).fillna(0.0))
 
     thermo_cols = [d for d in grad.columns if d >= p["THERMO_DEPTH_MIN"]]
     if not thermo_cols:
@@ -347,17 +488,35 @@ def _active_nan_frac(piv):
     return pd.Series(out)
 
 
-def _variable_box(x, widths):
-    """Causal trailing mean whose length varies per sample. Cumulative sums -> O(n)."""
+def _variable_box(x, widths, support=False):
+    """Causal trailing mean whose length varies per sample. Cumulative sums -> O(n).
+
+    With `support=True` also returns how the mean was actually formed, which is what tells a
+    trustworthy value from a technically-computable one:
+
+        n   how many real samples were in the window (the window LENGTH is `widths`; on a gappy
+            record the two are nothing like each other)
+        age the mean age, in steps, of those samples. A full window gives (W-1)/2. When the recent
+            half of the window is missing, the surviving samples sit further back and the "mean at
+            time t" is really a mean of the lake some time before t -- handed to the analysis as
+            though it were now. Nothing else in the filter can see this.
+    """
     xf = np.where(np.isnan(x), 0.0, x)
     ok = (~np.isnan(x)).astype(float)
+    idx = np.arange(len(x))
     cs = np.concatenate([[0.0], np.cumsum(xf)])
     cv = np.concatenate([[0.0], np.cumsum(ok)])
-    hi = np.arange(len(x)) + 1
-    lo = np.maximum(0, np.arange(len(x)) - widths + 1)
+    hi = idx + 1
+    lo = np.maximum(0, idx - widths + 1)
     n  = cv[hi] - cv[lo]
     with np.errstate(invalid="ignore", divide="ignore"):
-        return np.where(n > 0, (cs[hi] - cs[lo]) / n, np.nan)
+        mean = np.where(n > 0, (cs[hi] - cs[lo]) / n, np.nan)
+    if not support:
+        return mean
+    ci = np.concatenate([[0.0], np.cumsum(ok * idx)])
+    with np.errstate(invalid="ignore", divide="ignore"):
+        age = np.where(n > 0, idx - (ci[hi] - ci[lo]) / np.where(n > 0, n, 1.0), np.nan)
+    return mean, n, age
 
 
 def _truth_proxy(x, dt_min):
@@ -365,13 +524,28 @@ def _truth_proxy(x, dt_min):
 
     Fixed and centred on purpose. It is the yardstick every configuration in a calibration grid is
     measured against, so it must not itself depend on the configuration, and it must carry no delay
-    of its own.
+    of its own. Centred is safe here and nowhere else: this runs only under `lag_diag`, i.e. only
+    from the calibrator, which is retrospective by nature. A causal yardstick would lag too, and
+    the lag it was measuring would come out systematically too small.
+
+    TRUTH_MIN_FRAC of the window must be present or the point is NaN, not a value. With
+    min_periods=1 a window holding a single sample from the far side of a multi-week outage
+    returned that sample as "the truth", and _lag_error then compared two quarter-window means of
+    a signal that had been invented across the gap: on geneva 39 m it reported a comfortable lag
+    where the real one is ~468 h. The whole selection rule -- admit a configuration only if its lag
+    stays under lag_frac * sigma_obs -- rests on this number, so on a gappy lake it was being
+    enforced against a fiction. _lag_error already handles NaN (it runs _variable_box, which
+    divides by the valid count, and finishes with np.nanmean), so the gaps now simply do not vote.
+
+    Costs the last ~12 h of any record, whose centred window has no future half. Correct: those
+    hours cannot be judged, and they are excluded from the estimate rather than guessed at.
     """
     n24 = max(1, int(round(24 * 60 / dt_min)))
-    return pd.Series(x).rolling(n24, center=True, min_periods=1).mean().values
+    return pd.Series(x).rolling(n24, center=True,
+                                min_periods=max(1, int(round(TRUTH_MIN_FRAC * n24)))).mean().values
 
 
-def _lag_error(truth, widths):
+def _lag_error(truth, widths, age=None):
     """How much temperature the causal window back-dates away, in degC. Model-free.
 
     A trailing box of width W has its centre of mass half a window back, so the filtered value at
@@ -396,7 +570,13 @@ def _lag_error(truth, widths):
     that term shrinks with W, dominating on noise-dominated deep water.
     """
     n = len(truth)
-    q = np.maximum(1, widths // 4)
+    # The half-window the filter ACTUALLY back-dates by. `widths` is only the nominal length; on a
+    # gappy record the samples inside it sit further back than (W-1)/2 and the value is older than
+    # the width suggests. `age` (from _variable_box(support=True)) measures where they really were,
+    # so the estimate covers the gap-induced part of the lag rather than assuming it away.
+    half = widths / 2.0 if age is None else 2.0 * np.asarray(age, dtype=float)
+    half = np.where(np.isfinite(half), half, widths / 2.0)
+    q = np.maximum(1, np.round(half / 2.0).astype(int))
     i = np.arange(n)
     a = _variable_box(truth, q)                     # mean over [t - W/4, t]
     b = a[np.maximum(0, i - q)]                     # mean over [t - W/2, t - W/4]
@@ -438,8 +618,13 @@ def filter_obs(obs, p=None, lag_diag=False):
     obs = obs.copy()
     obs["time"] = (obs["time"] + pd.Timedelta(minutes=dt / 2)).dt.floor(f"{dt}min")
 
+    # ffill, NOT interpolate. `interpolate(method="time")` needs a valid sample on BOTH sides of a
+    # gap, so filling t from t+1 read one to two hours into the future -- a real lookahead in the
+    # production path, which the module docstring's "causal (trailing only, no lookahead)" claim
+    # did not survive. Carrying the last value forward over the same 2-step limit keeps the same
+    # coverage using only the past.
     piv = (obs.pivot_table(index="time", columns="depth", values="value", aggfunc="mean")
-              .sort_index().resample(f"{dt}min").mean().interpolate(method="time", limit=2))
+              .sort_index().resample(f"{dt}min").mean().ffill(limit=2))
 
     nan_frac = _active_nan_frac(piv)
     dropped  = nan_frac[nan_frac > p["MAX_NAN_FRAC"]].index.tolist()
@@ -465,16 +650,31 @@ def filter_obs(obs, p=None, lag_diag=False):
     out, report = pd.DataFrame(index=piv.index, columns=piv.columns, dtype=float), []
     for d in depths:
         widths = np.maximum(1, np.round(W[d].values * 60 / dt).astype(int))
-        out[d] = _variable_box(piv[d].values, widths)
+        mean, n_used, age = _variable_box(piv[d].values, widths, support=True)
+
+        # Admission, per VALUE rather than per depth. A mean is emitted only if the window behind
+        # it actually held enough samples, and those samples were not bunched too far back. Both
+        # rules are off at MIN_SUPPORT=0 / MAX_AGE_FACTOR=inf, which reproduces `n > 0`.
+        ideal = np.maximum((widths - 1) / 2.0, 1e-9)
+        thin  = n_used < p["MIN_SUPPORT"] * widths
+        stale = age > p["MAX_AGE_FACTOR"] * ideal
+        drop  = (thin | stale) & np.isfinite(mean)
+        mean  = np.where(drop, np.nan, mean)
+        out[d] = mean
+
         raw, flt = piv[d], out[d]
         removed  = (raw - flt).std()
         row = {"depth": d, "median_window_h": float(np.median(widths) * dt / 60),
                "max_window_h": float(widths.max() * dt / 60),
                "raw_std": float(raw.std()), "filtered_std": float(flt.std()),
                "removed_std": float(removed),
-               "removed_frac_of_var": float(removed ** 2 / raw.var()) if raw.var() > 0 else np.nan}
+               "removed_frac_of_var": float(removed ** 2 / raw.var()) if raw.var() > 0 else np.nan,
+               "withheld_thin": int((thin & np.isfinite(piv[d].values)).sum()),
+               "withheld_stale": int((stale & ~thin & np.isfinite(piv[d].values)).sum())}
         if lag_diag:
-            row["lag_degC"] = _lag_error(_truth_proxy(piv[d].values, dt), widths)
+            # the REALISED age, not the nominal W/2: a window whose samples sit further back
+            # back-dates further, and that is the whole point of measuring lag on a gappy record
+            row["lag_degC"] = _lag_error(_truth_proxy(piv[d].values, dt), widths, age=age)
         report.append(row)
 
     long = (out.stack().rename("value").reset_index()
@@ -558,16 +758,28 @@ def _write_thinned_companion(cfg, filtered, in_path):
     return path
 
 
-def filter_lake(cfg, overrides=None, in_file=None, out_file=None, plot=False):
-    """Filter one lake end to end. Returns the resolved parameters actually used."""
+def filter_lake(cfg, overrides=None, in_file=None, out_file=None, plot=False,
+                rederive=False, freeze=True):
+    """Filter one lake end to end. Returns the resolved parameters actually used.
+
+    `rederive` ignores any pinned DERIVED values and recomputes them from this record.
+    `freeze` records whatever was derived (default on -- see DERIVED for why)."""
     lake = cfg["lake"]
 
     p, src = load_params(lake, cfg)
+    if rederive:
+        for k in DERIVED:
+            p[k] = DEFAULTS[k]
+        src += f"; {'/'.join(DERIVED)} re-derived (--rederive)"
     if overrides:
         p.update(overrides)
         src += f"; {'/'.join(sorted(overrides))} overridden on the command line"
     logger.info(f"{lake}: params <- {src}")
     logger.info(f"  {describe(p)}")
+    unfrozen = [k for k in DERIVED if p.get(k) is None]
+    if unfrozen and not freeze:
+        logger.warning(f"  {', '.join(unfrozen)} derived from this record and NOT recorded "
+                       f"(--no-freeze): another run on a longer record will get different values.")
 
     in_path = in_file or raw_obs_path(cfg)
     if not os.path.isfile(in_path):
@@ -602,6 +814,9 @@ def filter_lake(cfg, overrides=None, in_file=None, out_file=None, plot=False):
 
     if plot:
         _plot(lake, obs, filtered, out_path, resolved)
+    # only writes what was actually derived; a value that came from the file is rewritten identical
+    if freeze and unfrozen:
+        freeze_params(lake, resolved)
     return resolved
 
 
@@ -617,6 +832,12 @@ def main():
     ap.add_argument("--in-file", default=None, help="override the input obs CSV (single lake only)")
     ap.add_argument("--out-file", default=None, help="override the output (single lake only)")
     ap.add_argument("--plot", action="store_true", help="write a before/after check figure")
+    ap.add_argument("--rederive", action="store_true",
+                    help=f"ignore any pinned {'/'.join(DERIVED)} and recompute them from this "
+                         f"record, then repin. Use after the record or the filter changes.")
+    ap.add_argument("--no-freeze", action="store_true",
+                    help=f"derive {'/'.join(DERIVED)} without recording them in filter/<lake>.json "
+                         f"(throwaway experiments; the run is then not reproducible)")
     # Per-lake knobs. Prefer filter/<lake>.json (notebooks/calibrate_filter.py) — these are for
     # one-off experiments and are refused in batch mode, where one global set cannot be right.
     ap.add_argument("--w-max", type=float, default=None,
@@ -665,7 +886,8 @@ def main():
     for lake in lakes:
         try:
             filter_lake(merge_lake_args(raw, lake=lake), overrides=overrides,
-                        in_file=cli.in_file, out_file=cli.out_file, plot=cli.plot)
+                        in_file=cli.in_file, out_file=cli.out_file, plot=cli.plot,
+                        rederive=cli.rederive, freeze=not cli.no_freeze)
         except FileNotFoundError as exc:
             # the normal case for a config listing more lakes than you have buoys for
             if not batch:

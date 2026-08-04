@@ -107,6 +107,44 @@ import filter_observations as F                                               # 
 
 logger = logging.getLogger(__name__)
 
+# ------------------------------------------------------------------------------ seiche period
+#
+# W_MAX is the window applied where the gradient is sharpest, and what it exists to remove is the
+# internal seiche displacing the thermocline past the sensor. A trailing box of width W has exact
+# spectral nulls at W, W/2, W/3, ... -- the whole harmonic series -- so a window set to ONE seiche
+# period annihilates the fundamental and every higher mode at the least lag that can do so (W/2).
+# That makes the seiche period the physically correct value, not a knob, which is why W_MAX is
+# taken from here instead of being grid-searched.
+#
+# It is read two ways and they check each other:
+#
+#   OBSERVED   Welch spectrum over gap-free 30 d segments of the stratified season, all depths at
+#              or below THERMO_DEPTH_MIN, stacked. A seiche shows as a local peak ABOVE the red
+#              background, so the background is removed with a rolling median before the peak is
+#              taken -- a global maximum just returns the longest period resolved.
+#   THEORY     T = 2L / sqrt(g' h_eff), the two-layer Merian period, from the basin length in
+#              lake_bbox and the July-August profile. No fitting, no observations of the seiche.
+#
+# Measured across the seven lakes the two agree to 11-34% where a line exists at all (maggiore 72
+# vs 80 h, upperlugano 24 vs 32 h, geneva 120 vs 90 h) -- three independent basins, which is what
+# makes the mechanism credible. On the small lakes NO line is detectable: theory puts them at
+# 8-13 h, close to the resolution floor and buried under the diurnal band.
+#
+# THE STANDARD FOR THOSE LAKES IS 24 h, AND IT IS A PLACEHOLDER, NOT A MEASUREMENT. It is the value
+# the filter used for every lake before this analysis, so adopting it changes nothing for them and
+# keeps the change confined to the lakes where there is evidence. It is very likely too LONG --
+# theory says 2-3x too long on aegeri, hallwil and murten -- so it over-smooths, which costs lag.
+# Replacing it with the theoretical period is the obvious next step and is deliberately not taken
+# here, because a 3x cut to the window on three lakes should be a measured decision, not a
+# side effect of this one.
+SEICHE_SEG_H       = 720     # h  - Welch segment (30 d): resolves 4-240 h on a common grid
+SEICHE_BAND_H      = (4.0, 240.0)
+SEICHE_EXCESS_MIN  = 0.5     # ln - a local peak must stand this far above the red background
+SEICHE_EDGE_H      = 12.0    # h  - ignore peaks within this of a band edge: the rolling-median
+                             #      background is unreliable there and reports spurious excess
+SEICHE_AGREE_MAX   = 2.0     # x  - observed/theory must agree within this factor to be adopted
+W_MAX_SMALL_LAKE   = 24.0    # h  - the standard above, for lakes with no usable line
+
 LAG_FRAC_DEFAULT = 0.30    # the filter may inject at most this share of sigma_obs as a lag bias
 SIGMA_OBS_FALLBACK = 0.5   # if the run config does not set one
 DEEP_BAND_FACTOR = 2.0     # deep = below this multiple of the thermocline depth
@@ -220,6 +258,116 @@ def hourly_grid(obs, p):
     long = piv.stack().rename("value").reset_index()
     long.columns = ["time", "depth", "value"]
     return piv, np.array(piv.columns, dtype=float), long
+
+
+def _welch(x, seg):
+    """Mean periodogram over complete gap-free segments. None if fewer than two.
+
+    Fixed segment length so every depth and every lake lands on the SAME frequency grid -- an
+    earlier attempt used each depth's whole series, whose differing lengths silently dropped all
+    but a handful of depths from the stack (geneva contributed 1 of 52)."""
+    segs, i, n, w = [], 0, len(x), np.hanning(seg)
+    while i + seg <= n:
+        s = x[i:i + seg]
+        if np.isfinite(s).all():
+            segs.append(np.abs(np.fft.rfft((s - s.mean()) * w)) ** 2)
+            i += seg // 2
+        else:
+            i += seg // 4
+    return np.mean(segs, axis=0) if len(segs) >= 2 else None
+
+
+def observed_seiche_period(piv, depths, p, seg=SEICHE_SEG_H):
+    """The internal-seiche period read off the observations, or None if no line stands out.
+
+    Stacks the normalised Welch spectra of every depth at or below THERMO_DEPTH_MIN over the
+    stratified season, divides out the red background (rolling median in log-log), and takes the
+    largest remaining excursion. Peaks within SEICHE_EDGE_H of a band edge are refused: the median
+    has too few neighbours there and manufactures excess, which is what made three small lakes
+    first appear to peak at exactly the 240 h band edge.
+    """
+    # BLANK the unstratified rows rather than dropping them: dropping would splice January onto
+    # July and put a discontinuity inside a segment. Blanked, _welch simply skips those segments.
+    # stratified_mask is the repo's own gradient-based definition, so this adapts per lake instead
+    # of assuming a May-Oct calendar.
+    strat = piv.where(F.stratified_mask(piv, depths, p), np.nan)
+    cols = [z for z in strat.columns if float(z) >= p["THERMO_DEPTH_MIN"]]
+    if len(strat) < 2 * seg or not cols:
+        return None, 0
+    freq = np.fft.rfftfreq(seg, d=p["DT_FILT"] / 60.0)
+    per = np.divide(1.0, freq, out=np.full_like(freq, np.inf), where=freq > 0)
+    acc, used = None, 0
+    for z in cols:
+        P = _welch(strat[z].to_numpy(dtype=float), seg)
+        if P is None:
+            continue
+        used += 1
+        Pn = P / max(P[1:].sum(), 1e-30)
+        acc = Pn if acc is None else acc + Pn
+    if acc is None:
+        return None, 0
+    lo, hi = SEICHE_BAND_H
+    m = (per >= lo) & (per <= hi)
+    logp = np.log(acc[m])
+    bg = pd.Series(logp).rolling(21, center=True, min_periods=5).median().to_numpy()
+    excess = logp - bg
+    pk = per[m]
+    edge = (pk <= lo + SEICHE_EDGE_H) | (pk >= hi - SEICHE_EDGE_H)
+    excess = np.where(edge, -np.inf, excess)
+    i = int(np.argmax(excess))
+    if not np.isfinite(excess[i]) or excess[i] < SEICHE_EXCESS_MIN:
+        return None, used
+    return float(pk[i]), used
+
+
+def theoretical_seiche_period(cfg, piv, depths):
+    """Two-layer Merian period T = 2L/sqrt(g' h_eff), in hours. Needs no seiche observation.
+
+    L from the configured lake_bbox diagonal, the density contrast from the July-August profile.
+    A coarse estimate -- the bbox is not the seiche axis and the two-layer idealisation is crude --
+    but it is INDEPENDENT of the spectrum, which is the point: it is what makes an observed line
+    credible rather than merely present.
+    """
+    bb = cfg.get("lake_bbox")
+    if not bb or len(bb) != 4:
+        return None, None
+    lat = 0.5 * (bb[0] + bb[2])
+    L = float(np.hypot((bb[2] - bb[0]) * 111e3,
+                       (bb[3] - bb[1]) * 111e3 * np.cos(np.radians(lat))))
+    summer = piv[piv.index.month.isin((7, 8))].mean()
+    if not np.isfinite(summer).any():
+        return None, L
+    warm, cold = float(np.nanmax(summer)), float(np.nanmin(summer))
+    rho = lambda t: 1000.0 * (1.0 - 6.63e-6 * (t - 4.0) ** 2)   # noqa: E731
+    g_prime = 9.81 * (rho(cold) - rho(warm)) / rho(cold)
+    if g_prime <= 0:
+        return None, L
+    h1 = 10.0                                     # nominal epilimnion
+    h2 = max(float(np.max(depths)) - h1, 5.0)
+    h_eff = h1 * h2 / (h1 + h2)
+    return float(2.0 * L / np.sqrt(g_prime * h_eff) / 3600.0), L
+
+
+def resolve_w_max(cfg, piv, depths, p):
+    """W_MAX for this lake, and where it came from. See the SEICHE block at the top."""
+    obs, n_used = observed_seiche_period(piv, depths, p)
+    th, L = theoretical_seiche_period(cfg, piv, depths)
+    info = {"observed_peak_h": obs, "two_layer_theory_h": th,
+            "basin_length_km": None if L is None else round(L / 1e3, 1),
+            "depths_in_spectrum": n_used}
+    if obs is not None and th is not None:
+        ratio = max(obs / th, th / obs)
+        info["obs_over_theory"] = round(obs / th, 2)
+        if ratio <= SEICHE_AGREE_MAX:
+            info["basis"] = "observed seiche period (corroborated by two-layer theory)"
+            return float(obs), info
+        info["basis"] = (f"PLACEHOLDER {W_MAX_SMALL_LAKE:g} h — an observed line exists but "
+                         f"disagrees with theory by {ratio:.1f}x, so neither is trusted")
+        return W_MAX_SMALL_LAKE, info
+    info["basis"] = (f"PLACEHOLDER {W_MAX_SMALL_LAKE:g} h — no seiche line detectable"
+                     + ("" if th is None else f"; theory says {th:.0f} h, i.e. this is likely "
+                                              f"{W_MAX_SMALL_LAKE / th:.1f}x too long"))
+    return W_MAX_SMALL_LAKE, info
 
 
 def depth_bands(piv, depths, p):
@@ -368,9 +516,18 @@ def calibrate_lake(cfg, quick=False, lag_frac=LAG_FRAC_DEFAULT, dry_run=False,
     lag_cap   = lag_frac * sigma_obs
     logger.info(f"  lag tolerance = {lag_frac:g} x sigma_obs({sigma_obs:g}) = {lag_cap:.3f} degC")
 
+    # W_MAX is DETERMINED, not searched: it is the seiche period the thermocline term exists to
+    # null. Searching it would let the grid trade a physical timescale against a correlation score.
+    w_max, seiche = resolve_w_max(cfg, piv, depths, base)
+    base = {**base, "W_MAX": w_max}
+    logger.info(f"  W_MAX = {w_max:g} h <- {seiche['basis']}")
+    logger.info(f"    observed {seiche['observed_peak_h']}  theory {seiche['two_layer_theory_h']}  "
+                f"basin {seiche['basin_length_km']} km  "
+                f"({seiche['depths_in_spectrum']} depths in the spectrum)")
+
     grid = GRID_QUICK if quick else GRID
     deep_refs = sorted({round(fac * float(np.max(depths)), 1) for fac in grid["DEEP_REF_FACTOR"]})
-    combos = list(itertools.product(grid["W_MAX"], grid["W_DEEP"], deep_refs, grid["THERMO_GRAD_MIN"]))
+    combos = list(itertools.product([w_max], grid["W_DEEP"], deep_refs, grid["THERMO_GRAD_MIN"]))
 
     logger.info(f"  baseline (current parameters):")
     b = run_grid(lake, ref_long, obs_raw, raw_long, base,
@@ -427,6 +584,9 @@ def calibrate_lake(cfg, quick=False, lag_frac=LAG_FRAC_DEFAULT, dry_run=False,
             # What diurnal coherence would have chosen. Recorded even when not adopted: if it ever
             # exceeds params.THERMO_DEPTH_MIN the fixed cut is smoothing real solar heating.
             "derived_thermo_depth_min": round(float(derived), 2),
+            # W_MAX did not come from the grid; this is where it came from and how well the two
+            # independent readings of the seiche period agreed.
+            "seiche": seiche,
             "band_interior_m": [min(inter), max(inter)] if inter else None,
             "band_deep_m":     [min(deep), max(deep)] if deep else None,
             "n_grid": int(len(df)),
