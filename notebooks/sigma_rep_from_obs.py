@@ -281,19 +281,23 @@ def smooth_table(table, blend, passes):
 
 # ---------------------------------------------------------------------------------- per lake
 
-def out_path_for(obs_path, lake, root=ROOT):
+def out_path_for(obs_path, lake, root=ROOT, extra=""):
     """sigma_rep.json, or sigma_rep_filtered.json when fitting a *_filtered series.
 
     The suffix has to travel: a filtered run must not be handed a raw-fitted table, and the runtime
-    pairs them by this name.
+    pairs them by this name. `extra` is appended after it (--suffix) so a variant table can be
+    written beside the one a run is currently using instead of on top of it.
     """
     suffix = "_filtered" if "_filtered" in os.path.basename(obs_path) else ""
-    return os.path.join(root, "observations", lake, f"sigma_rep{suffix}.json")
+    return os.path.join(root, "observations", lake, f"sigma_rep{suffix}{extra}.json")
 
 
 def fit_lake(cfg, obs_file=None, smooth=0.0, passes=2, min_hours=MIN_HOURS_PER_DAY,
-             dry_run=False, root=ROOT):
+             dry_run=False, root=ROOT, out_suffix=""):
     lake = cfg["lake"]
+    # "{lake}" in the path lets one --obs-file cover a batch: every lake keeps its own series and
+    # the fit never silently falls back to the raw temperature.csv for six of the seven.
+    obs_file = obs_file.format(lake=lake) if obs_file else obs_file
     obs_path, obs = load_obs_hourly(lake, obs_file, root)
     ref = load_ref_hourly(lake, obs, root)
     logger.info(f"{lake}: buoy {os.path.relpath(obs_path, root)} ({obs['depth'].nunique()} depths) "
@@ -349,7 +353,7 @@ def fit_lake(cfg, obs_file=None, smooth=0.0, passes=2, min_hours=MIN_HOURS_PER_D
               f"{bs.get('stratified', float('nan')):6.3f}  {e['sigma_daily_obs']:6.3f}  "
               f"{e['sigma_daily_model']:6.3f}  {(e['model_share'] or 0):5.2f}  {e['n_days']:5d}")
 
-    path = out_path_for(obs_path, lake, root)
+    path = out_path_for(obs_path, lake, root, out_suffix)
     if dry_run:
         logger.info(f"  --dry-run: would write {os.path.relpath(path, root)}")
         return out
@@ -369,7 +373,11 @@ def main():
                      help="comma-separated, or 'all' for every lake in the config with a free run")
     ap.add_argument("--obs-file", default=None,
                     help="buoy CSV to fit against (default observations/<lake>/temperature.csv; "
-                         "pass a *_filtered.csv to fit the filtered series — single lake only)")
+                         "pass a *_filtered.csv to fit the filtered series). In batch it must "
+                         "contain {lake}, e.g. 'observations/{lake}/temperature_filtered.csv'")
+    ap.add_argument("--suffix", default="",
+                    help="appended to the output name, e.g. --suffix _smooth writes "
+                         "sigma_rep_filtered_smooth.json instead of overwriting the table in use")
     ap.add_argument("--smooth", type=float, default=0.0,
                     help="depth-smooth the written table: neighbour blend in (0,1] per pass "
                          "(default 0 = off, raw fit)")
@@ -394,14 +402,16 @@ def main():
         lakes = [s.strip() for s in cli.lakes.split(",") if s.strip()]
 
     batch = len(lakes) > 1
-    if batch and cli.obs_file:
-        raise ValueError("--obs-file names a single file and is refused in batch mode")
+    if batch and cli.obs_file and "{lake}" not in cli.obs_file:
+        raise ValueError("--obs-file names a single file: in batch mode it must contain {lake}, "
+                         "e.g. 'observations/{lake}/temperature_filtered.csv'")
 
     failed, skipped = [], []
     for lake in lakes:
         try:
             fit_lake(merge_lake_args(raw, lake=lake), obs_file=cli.obs_file, smooth=cli.smooth,
-                     passes=cli.smooth_passes, min_hours=cli.min_hours, dry_run=cli.dry_run)
+                     passes=cli.smooth_passes, min_hours=cli.min_hours, dry_run=cli.dry_run,
+                     out_suffix=cli.suffix)
         except FileNotFoundError as exc:
             if not batch:
                 raise
