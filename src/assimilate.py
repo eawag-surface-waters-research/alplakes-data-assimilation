@@ -203,12 +203,13 @@ if __name__ == "__main__":
                         help="AR(1) calibration JSON, overriding the config's \"perturbations_file\" "
                              "(default: perturbations/<lake>.json)")
     parser.add_argument("--localization", action="store_true",
-                        help="Python EnKF only: taper the forecast covariances with the depth-dependent "
-                             "Gaspari-Cohn function (see assimilator/localization.py), suppressing the "
-                             "spurious long-range correlations of a 20-member ensemble. NOTE: cells below "
-                             "roughly 50 m then receive no update at all and free-run. Overrides the "
-                             "config's \"localization\" key; radius knobs are config-only "
-                             "(\"localization_L0\" / \"localization_slope\"), else localization/<lake>.json")
+                        help="Python EnKF only: mask the state-obs covariance so a cell is updated "
+                             "only by observations inside its measured correlation radius (binary, "
+                             "see assimilator/localization.py), suppressing the spurious long-range "
+                             "correlations of a 20-member ensemble. NOTE: cells well below the "
+                             "deepest observation then receive no update at all and free-run. "
+                             "Overrides the config's \"localization\" key; the radii come from "
+                             "localization/<lake>.json (notebooks/localization.py)")
     parser.add_argument("--force-copy",       action="store_true", help="Re-run step 2 even if present")
     parser.add_argument("--no-progress", action="store_true",
                         help="Disable the progress bar (auto-disabled when stderr is not a TTY). "

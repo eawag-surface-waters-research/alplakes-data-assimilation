@@ -83,9 +83,12 @@ def build_H(z_volume, lake_level, sim_depths):
 
 # wikipedia cross checked
 def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None, loc=None):
-    """`loc`, when given, is the (rho_state_obs, rho_obs_obs) pair from
-    localization.build_matrices() covering ALL obs rows; the valid mask is applied here so the
-    caller can build them once per window without knowing which obs turn out to be NaN."""
+    """`loc`, when given, is the binary state-obs mask from localization.localization_matrix()
+    covering ALL obs rows; the valid mask is applied here so the caller can build it once per window
+    without knowing which obs turn out to be NaN.
+
+    It multiplies PHT only. A binary mask is not positive semi-definite, so keeping it out of HPHT
+    is what preserves the guarantee that HPHT+R is invertible (see assimilator/localization.py)."""
     if rng is None:
         rng = np.random.default_rng()
 
@@ -106,7 +109,7 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None, loc=None):
     # with no observation able to pull them back — K is exactly zero down there once localized, so
     # nothing damps it (measured: x1.1 per analysis, x1e15 over a year of daily windows). Unlocalized
     # runs kept that bounded only through the spurious deep gain this taper exists to remove.
-    rho_so = None if loc is None else loc[0][:, valid]
+    rho_so = None if loc is None else loc[:, valid]
     infl   = inflation
     if rho_so is not None:
         infl = np.where((rho_so > 0).any(axis=1), inflation, 1.0)[:, None]
@@ -116,13 +119,10 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None, loc=None):
     HA   = H_v @ A
     PHT  = A @ HA.T / (N - 1)
     HPHT = HA @ HA.T / (N - 1)
-    # Schur-product both covariances with the Gaspari-Cohn taper, killing the sampling-noise
-    # correlations that dominate off-diagonal at N=20. Both factors are positive definite, so by
-    # the Schur product theorem HPHT+R stays invertible below. HPHT itself is unaffected by the
-    # tapered inflation above: every observed cell is by construction inside the taper's reach.
+    # Zero the cross-covariance wherever the ensemble correlation was measured to be
+    # indistinguishable from sampling noise. HPHT is deliberately left alone -- see the docstring.
     if loc is not None:
-        PHT  = PHT  * rho_so
-        HPHT = HPHT * loc[1][np.ix_(valid, valid)]
+        PHT = PHT * rho_so
     # Numerical decision taken fully by Clude Code: Kalman gain K = PHT @ inv(HPHT+R),
     # via solve (not inv) for stability; transposes turn the right-inverse into solve's
     # left-inverse (S symmetric, so S.T == S).
@@ -162,7 +162,7 @@ def run_enkf_loop(args, model):
     inflation   = args["inflation"]
     # Vertical localization: off unless asked for, so existing runs are bit-for-bit unchanged.
     localize    = bool(args.get("localization", False))
-    loc_kw, loc_src = localization.load_params(args["lake"], ROOT, args)
+    loc_z, loc_L, loc_src = localization.load_radii(args["lake"], ROOT)
     logged_loc  = False   # summarize() once per run, not once per window
     max_workers = args.get("max_workers")
     diag_path   = args["diag_path"]
@@ -298,12 +298,12 @@ def run_enkf_loop(args, model):
                         loc = None
                         if localize:
                             state_depths = lake_lev - np.asarray(z_vol, dtype=float)
-                            loc = localization.build_matrices(state_depths, obs_depths, **loc_kw)
+                            loc = localization.localization_matrix(state_depths, obs_depths,
+                                                                  loc_z, loc_L)
                             if not logged_loc:
-                                logger.info(f"localization radius L0={loc_kw['L0']:.2f} m "
-                                            f"slope={loc_kw['slope']:.3f} <- {loc_src}")
+                                logger.info(f"localization <- {loc_src}")
                                 logger.info(localization.summarize(state_depths, obs_depths,
-                                                                   **loc_kw))
+                                                                   loc_z, loc_L))
                                 logged_loc = True
 
                         # Obs-perturbation draw keyed by the analysis instant: identical whether
