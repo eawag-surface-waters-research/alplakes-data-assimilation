@@ -24,7 +24,9 @@
                 46.03,
                 9.13
             ],
-            "lake_key": "lugano"
+            "lake_key": "lugano",
+            "length_km": 25.0,
+            "mean_depth": 171.0
         },
         "maggiore": {
             "reanalysis_lake": "maggiore",
@@ -35,7 +37,9 @@
                 8.87
             ],
             "lake_key": "maggiore",
-            "obs_file": "observations/maggiore/temperature_noon.csv"
+            "obs_file": "observations/maggiore/temperature_noon.csv",
+            "length_km": 54.0,
+            "mean_depth": 177.0
         },
         "greifensee": {
             "reanalysis_lake": "greifensee",
@@ -46,7 +50,9 @@
                 8.71
             ],
             "lake_key": "greifensee",
-            "obs_file": "observations/greifensee/temperature_noon.csv"
+            "obs_file": "observations/greifensee/temperature_noon.csv",
+            "length_km": 6.4,
+            "mean_depth": 17.7
         },
         "geneva": {
             "reanalysis_lake": "geneva",
@@ -57,7 +63,9 @@
                 6.93
             ],
             "lake_key": "geneva",
-            "obs_file": "observations/geneva/temperature_noon.csv"
+            "obs_file": "observations/geneva/temperature_noon.csv",
+            "length_km": 72.3,
+            "mean_depth": 152.7
         },
         "aegeri": {
             "reanalysis_lake": "ageri",
@@ -68,7 +76,9 @@
                 8.67
             ],
             "lake_key": "ageri",
-            "obs_file": "observations/aegeri/temperature_noon.csv"
+            "obs_file": "observations/aegeri/temperature_noon.csv",
+            "length_km": 6.9,
+            "mean_depth": 49.0
         },
         "hallwil": {
             "reanalysis_lake": "hallwil",
@@ -79,7 +89,9 @@
                 8.23
             ],
             "lake_key": "hallwil",
-            "obs_file": "observations/hallwil/temperature_noon.csv"
+            "obs_file": "observations/hallwil/temperature_noon.csv",
+            "length_km": 8.4,
+            "mean_depth": 28.6
         },
         "murten": {
             "reanalysis_lake": "murten",
@@ -90,7 +102,9 @@
                 7.14
             ],
             "lake_key": "murten",
-            "obs_file": "observations/murten/temperature_noon.csv"
+            "obs_file": "observations/murten/temperature_noon.csv",
+            "length_km": 8.2,
+            "mean_depth": 23.2
         }
     }
 }

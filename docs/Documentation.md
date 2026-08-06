@@ -48,56 +48,72 @@ The assimilation of observed lake temperature profiles into one-dimensional hydr
 
 Because internal wave dynamics are not represented in Simstrat, the model cannot reproduce these observed sub-daily oscillatory behaviors in temperature profiles. As a result, direct assimilation of high-frequency temperature observations may introduce inconsistencies between the model state and the observations. This mismatch can destabilize the assimilation procedure, generate spurious corrections, and reduce the reliability of the assimilated results
 
-Therefore, a key challenge is to develop assimilation strategies that account for unresolved internal wave variability while preserving the physical consistency and numerical stability of the lake model. To address this issue, we develop an adaptive low-pass filter whose window size varies both in depth and time as a function of stratification strength. The filter window at each depth and timestep is defined as the sum of two components: a baseline temporal smoothing term and an additional adaptive component that increases in regions and periods of strong stratification, where internal wave activity is expected to be more pronounced.
+Therefore, a key challenge is to develop assimilation strategies that account for unresolved internal wave variability while preserving the physical consistency and numerical stability of the lake model. To address this issue, we apply a causal trailing box filter whose width is **one fundamental internal-seiche period**, taken from the two-layer model of the basin.
 
-**Step 0 — Gradient smoothing**
-
-Raw local gradients are first smoothed with a causal `GRAD_SMOOTH_H`-hour trailing mean (parameter $W_s$) to reduce noise before driving the window:
+**The window**
 
 ```math
-\bar{g}(z,t) = \frac{1}{W_s}\int_{t-W_s}^{t} \left|\frac{\partial T}{\partial z}(z,\tau)\right| d\tau
+W(z) =
+\begin{cases}
+W_\text{seiche} & z \geq \texttt{THERMO\_DEPTH\_MIN} \\
+0 & z < \texttt{THERMO\_DEPTH\_MIN}
+\end{cases}
 ```
 
-Depths shallower than `THERMO_DEPTH_MIN` are set to zero (surface layer dominated by solar heating, not internal waves).
+applied as a causal trailing mean (no lookahead, online-compatible). It is constant in depth and in time. A trailing box of width $W$ has exact spectral nulls at $W, W/2, W/3, \dots$ — the whole harmonic series — so a window of one seiche period annihilates the fundamental mode and every higher one, at the smallest lag ($W/2$) able to do so.
 
-**Component 1 — Gradient-driven (thermocline)**
+Constant in depth because the seiche is a *basin* mode: one period, felt at every depth where there is a gradient to displace. What varies with depth is its amplitude, not its timescale — on Lake Lugano's northern basin the 12–36 h band holds 44% of the variance at 11 m and 36% at 40 m. Nulling a frequency does not depend on its amplitude, so the same window is correct everywhere. Depths above `THERMO_DEPTH_MIN` (4 m) are passed through untouched: there the fast signal is solar heating, which the model *should* reproduce, so removing it would hide a model defect rather than remove noise.
+
+**The window width**
+
+$W_\text{seiche}$ is not tuned. It is the fundamental (V1H1) internal-seiche period of a two-layer basin, from Merian's formula:
 
 ```math
-W_\text{grad}(z,t) = \text{clip}\!\left(\frac{W_\text{MAX} \cdot \bar{g}(z,t)}{G_\text{MAX}},\ W_\text{MIN},\ W_\text{MAX}\right)
+T = \frac{2L}{\sqrt{g' h_\text{eff}}},
+\qquad h_\text{eff} = \frac{h_1 h_2}{h_1 + h_2},
+\qquad g' = g\,\frac{\rho_2 - \rho_1}{\rho_2}
 ```
 
-`G_MAX` is the gradient value that maps to `W_MAX` (default: 95th percentile of $\bar{g}$ across thermocline depths, auto-computed).
+| symbol | source |
+|---|---|
+| $L$ | basin length — a published value, stated per lake in the run config (`length_km`) |
+| $h_1$ | epilimnion thickness = observed thermocline depth (median depth of peak $\lvert\partial T/\partial z\rvert$) |
+| $h_2$ | mean lake depth (published, `mean_depth`) minus $h_1$ |
+| $\rho_1,\rho_2$ | densities at the mean epilimnion temperature and at the deepest observed depth |
 
-**Component 2 — Depth floor (below thermocline)**
+$L$ and the mean depth are stated rather than computed. Both were once derived from geometry — the length from a bounding box, the depth by integrating a bathymetry file — but a bounding box is a data-fetch rectangle rather than a lake outline, and $T$ scales linearly with $L$, so the derivation was worse than looking the number up.
 
-```math
-W_\text{floor}(z,t) = \text{clip}\!\left(\frac{z - z_{tc}(t)}{\max\!\left(D_\text{ref} - z_{tc}(t),\; 1\right)},\ 0,\ 1\right) \cdot (W_\text{DEEP} - W_\text{MIN})
-```
+Everything else is independent of any observation *of the seiche itself*, so the estimate works identically on small lakes where no spectral line is detectable.
 
-where $z_{tc}(t) = \arg\max_z \bar{g}(z,t)$ is the time-varying thermocline depth (depth of peak smoothed gradient). This component is zero when the peak gradient falls below `THERMO_GRAD_MIN` (no active stratification, e.g. winter). The $\max(\cdot, 1)$ in the denominator guards against division by zero when $z_{tc} \geq D_\text{ref}$.
+**Evaluated at peak stratification.** $T$ is a strong function of the density contrast and therefore swings by more than an order of magnitude round the year — Lake Geneva runs ~90 h in August and over 1000 h in January, since a mixed column has no internal seiche at all. The model is evaluated month by month and read off the months whose layer density contrast is within 80% of its annual maximum, which resolves to July–August on every configured lake (June–August on the two shallowest). That is when the thermocline is sharpest and seiche displacement injects the most variance into a fixed-depth sensor, and it is the shortest period of the year, hence the least lag that does the job.
 
-**Final window**
+Derived values for the seven configured lakes:
 
-```math
-W(z,t) = \text{clip}\!\left(W_\text{grad}(z,t) + W_\text{floor}(z,t),\ W_\text{MIN},\ W_\text{MAX}\right)
-```
+| lake | $L$ (km) | mean depth (m) | $h_1$ (m) | $h_\text{eff}$ (m) | $\Delta T$ (K) | $W_\text{seiche}$ (h) |
+|---|---|---|---|---|---|---|
+| geneva | 72.3 | 152.7 | 9.5 | 8.91 | 14.0 | 97.4 |
+| maggiore | 54.0 | 177.0 | 8.0 | 7.64 | 13.5 | 77.5 |
+| upperlugano | 25.0 | 171.0 | 10.0 | 9.42 | 17.8 | 27.3 |
+| greifensee | 6.4 | 17.7 | 5.7 | 3.86 | 13.9 | 13.4 |
+| murten | 8.2 | 23.2 | 8.0 | 5.24 | 15.8 | 13.2 |
+| hallwil | 8.4 | 28.6 | 8.2 | 5.87 | 17.1 | 12.4 |
+| aegeri | 6.9 | 49.0 | 7.3 | 6.21 | 16.0 | 11.1 |
 
-| Zone | Dominant component | Typical window |
-|---|---|---|
-| $z <$ `THERMO_DEPTH_MIN` | none ($\bar{g} = 0$ forced) | $W_\text{MIN}$ |
-| thermocline | $W_\text{grad}$ | up to $W_\text{MAX}$ |
-| below thermocline | $W_\text{floor}$ ramps with depth | $W_\text{MIN}$ → $W_\text{DEEP}$ |
+Where an internal-seiche line is independently detectable in the observed spectrum, the model reproduces it — maggiore 78 h against an observed 80, greifensee 13 against 16, geneva 97 against 120 — which is the check that the mechanism is physical rather than merely arithmetic.
 
-Applied as a causal trailing box filter (no lookahead, online-compatible).
+**The cost.** A causal box back-dates: the value it hands the analysis at time $t$ is an estimate of the truth at $t - W/2$, and the error is how far the lake moved in between. Since the window is derived rather than fitted, this is the only quantity that says whether it is worth applying, and it is reported per lake as the ratio of lag injected to scatter removed, read at the depth the filter removes most from:
 
-![Adaptive Filter](../images/adaptive_filter.png)
+| lake | removed (°C) | lag (°C) | lag / removed |
+|---|---|---|---|
+| geneva | 1.21 | 0.80 | 0.66 |
+| maggiore | 0.98 | 0.62 | 0.63 |
+| upperlugano | 0.91 | 0.23 | 0.25 |
+| greifensee | 0.71 | 0.12 | 0.17 |
+| murten | 0.45 | 0.07 | 0.16 |
+| hallwil | 0.48 | 0.07 | 0.14 |
+| aegeri | 0.58 | 0.08 | 0.14 |
 
-raw hourly temperature in thin transparent blue against the adaptively
-filtered signal in red. The gap between the two lines represents the high-frequency variability the filter removed at
-that depth — narrow near the surface (short window, little smoothing), wider near and below the thermocline (longer
-window, more aggressive smoothing). The last plot makes the seasonal behaviour of the filter directly visible — windows grow during summer
-stratification (strong thermocline gradient activates both the gradient-driven and depth-floor components) and collapse
-toward W_MIN in winter when the water column is well-mixed.
+Above 1 the window would inject more systematic offset than the random scatter it removes, which is a bad trade in any units: an ensemble analysis can average out scatter and cannot average out a bias. No configured lake exceeds it, but the two largest sit near two thirds, so on a long basin the filter is a real trade rather than a free gain.
 
 We provide this filtering approach as an optional component that can be integrated into the assimilation workflow of alplakes_da. At the current stage, the results do not show a substantial improvement from the filtering procedure, likely because the assimilation already applies averaged corrections over a one-day window, which partially mitigates the impact of sub-daily oscillations.
 

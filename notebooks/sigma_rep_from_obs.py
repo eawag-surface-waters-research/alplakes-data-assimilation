@@ -80,10 +80,12 @@ import pandas as pd
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
-sys.path.insert(0, os.path.join(_ROOT, "notebooks"))
 from assimilator.functions import ROOT, merge_lake_args                          # noqa: E402
+from assimilator.models.simstrat import SIMSTRAT_REF_YEAR                        # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+DEPTH_TOL_M = 0.75        # obs-to-model-grid snapping tolerance (the ref output grid is 1 m)
 
 # The instrument term in sigma_i^2 = sigma_common^2 + sigma_rep^2/N_i. A thermistor chain is good to
 # ~0.05 degC; 0.075 allows for calibration drift between services. It is a CONFIG value, not a
@@ -136,14 +138,74 @@ def load_obs_hourly(lake, obs_file=None, root=ROOT):
     return path, obs.groupby(["depth", "time"], as_index=False)["value"].mean()
 
 
-def load_ref_hourly(lake, obs, root=ROOT):
-    """Free-run temperatures on the buoy's depths, long form.
+def ref_path(lake, root=ROOT):
+    return os.path.join(root, "inputs", lake, "ref", "T_out.dat")
 
-    Reuses notebooks/calibrate_filter.load_ref, which already snaps observation depths to the model
-    output grid, warns when two of them share a cell, and reads the T_out.dat header — one loader,
-    one set of conventions.
+
+def load_ref(lake, obs_depths, root=ROOT):
+    """Free-run trajectory at the observation depths, hourly, wide form (time x depth).
+
+    T_out.dat columns are NEGATIVE depths on the model's output grid (1 m for these lakes), so each
+    observation depth is snapped to its nearest column and only those columns are read — the file
+    is ~30 MB and ~290 columns wide for the deeper lakes.
+
+    Lived in notebooks/calibrate_filter.py until that script stopped needing a model reference; it
+    moved here rather than being deleted because this is now its only caller.
     """
-    from calibrate_filter import load_ref                                        # noqa: PLC0415
+    path = ref_path(lake, root)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"{lake}: no free-run reference at {os.path.relpath(path, root)} "
+                                f"— run local/make_ref.py for this lake first")
+
+    with open(path, encoding="utf-8") as f:
+        header = [c.strip().strip('"') for c in f.readline().strip().split(",")]
+    grid = np.array([float(c) for c in header[1:]])          # negative, ascending toward 0
+
+    keep, pairs, collided = {}, [], []
+    for d in obs_depths:
+        j = int(np.argmin(np.abs(grid + d)))                 # grid is -depth
+        off = abs(grid[j] + d)
+        if off > DEPTH_TOL_M:
+            logger.warning(f"  obs depth {d:g} m has no model output within {DEPTH_TOL_M:g} m "
+                           f"(nearest {-grid[j]:g} m) — dropped")
+            continue
+        col = header[1 + j]
+        # Two observation depths can snap to the same model column when the output grid is coarser
+        # than the sensor spacing (upperlugano: 0.5 m and 1 m both land on the model's 1 m cell).
+        # Keep whichever is closer and say so — letting the later one silently overwrite would drop
+        # an observation depth with no trace.
+        if col in keep:
+            prev_d, prev_off = keep[col]
+            loser = d if off >= prev_off else prev_d
+            collided.append(f"{loser:g}->{-grid[j]:g}")
+            if off >= prev_off:
+                continue
+        keep[col] = (d, off)
+        pairs.append((d, -grid[j], off))
+    if collided:
+        logger.warning(f"  {len(collided)} obs depth(s) share a model output cell with a closer "
+                       f"neighbour and are excluded: {', '.join(collided)}")
+    keep = {c: v[0] for c, v in keep.items()}
+    if not keep:
+        raise ValueError(f"{lake}: no observation depth matches the reference output grid")
+
+    snapped = [f"{d:g}->{m:g}" for d, m, off in pairs if off > 1e-9]
+    if snapped:
+        logger.info(f"  snapped {len(snapped)} obs depth(s) to the model grid: {', '.join(snapped)}")
+
+    df = pd.read_csv(path, usecols=[header[0]] + list(keep))
+    df.columns = [c.strip().strip('"') for c in df.columns]
+    ref_t = pd.Timestamp(f"{SIMSTRAT_REF_YEAR}-01-01", tz="UTC")
+    time = (ref_t + pd.to_timedelta(df[header[0]], unit="D")).dt.round("1h")
+    df = df.drop(columns=[header[0]])
+    df.index = time
+    df = df[~df.index.duplicated(keep="first")]
+    df.columns = [keep[c] for c in df.columns]
+    return df.sort_index()
+
+
+def load_ref_hourly(lake, obs, root=ROOT):
+    """Free-run temperatures on the buoy's depths, long form."""
     ref = load_ref(lake, sorted(obs["depth"].unique()), root)
     long = ref.stack().rename("value").reset_index()
     long.columns = ["time", "depth", "value"]

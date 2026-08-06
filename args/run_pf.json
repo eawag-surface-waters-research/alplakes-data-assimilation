@@ -19,7 +19,9 @@
         "upperlugano": {
             "reanalysis_lake":  "lugano",
             "lake_bbox":        [45.89, 8.85, 46.03, 9.13],
-            "lake_key":         "lugano"
+            "lake_key":         "lugano",
+            "length_km":        25.0,
+            "mean_depth":       171.0
         }
     }
 }
