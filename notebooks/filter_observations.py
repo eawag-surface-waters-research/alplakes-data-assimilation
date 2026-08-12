@@ -27,7 +27,12 @@ Usage:
     python notebooks/filter_observations.py args/run_enkf.json --lake upperlugano
     python notebooks/filter_observations.py args/run_enkf.json --lakes all
 
-Then assimilate it with:  python src/assimilate.py args/run_enkf.json --lake upperlugano --filtered
+Output is the full sub-daily filtered record, one row per instant the instrument actually sampled.
+Choosing which of those instants get assimilated is thinning, and belongs to local/thin_obs.py:
+
+    python local/thin_obs.py --lake upperlugano --hour 6 \
+        --in-file  observations/upperlugano/temperature_filtered.csv \
+        --out-file observations/upperlugano/temperature_filtered_h06_1d.csv
 """
 import os
 import sys
@@ -40,7 +45,7 @@ import pandas as pd
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
-from assimilator.functions import ROOT, merge_lake_args, resolve_obs_path   # noqa: E402
+from assimilator.functions import ROOT, merge_lake_args   # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +65,7 @@ MIN_SAMPLES_PER_DAY = 4     # below this the record carries no sub-daily variabi
 
 def raw_obs_path(cfg, root=ROOT):
     """The RAW sub-daily series, always observations/<lake>/temperature.csv.
-    Deliberately not resolve_obs_path(cfg): most lakes assimilate an already-thinned noon series,
+    Deliberately not the configured obs_file: most lakes assimilate an already-thinned daily series,
     and a filter that removes sub-daily variability has to see the sub-daily record. The order is
     raw -> filter -> thin, never raw -> thin -> filter.
     """
@@ -166,8 +171,22 @@ def filter_obs(obs, p=None):
 
     # ffill, NOT interpolate: interpolate(method="time") needs a sample on BOTH sides of a gap, so
     # filling t from t+1 read one to two hours into the future -- a lookahead in the production path.
-    piv = (obs.pivot_table(index="time", columns="depth", values="value", aggfunc="mean")
-              .sort_index().resample(f"{dt}min").mean().ffill(limit=2))
+    #
+    # The ffill exists to bridge the SAMPLING CADENCE, not to invent observations. At DT_FILT=60 a
+    # 3-hourly lake leaves two empty grid rows between samples, and without them the window would
+    # hold a third of its nominal length and MIN_SUPPORT would reject on cadence rather than on
+    # gaps. Being capped at 2 steps is what keeps it honest: a real outage is filled for two hours
+    # and then stays NaN, so support collapses and the admission tests fire as intended.
+    #
+    # `real` records which rows the instrument actually sampled. The window may read the bridged
+    # rows; the OUTPUT is masked back to `real`, so a filtered value is only ever emitted at an
+    # instant that was observed. Without this the filter hands downstream one value per grid step
+    # -- 3x more "observations" than the lake reports -- and those extra rows are assimilated,
+    # suppress the sub-block scatter sigma_rep is fitted from, and inflate the observation count.
+    grid = (obs.pivot_table(index="time", columns="depth", values="value", aggfunc="mean")
+               .sort_index().resample(f"{dt}min").mean())
+    real = grid.notna()
+    piv = grid.ffill(limit=2)
 
     depths = np.array(piv.columns, dtype=float)
     if len(depths) == 0:
@@ -199,7 +218,8 @@ def filter_obs(obs, p=None):
         stale = age > p["MAX_AGE_FACTOR"] * ideal
         drop  = (thin | stale) & np.isfinite(mean)
         mean  = np.where(drop, np.nan, mean)
-        out[d] = mean
+        # Emit only where the instrument sampled — the bridged rows served the window, not the output.
+        out[d] = np.where(real[d].to_numpy(), mean, np.nan)
 
         raw, flt = piv[d], out[d]
         removed  = (raw - flt).std()
@@ -217,42 +237,6 @@ def filter_obs(obs, p=None):
 
 
 # ------------------------------------------------------------------------------------ per lake
-
-def _write_thinned_companion(cfg, filtered, in_path):
-    """Also emit the filtered series thinned to the schedule this lake actually assimilates.
-
-    Most lakes assimilate a one-per-day noon series while the filter runs on the full sub-hourly
-    record; handing them the hourly filtered series would change the analysis cadence, i.e. a
-    different experiment rather than a filtered version of the same one. So rows are SELECTED from
-    the configured file's (time, depth) pairs, never modified or moved.
-
-    No-op when the lake already assimilates the raw series (upperlugano).
-    """
-    target = resolve_obs_path(cfg)
-    if os.path.abspath(target) == os.path.abspath(in_path):
-        return None
-    if not os.path.isfile(target):
-        logger.warning(f"  configured obs file {os.path.relpath(target, ROOT)} does not exist — "
-                       f"no thinned companion written")
-        return None
-
-    sched = pd.read_csv(target, usecols=["time", "depth"])
-    sched["time"] = pd.to_datetime(sched["time"], utc=True, format="ISO8601")
-    keys = sched.drop_duplicates()
-
-    out = keys.merge(filtered, on=["time", "depth"], how="inner")[list(filtered.columns)]
-    cover = len(out) / len(keys) if len(keys) else 0.0
-    if cover < 0.9:
-        logger.warning(f"  only {cover:.0%} of the assimilated schedule has a filtered value "
-                       f"({len(out):,}/{len(keys):,}) — check that the two files share a time grid")
-
-    stem, ext = os.path.splitext(target)
-    path = f"{stem}_filtered{ext}"
-    out.to_csv(path, index=False)
-    logger.info(f"  thinned to the assimilated schedule ({cover:.0%} covered): "
-                f"{len(out):,} rows -> {os.path.relpath(path, ROOT)}")
-    return path
-
 
 def filter_lake(cfg, overrides=None, in_file=None, out_file=None):
     """Filter one lake end to end. Returns the resolved parameters actually used."""
@@ -291,9 +275,6 @@ def filter_lake(cfg, overrides=None, in_file=None, out_file=None):
 
     filtered.to_csv(out_path, index=False)
     logger.info(f"  wrote {len(filtered):,} rows -> {os.path.relpath(out_path, ROOT)}")
-
-    if not out_file:
-        _write_thinned_companion(cfg, filtered, in_path)
 
     pd.set_option("display.width", 160)
     print(f"\n{lake} — what was removed, per depth "
