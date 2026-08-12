@@ -17,13 +17,16 @@ seiches. A 1D column has no horizontal dimension, so it cannot tilt, so it canno
 signal at all. Compare, day by day and depth by depth, how much the observations move against how
 much the free run moves; what the observations do and the model cannot is unrepresentable:
 
-    sigma_rep(z, season)^2 = mean_days var_within_day(obs) - mean_days var_within_day(free run)
+    sigma_rep(z, season)^2 = mean_blocks var_within_block(obs) - mean_blocks var_within_block(free)
 
-WITHIN-DAY, because it makes the estimate immune to the free run's drift. A free run wanders from
-the truth over a season, which disqualifies it from most comparisons; over a single day it
-contributes nothing to the variance. (The same reasoning made the observation filter's lag penalty
-model-free.) The inner join puts the model on exactly the observations' timestamps, so both
+WITHIN A SHORT BLOCK, because it makes the estimate immune to the free run's drift. A free run
+wanders from the truth over a season, which disqualifies it from most comparisons; over a few days
+it contributes nothing to the variance. (The same reasoning made the observation filter's lag
+penalty model-free.) The inner join puts the model on exactly the observations' timestamps, so both
 variances come from the same samples and any sampling cadence handicaps them identically.
+
+THE BLOCK IS max(24 h, W_SEICHE), per lake -- a box only sees the whole of an oscillation once it
+is at least one period long. See window_for_lake.
 
 DIFFERENCE OF MEANS, not mean of differences. Sampling noise makes the model's daily variance exceed
 the observations' on some days; clipping each day at zero would bias the result upward. Both
@@ -80,7 +83,8 @@ import pandas as pd
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
-from assimilator.functions import ROOT, merge_lake_args                          # noqa: E402
+from assimilator.functions import (ROOT, merge_lake_args, season_of,             # noqa: E402
+                                   SEASON_MONTHS, SEASONS)
 from assimilator.models.simstrat import SIMSTRAT_REF_YEAR                        # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -106,17 +110,37 @@ MIN_HOURS_PER_DAY = 6     # distinct hours a day needs before its variance is us
 # What a coarse cadence costs is reach: 3-hourly sampling cannot see sub-3-hour variability at all,
 # so for those lakes this is a lower bound even within the sub-daily band.
 MIN_DAYS   = 20           # per (depth, season)
-STRATIFIED = {5, 6, 7, 8, 9, 10}     # May-Oct
-SEASON_MONTHS = {m: ("stratified" if m in STRATIFIED else "mixed") for m in range(1, 13)}
-
-
-def season_of(month):
-    return SEASON_MONTHS[int(month)]
+# season_of / SEASON_MONTHS / SEASONS come from assimilator.functions — the single definition of
+# the stratified season, with the evidence for it. They used to be re-declared here.
 
 
 def depth_key(d):
     """Match assimilator.sigma_rep.depth_key exactly — the runtime looks the table up by this."""
     return f"{float(d):g}"
+
+
+def window_for_lake(lake, root=ROOT):
+    """Block length in hours: max(24, W_SEICHE) from filter/<lake>.json, else 24.
+
+    MAX, not min. A box only sees the whole of an oscillation once it is at least one period long,
+    so a day captures 98-100% of an 11-27 h seiche but only 18-28% of geneva's 97 h or maggiore's
+    78 h one -- there sigma_rep misses most of the thermocline displacement and R comes out too
+    small. Widening to one period recovers it: +34% on geneva, +42% on maggiore, 0% on the other
+    five, where max() leaves the day untouched. So this is one rule, not a per-lake exception.
+
+    Never NARROWER than a day, even where the seiche is 11-13 h: a longer box already contains the
+    full cycle, so shortening buys nothing and costs the diurnal band plus half the samples per
+    block (the 3-hourly buoys hold only ~4 readings in a 13 h block, under min_hours).
+
+    Cost of widening: fewer blocks (geneva 325 -> 81 per depth, maggiore 365 -> 113), so a widened
+    fit is noisier -- check n_days in the written table. The free run's drift is still excluded: 4
+    days is short against seasonal drift, and the model's own within-block variance is subtracted.
+    """
+    path = os.path.join(root, "filter", f"{lake}.json")
+    if not os.path.isfile(path):
+        return 24.0
+    with open(path, encoding="utf-8") as f:
+        return max(24.0, float(json.load(f)["params"]["W_SEICHE"]))
 
 
 # ----------------------------------------------------------------------------------- loading
@@ -214,18 +238,27 @@ def load_ref_hourly(lake, obs, root=ROOT):
 
 # ----------------------------------------------------------------------------------- fitting
 
-def fit(obs, ref, min_hours=MIN_HOURS_PER_DAY):
-    """sigma_rep per (depth, season) from the daily variance the free run does not account for."""
+def fit(obs, ref, min_hours=MIN_HOURS_PER_DAY, window_h=24.0):
+    """sigma_rep per (depth, season) from the within-block variance the free run cannot account for.
+
+    `window_h` is the block length, max(24 h, W_SEICHE) — see window_for_lake.
+    """
     j = obs.merge(ref, on=["time", "depth"], how="inner", suffixes=("_obs", "_mod"))
     if j.empty:
         raise ValueError("the observations and the free run share no (time, depth)")
-    j["day"] = j["time"].dt.floor("1D")
+    # Fixed-width blocks from a common origin rather than calendar days, so a window that is not a
+    # whole number of days still tiles the record evenly.
+    epoch = pd.Timestamp("2000-01-01", tz="UTC")
+    j["day"] = (j["time"] - epoch) // pd.Timedelta(hours=window_h)
     j["season"] = j["time"].dt.month.map(season_of)
 
+    # Scale the sample floor with the block: 6 h in 24 h is a quarter of the block, and a 97 h block
+    # holding only 6 h of data would not measure its own variance.
+    need = max(min_hours, int(round(min_hours / 24.0 * window_h)))
     daily = (j.groupby(["depth", "season", "day"])
               .agg(v_obs=("value_obs", "var"), v_mod=("value_mod", "var"), n=("value_obs", "size"))
               .reset_index())
-    daily = daily[(daily["n"] >= min_hours) & daily["v_obs"].notna() & daily["v_mod"].notna()]
+    daily = daily[(daily["n"] >= need) & daily["v_obs"].notna() & daily["v_mod"].notna()]
 
     table = {}
     for depth, g in daily.groupby("depth"):
@@ -275,7 +308,7 @@ def fill_missing_seasons(table):
     z_all = np.array([float(d) for d in depths])
     filled = {}
 
-    for season in ("mixed", "stratified"):
+    for season in SEASONS:
         have = [(zi, d) for zi, d in zip(z_all, depths)
                 if table[d]["by_season"].get(season) is not None]
         if len(have) < 2:
@@ -326,7 +359,7 @@ def smooth_table(table, blend, passes):
     for d, v in zip(depths, _smooth_depth(depths, [table[d]["all"] for d in depths], blend, passes)):
         table[d]["all"] = round(v, 4)
 
-    for season in ("mixed", "stratified"):
+    for season in SEASONS:
         present = [d for d in depths if table[d]["by_season"].get(season) is not None]
         if len(present) < 3:
             continue
@@ -355,12 +388,25 @@ def out_path_for(obs_path, lake, root=ROOT, extra=""):
 
 
 def fit_lake(cfg, obs_file=None, smooth=0.0, passes=2, min_hours=MIN_HOURS_PER_DAY,
-             dry_run=False, root=ROOT, out_suffix=""):
+             dry_run=False, root=ROOT, out_suffix="", window_h=None, depths=None):
     lake = cfg["lake"]
     # "{lake}" in the path lets one --obs-file cover a batch: every lake keeps its own series and
     # the fit never silently falls back to the raw temperature.csv for six of the seven.
     obs_file = obs_file.format(lake=lake) if obs_file else obs_file
     obs_path, obs = load_obs_hourly(lake, obs_file, root)
+    if depths is not None:
+        # Restrict BEFORE fitting, not after: smooth_table blends each depth toward its NEIGHBOURS,
+        # so the same --smooth over greifensee's 0.1 m spacing and over the 1 m grid it will
+        # actually assimilate are different operations. The blend was tuned on ~2 m spacing.
+        have = np.sort(obs["depth"].unique())
+        keep, missing = [], []
+        for t in depths:
+            i = int(np.argmin(np.abs(have - t)))
+            (keep if abs(have[i] - t) <= 0.5 else missing).append(have[i] if abs(have[i] - t) <= 0.5 else t)
+        if missing:
+            raise ValueError(f"{lake}: no observation depth within 0.5 m of {missing}")
+        obs = obs[obs["depth"].isin(sorted(set(keep)))]
+        logger.info(f"  restricted to {len(set(keep))} target depths")
     ref = load_ref_hourly(lake, obs, root)
     logger.info(f"{lake}: buoy {os.path.relpath(obs_path, root)} ({obs['depth'].nunique()} depths) "
                 f"vs the free run ({ref['time'].nunique():,} hours)")
@@ -369,7 +415,12 @@ def fit_lake(cfg, obs_file=None, smooth=0.0, passes=2, min_hours=MIN_HOURS_PER_D
     logger.info(f"  median {hours.median():.0f} distinct hours per (day, depth); "
                 f"{(hours >= min_hours).mean():.0%} of days meet the {min_hours}-hour minimum")
 
-    table = fit(obs, ref, min_hours=min_hours)
+    window_h = window_for_lake(lake, root) if window_h is None else float(window_h)
+    if window_h > 24.0:
+        logger.info(f"  block {window_h:g} h (one internal-seiche period) rather than 24 h — a day "
+                    f"would see only part of this basin's seiche; see window_for_lake")
+
+    table = fit(obs, ref, min_hours=min_hours, window_h=window_h)
     if not table:
         raise ValueError(f"{lake}: no depth reached {MIN_DAYS} days in any season "
                          f"(try a lower --min-hours; this buoy may sample coarsely)")
@@ -395,13 +446,14 @@ def fit_lake(cfg, obs_file=None, smooth=0.0, passes=2, min_hours=MIN_HOURS_PER_D
         "fitted_by": "notebooks/sigma_rep_from_obs.py",
         "source": f"{os.path.relpath(obs_path, root).replace(os.sep, '/')} (buoy) vs "
                   f"inputs/{lake}/ref/T_out.dat (free run)",
-        "estimator": "sqrt(mean within-day var(obs) - mean within-day var(free run)) per "
-                     "(depth, season). Within-day so the free run's drift cannot enter. Lower "
-                     "bound: the sub-daily band only, so synoptic-scale representativeness error "
-                     "is not included and sigma_common carries it.",
+        "estimator": f"sqrt(mean within-block var(obs) - mean within-block var(free run)) per "
+                     f"(depth, season), block = {window_h:g} h = max(24, W_SEICHE). Within-block so "
+                     f"the free run's drift cannot enter. Lower bound: nothing slower than the "
+                     f"block is included and sigma_common carries it.",
         "units": "degC",
         "resolution": "seasonal",
         "sigma_common_assumed": SIGMA_COMMON,
+        "window_h": window_h,
         "min_hours_per_day": int(min_hours),
         **({"smoothing": smoothing} if smoothing else {}),
         "sigma_rep": table,
@@ -444,9 +496,17 @@ def main():
                     help="depth-smooth the written table: neighbour blend in (0,1] per pass "
                          "(default 0 = off, raw fit)")
     ap.add_argument("--smooth-passes", type=int, default=2)
+    ap.add_argument("--window-h", type=float, default=None,
+                    help="block length in hours (default max(24, W_SEICHE) per lake — see "
+                         "window_for_lake). Pass 24 to reproduce the pre-2026-08 day-block fit.")
     ap.add_argument("--min-hours", type=int, default=MIN_HOURS_PER_DAY,
                     help=f"distinct hours a day needs before its variance is used "
                          f"(default {MIN_HOURS_PER_DAY}; 3-hourly buoys give 8)")
+    ap.add_argument("--depths", default=None,
+                    help="comma-separated target depths in m to fit at (nearest available within "
+                         "0.5 m). Pass the grid the lake will actually assimilate: --smooth blends "
+                         "each depth toward its NEIGHBOURS, so fitting on a 0.1 m chain and then "
+                         "keeping every tenth depth is not the same table")
     ap.add_argument("--dry-run", action="store_true", help="print the table, write nothing")
     cli = ap.parse_args()
 
@@ -473,7 +533,9 @@ def main():
         try:
             fit_lake(merge_lake_args(raw, lake=lake), obs_file=cli.obs_file, smooth=cli.smooth,
                      passes=cli.smooth_passes, min_hours=cli.min_hours, dry_run=cli.dry_run,
-                     out_suffix=cli.suffix)
+                     out_suffix=cli.suffix, window_h=cli.window_h,
+                     depths=([float(s) for s in cli.depths.split(",") if s.strip()]
+                             if cli.depths else None))
         except FileNotFoundError as exc:
             if not batch:
                 raise
