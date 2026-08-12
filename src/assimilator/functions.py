@@ -294,6 +294,42 @@ def discover_n_members(ensemble_base):
 
 
 # ---------------------------------------------------------------------------
+# The stratified season — one definition, for every consumer
+# ---------------------------------------------------------------------------
+# May-Oct is stratified, the rest is mixed. Previously re-declared in nine places as a set, tuple,
+# list and pair of bounds, so a change had to be made nine times or not at all.
+#
+# A CALENDAR RULE BECAUSE IT WAS TESTED AND WON (local/analyses&plans/regime_selection.md §7, seven
+# lakes): binning by a whole-lake stratification index scores 9% worse on within-bin homogeneity of
+# the daily within-day obs variance — what sigma_rep is fitted from — and a per-depth gradient split
+# only ties, at one free parameter per depth against this rule's zero. April looks mislabelled by a
+# density index but its MEASURED variability (0.12-0.33 degC) sits at the mixed level (0.13-0.21),
+# not the stratified one (0.49-0.93).
+#
+# NOT CAPTURED: April and October are intermediate and get rounded down. A third "shoulder" class is
+# the only refinement the data supports; judged not worth it on one year of record.
+#
+# A TUPLE, deliberately: np.isin() silently returns the wrong answer for a Python set, and
+# notebooks/localization.py selects the season that way.
+STRATIFIED_MONTHS = (5, 6, 7, 8, 9, 10)
+
+SEASONS = ("mixed", "stratified")
+
+# month -> season name, for the by_month blocks of the fitted sigma_rep tables
+SEASON_MONTHS = {m: ("stratified" if m in STRATIFIED_MONTHS else "mixed") for m in range(1, 13)}
+
+
+def season_of(month):
+    """'stratified' or 'mixed' for a calendar month (1-12)."""
+    return SEASON_MONTHS[int(month)]
+
+
+def is_stratified(month):
+    """True when the month falls in the stratified season."""
+    return int(month) in STRATIFIED_MONTHS
+
+
+# ---------------------------------------------------------------------------
 # Observations (model-agnostic: read the obs CSV, map depths, filter to model grid)
 # ---------------------------------------------------------------------------
 

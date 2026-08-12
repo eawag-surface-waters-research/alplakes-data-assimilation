@@ -52,7 +52,8 @@ import pandas as pd
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
 
-from assimilator.functions import ROOT, merge_lake_args, build_python_run_args   # noqa: E402
+from assimilator.functions import (ROOT, merge_lake_args, build_python_run_args,  # noqa: E402
+                                   STRATIFIED_MONTHS)
 from assimilator.models import get_model                                         # noqa: E402
 from assimilator.models.simstrat import SIMSTRAT_REF_YEAR                        # noqa: E402
 from assimilator.perturbate import perturbator, load_perturbations               # noqa: E402
@@ -61,8 +62,8 @@ logger = logging.getLogger(__name__)
 
 FREE_RUN_ROOT = os.path.join("localization", "free_run")   # <lake> beneath it
 THRESHOLD_DEFAULT = 0.45     # 2/sqrt(20): below this an N=20 correlation is sampling noise
-STRATIFIED_MONTHS = (5, 6, 7, 8, 9, 10)   # May-Oct. A calendar rule, and the only one here; the
-                                          # radius is read from the stratified season alone.
+# STRATIFIED_MONTHS (May-Oct) comes from assimilator.functions — the single definition. The radius
+# is read from the stratified season alone; this is the only calendar rule here.
 MIN_STEPS = 100              # timesteps of stratified record below which the correlation is
                              # not worth reading
 
