@@ -41,7 +41,7 @@ import logging
 
 import numpy as np
 
-from .functions import ROOT, resolve_root
+from .functions import ROOT, resolve_root, SEASONS, season_of
 
 logger = logging.getLogger(__name__)
 
@@ -180,16 +180,50 @@ def load_sigma_rep(cfg):
     return table
 
 
-def _sigma_rep_at(table, depth, month):
-    """sigma_rep for one (depth, month): the month's fitted value, else the depth's all-season
-    value, else None (-> the caller falls back to the scalar sigma_obs)."""
-    entry = table["sigma_rep"].get(depth_key(depth))
+def _entry_value(entry, month):
+    """The month's fitted value for one table entry, else its all-season value, else None."""
     if entry is None:
         return None
-    by_month = entry.get("by_month") or {}
-    v = by_month.get(str(int(month)))
+    v = (entry.get("by_month") or {}).get(str(int(month)))
     return float(v) if v is not None else (
         float(entry["all"]) if entry.get("all") is not None else None)
+
+
+def _sigma_rep_at(table, depth, month):
+    """sigma_rep for one (depth, month), interpolating over depth when there is no exact entry.
+
+    A sensor can be missing from the table without being missing from the lake: the fitter drops a
+    (depth, season) with fewer than MIN_DAYS blocks, and on a long-block lake that is most of a year
+    (geneva's block is 97.4 h, so 20 blocks is ~81 days -- its 2025 chain extension failed it at
+    55/60/65/80/85 m). An exact-match-or-nothing lookup then hands those depths the scalar
+    sigma_obs = 0.5 while their neighbours sit near 0.05, silently discarding them.
+
+    Between two fitted depths, log-linear interpolation: sigma_rep spans an order of magnitude down
+    a column and decays roughly geometrically, so interpolating the logarithm keeps a mid-point
+    between 0.30 and 0.03 near 0.09 rather than 0.17.
+
+    Only BETWEEN fitted depths. Outside their range there is no measurement to interpolate and
+    extrapolation would invent one, so the caller still falls back to the scalar -- which is the
+    honest answer for a sensor deeper than anything ever fitted.
+    """
+    reps = table["sigma_rep"]
+    v = _entry_value(reps.get(depth_key(depth)), month)
+    if v is not None:
+        return v
+
+    d = float(depth)
+    have = sorted((float(k), val) for k, val in
+                  ((k, _entry_value(e, month)) for k, e in reps.items()) if val is not None)
+    below = [(z, val) for z, val in have if z < d]
+    above = [(z, val) for z, val in have if z > d]
+    if not below or not above:
+        return None
+    z0, v0 = below[-1]
+    z1, v1 = above[0]
+    if v0 <= 0 or v1 <= 0:
+        return float(v0 + (v1 - v0) * (d - z0) / (z1 - z0))
+    w = (d - z0) / (z1 - z0)
+    return float(np.exp(np.log(v0) + w * (np.log(v1) - np.log(v0))))
 
 
 def resolve_sigma_obs(depths, n_stations, when, cfg, table):
@@ -243,6 +277,53 @@ def sigma_obs_by_depth(obs_df, cfg, table):
             vals.append(sigma_obs if rep is None
                         else np.sqrt(sigma_common ** 2 + (rep_scale * rep) ** 2 / ni))
         out[float(d)] = float(np.sqrt(np.mean(np.square(vals))))
+    return out
+
+
+def sigma_obs_by_depth_season(obs_df, cfg, table):
+    """{(depth, season): sigma} when OpenDA can reproduce the native sigma exactly, else None.
+
+    The stochObserver allows one standardDeviation per SERIES, so one series per (depth, season)
+    expresses the season axis without sigma_obs_by_depth's RMS compromise. Exact only because the
+    table is a step function in season (by_month is a fan-out of by_season).
+
+    Returns None rather than approximating: a genuinely monthly table or n_stations > 1 would make
+    two series a silent approximation. Guards -- one sigma per (depth, season), N == 1, and the
+    seasons actually differ -- each fall back to the per-depth RMS.
+
+    A (depth, season) with no observations is simply not emitted, so a window covering one season,
+    or a depth that came online mid-year, still gets exact sigma at every depth that has data.
+    """
+    if table is None or obs_df.empty:
+        return None
+    if "n_stations" in obs_df and not np.all(obs_df["n_stations"].to_numpy(dtype=float) == 1.0):
+        logger.info("[sigma] OpenDA season split declined: n_stations > 1")
+        return None
+
+    sigma_obs = float(cfg["sigma_obs"])
+    out, differs = {}, False
+    for d, g in obs_df.groupby("depth"):
+        sc = resolve_sigma_common(cfg, d)
+        ks = resolve_sigma_rep_scale(cfg, d)
+        per_season = {}
+        for season, gs in g.groupby(g["time"].dt.month.map(season_of)):
+            vals = set()
+            for m in gs["time"].dt.month.unique():
+                rep = _sigma_rep_at(table, d, m)
+                vals.add(sigma_obs if rep is None
+                         else round(float(np.sqrt(sc ** 2 + (ks * rep) ** 2)), 10))
+            if len(vals) != 1:      # table is not a step function in season
+                logger.info(f"[sigma] OpenDA season split declined: depth {d:g} m has {len(vals)} "
+                            f"distinct sigma within the {season} season")
+                return None
+            per_season[season] = vals.pop()
+        differs = differs or len(set(per_season.values())) > 1
+        for season, sig in per_season.items():
+            out[(float(d), season)] = float(sig)
+
+    if not differs:
+        logger.info("[sigma] OpenDA season split declined: sigma identical in both seasons")
+        return None
     return out
 
 
