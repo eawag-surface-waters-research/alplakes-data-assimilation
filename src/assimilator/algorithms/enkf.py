@@ -72,13 +72,53 @@ def window_obs_vector_consistent(obs_df, window_start, window_end, model):
     return nearest["value"].values, sim_depths, obs_depths
 
 
+# The observation operator. "nearest" is the historical behaviour and stays the DEFAULT so every
+# existing run reproduces bit-for-bit; set "obs_operator": "linear" in the run config to opt in.
+OBS_OPERATOR_DEFAULT = "nearest"
+OBS_OPERATORS = ("nearest", "linear")
+
+
 # inherits the surface-alignment assumption from read_snapshot_T (z_volume
 # slicing). converts "X metres below the surface" into an actual height above the bottom
-def build_H(z_volume, lake_level, sim_depths):
+def build_H(z_volume, lake_level, sim_depths, operator=OBS_OPERATOR_DEFAULT):
+    """Observation operator: rows of weights over the state cells, one row per observation.
+
+    "nearest" (default, the original) puts a single 1.0 on the closest cell. "linear" spreads the
+    row over the two bracketing cells, which is what Simstrat itself does when it writes T_out.dat,
+    so the analysis then reads the same value the diagnostics score against.
+
+    Why it matters: Simstrat centres its cells at x.25/x.75 on a 0.5 m grid, so every ROUND
+    observation depth (0.5, 1, 2, 10 ...) falls exactly HALFWAY between two cells -- measured at
+    0.250 m on 135 of the 138 observation depths across the seven configured lakes, the maximum the
+    grid allows, and an exact tie that argmin then breaks by array order. In a thermocline the
+    resulting model equivalent is off by gradient x 0.25 m, which fabricates an innovation the
+    filter cannot distinguish from a real error (0.44-0.63 degC at the p90 gradient on aegeri).
+    Linear interpolation removes that first-order term; a second-order curvature term remains, so
+    this reduces the discretisation error rather than eliminating it (measured ~84% on aegeri,
+    ~62% on the sharper greifensee thermocline).
+
+    Rows sum to 1 either way, so H stays a valid linear operator and PHT/HPHT are unaffected.
+    Outside the grid, "linear" falls back to the nearest cell -- there is nothing to interpolate
+    between.
+    """
     H = np.zeros((len(sim_depths), len(z_volume)))
+    z = np.asarray(z_volume, dtype=float)
+    asc = z[0] <= z[-1]
+    zs = z if asc else z[::-1]
     for row, d in enumerate(sim_depths):
         z_target = lake_level + d
-        H[row, int(np.argmin(np.abs(z_volume - z_target)))] = 1.0 # finds the model cell whose height is closest to that target
+        if operator == "nearest":
+            H[row, int(np.argmin(np.abs(z - z_target)))] = 1.0
+            continue
+        j = int(np.searchsorted(zs, z_target))
+        if j == 0 or j >= len(zs):                       # outside the grid: nearest, as before
+            H[row, int(np.argmin(np.abs(z - z_target)))] = 1.0
+            continue
+        span = zs[j] - zs[j - 1]
+        w = (z_target - zs[j - 1]) / span if span > 0 else 0.0
+        lo, hi = (j - 1, j) if asc else (len(zs) - j, len(zs) - 1 - (j - 1))
+        H[row, lo] = 1.0 - w
+        H[row, hi] = w
     return H
 
 # wikipedia cross checked
@@ -160,6 +200,10 @@ def run_enkf_loop(args, model):
     # was, which is what every lake without a table gets.
     sigma_table = load_sigma_rep(args)
     inflation   = args["inflation"]
+    # Observation operator: "nearest" unless asked for, so existing runs are bit-for-bit unchanged.
+    obs_operator = args.get("obs_operator", OBS_OPERATOR_DEFAULT)
+    if obs_operator not in OBS_OPERATORS:
+        raise ValueError(f'obs_operator must be one of {OBS_OPERATORS}, got {obs_operator!r}')
     # Vertical localization: off unless asked for, so existing runs are bit-for-bit unchanged.
     localize    = bool(args.get("localization", False))
     loc_z, loc_L, loc_src = localization.load_radii(args["lake"], ROOT)
@@ -289,7 +333,7 @@ def run_enkf_loop(args, model):
                         lake_lev = snap_data[readable[0]][2]
 
                         # Note: Assuming lake levels of different members the same, T column too. Intentional.
-                        H          = build_H(z_vol, lake_lev, sim_depths)
+                        H          = build_H(z_vol, lake_lev, sim_depths, obs_operator)
 
                         # Vertical localization (opt-in). Rebuilt per window: both the obs depths
                         # present and the lake level move. z_vol is height above bottom, so the
