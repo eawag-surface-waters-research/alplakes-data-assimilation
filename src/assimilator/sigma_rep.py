@@ -108,9 +108,21 @@ def resolve_sigma_common(cfg, depth):
     return _depth_stepped(cfg.get("sigma_common"), depth, DEFAULT_SIGMA_COMMON)
 
 
-def resolve_sigma_rep_scale(cfg, depth):
-    """Multiplier on the fitted sigma_rep -- a scalar or a depth-keyed step function. Default 1.0,
-    i.e. the table is used exactly as fitted and behaviour is unchanged.
+def _is_season_keyed(spec):
+    """True for {"mixed": ..., "stratified": ...}. Depth keys are numeric, so the two never collide
+    and an old depth-only config is recognised unchanged."""
+    return isinstance(spec, dict) and bool(spec) and set(spec) <= set(SEASONS)
+
+
+def resolve_sigma_rep_scale(cfg, depth, month=None):
+    """Multiplier on the fitted sigma_rep -- a scalar, a depth-keyed step function, or a season-keyed
+    dict of either. Default 1.0, i.e. the table is used exactly as fitted.
+
+        "sigma_rep_scale": {"mixed": {"0": 1.52, "4": 2.61},
+                            "stratified": {"0": 1.10, "4": 2.14}}
+
+    A season-keyed scale REQUIRES `month`; passing None raises rather than silently picking a season,
+    because the two differ by up to 1.8x and the wrong one is invisible in the log line.
 
     WHY a multiplier is a legitimate knob and not a fudge. The fitted sigma_rep is a LOWER BOUND by
     construction: the estimator is sqrt(mean within-day var(obs) - mean within-day var(free run)),
@@ -135,8 +147,25 @@ def resolve_sigma_rep_scale(cfg, depth):
     Prefer a scalar. A depth-stepped scale is accepted for symmetry, but fitting one per depth band
     on a single year overfits -- the fit wanted 3.9x on greifensee's top 2.5 m and 5.4x at 25 m on
     hallwil, on a handful of depths each.
+
+    WHY A SEASON AXIS, given sigma_rep already carries one. The multiplier covers the synoptic band
+    the estimator cannot see, and that band is not a fixed fraction of the sub-daily band it can.
+    Fitted per season on A_final the two disagree by more than the depth split does, and not in one
+    direction: geneva and upperlugano want a larger scale in the mixed season (geneva below 4 m,
+    2.34 vs 1.76), aegeri and hallwil in the stratified one (aegeri above 4 m, 3.48 vs 2.02). One
+    annual value is the count-weighted compromise and is therefore wrong in both seasons at once --
+    geneva's deep water pools to NIS 1.51 mixed against 0.94 stratified. Lakes with no split
+    (greifensee, maggiore below 4 m) simply fit two near-equal numbers.
     """
-    return _depth_stepped(cfg.get("sigma_rep_scale"), depth, 1.0)
+    spec = cfg.get("sigma_rep_scale")
+    if _is_season_keyed(spec):
+        if month is None:
+            raise ValueError("sigma_rep_scale is season-keyed, so resolving it needs a month")
+        season = season_of(month)
+        if season not in spec:
+            raise ValueError(f"sigma_rep_scale has no {season!r} entry (has {sorted(spec)})")
+        spec = spec[season]
+    return _depth_stepped(spec, depth, 1.0)
 
 
 def sigma_rep_path(cfg):
@@ -245,7 +274,7 @@ def resolve_sigma_obs(depths, n_stations, when, cfg, table):
         # No fitted entry for this depth -> keep the scalar. Mixing a fitted depth and a fallback
         # depth in one vector is fine and intended.
         sc = resolve_sigma_common(cfg, d)
-        ks = resolve_sigma_rep_scale(cfg, d)
+        ks = resolve_sigma_rep_scale(cfg, d, when.month)
         out[i] = (sigma_obs if rep is None
                   else float(np.sqrt(sc ** 2 + (ks * rep) ** 2 / n[i])))
     return out
@@ -270,10 +299,12 @@ def sigma_obs_by_depth(obs_df, cfg, table):
         months = g["time"].dt.month.to_numpy()
         n = g["n_stations"].to_numpy(dtype=float) if "n_stations" in g else np.ones(len(g))
         sigma_common = resolve_sigma_common(cfg, d)
-        rep_scale = resolve_sigma_rep_scale(cfg, d)
         vals = []
         for m, ni in zip(months, np.where(n >= 1, n, 1.0)):
             rep = _sigma_rep_at(table, d, m)
+            # inside the loop: the scale may itself be season-keyed, and this RMS is taken over
+            # observations spanning both seasons
+            rep_scale = resolve_sigma_rep_scale(cfg, d, m)
             vals.append(sigma_obs if rep is None
                         else np.sqrt(sigma_common ** 2 + (rep_scale * rep) ** 2 / ni))
         out[float(d)] = float(np.sqrt(np.mean(np.square(vals))))
@@ -304,12 +335,13 @@ def sigma_obs_by_depth_season(obs_df, cfg, table):
     out, differs = {}, False
     for d, g in obs_df.groupby("depth"):
         sc = resolve_sigma_common(cfg, d)
-        ks = resolve_sigma_rep_scale(cfg, d)
         per_season = {}
         for season, gs in g.groupby(g["time"].dt.month.map(season_of)):
             vals = set()
             for m in gs["time"].dt.month.unique():
                 rep = _sigma_rep_at(table, d, m)
+                # a season-keyed scale is constant within the season, so this stays exact
+                ks = resolve_sigma_rep_scale(cfg, d, m)
                 vals.add(sigma_obs if rep is None
                          else round(float(np.sqrt(sc ** 2 + (ks * rep) ** 2)), 10))
             if len(vals) != 1:      # table is not a step function in season
