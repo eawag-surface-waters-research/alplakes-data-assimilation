@@ -7,10 +7,11 @@ correlation: the thing the Kalman gain multiplies. A free run -- perturbed forci
 shows it undistorted. 
 WHAT. Ensemble anomalies (each member minus the ensemble mean, at every time) are correlated between
 model depths, pooled over the stratified season. For each depth the RADIUS is the smallest separation
-at which that correlation first falls below THRESHOLD. The weight is then binary: 1 inside the
-radius, 0 outside.
+at which that correlation first falls below THRESHOLD. That radius is the SUPPORT of the
+Gaspari-Cohn taper applied in assimilator/localization.py -- weight 1 at zero separation, 0 at the
+radius -- so this table is unchanged by the move from a binary mask to the taper; only how the
+number is used changed.
 
-    no taper       weight is 1 or 0, not a Gaspari-Cohn bump
     no fit         no L0, no slope, no functional form imposed on the radius profile
     one knob       THRESHOLD
 
@@ -19,8 +20,8 @@ further and its radius is much wider. Adopting the stratified radius year-round 
 HARDER than winter physics requires -- it discards some real information in a mixed column, but it
 never lets a spurious correlation through. That is the safe direction, and stratification is when
 the column is decoupled and localization is actually doing work.
-APPLIED TO PHT ONLY. See assimilator/localization.py: a binary mask is not positive semi-definite,
-so it is kept out of HPHT, which gets inverted.
+APPLIED TO BOTH SIDES. See assimilator/localization.py: the taper multiplies PHT and HPHT alike,
+which a binary mask could not do because it is not positive semi-definite.
 WHAT THIS CANNOT DO. Deep cells have no observation anywhere near them, so their radius says only
 "nothing reaches here" -- which is the intended behaviour, not a measurement. Expect the deep water
 to free-run.
@@ -133,7 +134,7 @@ def radii(corr, depths, threshold):
     """Per depth, the smallest separation at which the correlation first drops below `threshold`.
 
     Walk outward from each depth over the sorted grid and stop at the first neighbour below the
-    threshold; that separation is the radius, and the weight is 1 inside it. A depth whose
+    threshold; that separation is the radius, i.e. the taper's support. A depth whose
     correlation never drops gets the largest separation available, i.e. the whole column -- honest,
     since the grid cannot show a crossing that is not there.
     """
@@ -196,7 +197,7 @@ def derive_lake(cfg, run_dir, threshold=THRESHOLD_DEFAULT, dry_run=False, root=R
     out = {
         "lake": lake,
         "derived_on": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "derived_by": "notebooks/localization.py (free-ensemble correlation, binary mask)",
+        "derived_by": "notebooks/localization.py (free-ensemble correlation, Gaspari-Cohn support)",
         "source_run": os.path.relpath(run_dir, root).replace(os.sep, "/"),
         "threshold": threshold,
         "season": "stratified only (months " + ",".join(str(m) for m in STRATIFIED_MONTHS) + ")",

@@ -122,13 +122,14 @@ def build_H(z_volume, lake_level, sim_depths, operator=OBS_OPERATOR_DEFAULT):
     return H
 
 # wikipedia cross checked
-def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None, loc=None):
-    """`loc`, when given, is the binary state-obs mask from localization.localization_matrix()
-    covering ALL obs rows; the valid mask is applied here so the caller can build it once per window
-    without knowing which obs turn out to be NaN.
+def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None, loc_so=None, loc_oo=None):
+    """`loc_so` (state-obs) and `loc_oo` (obs-obs) are the Gaspari-Cohn tapers from
+    localization.taper(), covering ALL obs rows; the valid mask is applied here so the caller can
+    build them once per window without knowing which obs turn out to be NaN.
 
-    It multiplies PHT only. A binary mask is not positive semi-definite, so keeping it out of HPHT
-    is what preserves the guarantee that HPHT+R is invertible (see assimilator/localization.py)."""
+    Both are required together: they multiply PHT and HPHT respectively, and tapering only PHT
+    leaves the inverse built for the full observation set, which re-admits the damped observations
+    through it with the wrong sign (see assimilator/localization.py)."""
     if rng is None:
         rng = np.random.default_rng()
 
@@ -146,23 +147,29 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None, loc=None):
 
     # Localization confines inflation to the cells it can actually update. Inflating globally would
     # multiply the anomalies of every cell below the taper's reach by `inflation` on EVERY analysis
-    # with no observation able to pull them back — K is exactly zero down there once localized, so
+    # with no observation able to pull them back — K is zero beyond the taper's support, so
     # nothing damps it (measured: x1.1 per analysis, x1e15 over a year of daily windows). Unlocalized
     # runs kept that bounded only through the spurious deep gain this taper exists to remove.
-    rho_so = None if loc is None else loc[:, valid]
+    rho_so = None if loc_so is None else loc_so[:, valid]
+    rho_oo = None if loc_oo is None else loc_oo[np.ix_(valid, valid)]
     infl   = inflation
     if rho_so is not None:
-        infl = np.where((rho_so > 0).any(axis=1), inflation, 1.0)[:, None]
+        # Against REACH_MIN, not zero: the taper is nonzero almost everywhere inside its support,
+        # so a `> 0` test would inflate every cell and re-open the runaway this guard exists for.
+        infl = np.where(rho_so.max(axis=1) >= localization.REACH_MIN, inflation, 1.0)[:, None]
     A     = (X_f - x_bar) * infl
     X_inf = x_bar + A
 
     HA   = H_v @ A
     PHT  = A @ HA.T / (N - 1)
     HPHT = HA @ HA.T / (N - 1)
-    # Zero the cross-covariance wherever the ensemble correlation was measured to be
-    # indistinguishable from sampling noise. HPHT is deliberately left alone -- see the docstring.
-    if loc is not None:
+    # Damp both covariances wherever the ensemble correlation was measured to be indistinguishable
+    # from sampling noise. BOTH, and with the same taper: the gain is (rho.PHT)(rho.HPHT + R)^-1,
+    # and tapering one side alone makes the two disagree about which observations exist.
+    if rho_so is not None:
         PHT = PHT * rho_so
+    if rho_oo is not None:
+        HPHT = HPHT * rho_oo
     # Numerical decision taken fully by Clude Code: Kalman gain K = PHT @ inv(HPHT+R),
     # via solve (not inv) for stability; transposes turn the right-inverse into solve's
     # left-inverse (S symmetric, so S.T == S).
@@ -339,11 +346,11 @@ def run_enkf_loop(args, model):
                         # present and the lake level move. z_vol is height above bottom, so the
                         # depth below surface is lake_lev - z_vol — the same convention build_H
                         # uses via obs_to_sim_col (depth -> -depth).
-                        loc = None
+                        loc_so = loc_oo = None
                         if localize:
                             state_depths = lake_lev - np.asarray(z_vol, dtype=float)
-                            loc = localization.localization_matrix(state_depths, obs_depths,
-                                                                  loc_z, loc_L)
+                            loc_so = localization.taper(state_depths, obs_depths, loc_z, loc_L)
+                            loc_oo = localization.taper(obs_depths, obs_depths, loc_z, loc_L)
                             if not logged_loc:
                                 logger.info(f"localization <- {loc_src}")
                                 logger.info(localization.summarize(state_depths, obs_depths,
@@ -360,7 +367,7 @@ def run_enkf_loop(args, model):
                         sigma_vec  = resolve_sigma_obs(obs_depths, np.ones(len(obs_depths)),
                                                        window_end, args, sigma_table)
                         X_a, diags = enkf_update(X_f, y_obs, H, sigma_vec, inflation=inflation,
-                                                 rng=rng, loc=loc)
+                                                 rng=rng, loc_so=loc_so, loc_oo=loc_oo)
 
                         def _write_T(col_i):
                             col, i = col_i

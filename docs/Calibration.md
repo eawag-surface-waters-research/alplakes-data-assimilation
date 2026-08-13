@@ -358,17 +358,22 @@ localization most of the state is updated purely through noise. Each state cell 
 $L(z)$ — the separation at which its ensemble correlation drops below the threshold — and
 
 $$
-\rho_{ij} = \begin{cases} 1 & |z^\text{state}_i - z^\text{obs}_j| \le L(z^\text{state}_i)\\ 0 & \text{otherwise}\end{cases}
+\rho_{ij} = \text{GC}\!\left(\frac{2\,|z_i - z_j|}{L_{ij}}\right),
+\qquad L_{ij} = \tfrac{1}{2}\left(L(z_i) + L(z_j)\right)
 $$
 
-Binary, not a Gaspari–Cohn taper, and the radius profile is *measured* per depth rather than fitted
-to a functional form. One threshold is the only knob.
+with GC the Gaspari–Cohn (1999) correlation function: 1 at zero separation, falling smoothly to
+exactly 0 at $L_{ij}$. The radius profile is *measured* per depth rather than fitted to a functional
+form, and one threshold is the only knob.
 
-!!! note "Applied to PHᵀ only"
-    A binary mask is not positive semi-definite, so Schur-multiplying it into $\mathbf{HPH}^{\!\top}$
-    would forfeit the guarantee that $\mathbf{HPH}^{\!\top}+\mathbf{R}$ stays invertible. It is
-    applied to the state–obs cross-covariance alone, which is where localization does its work.
-    The intended consequence: **water far below the deepest observation free-runs.**
+!!! note "Applied to both PHᵀ and HPHᵀ"
+    The gain is $(\rho\circ\mathbf{PH}^{\!\top})(\rho\circ\mathbf{HPH}^{\!\top}+\mathbf{R})^{-1}$,
+    and both factors must describe the same observation set. Tapering only $\mathbf{PH}^{\!\top}$
+    leaves an inverse built for the full set, and the damped observations re-enter through it with
+    the wrong sign — that is what diverged murten in April 2025. Gaspari–Cohn is
+    positive semi-definite, so by the Schur product theorem $\rho\circ\mathbf{P}$ stays a valid
+    covariance; a binary mask is not, and cannot be applied to either side safely.
+    The intended consequence is unchanged: **water far below the deepest observation free-runs.**
 
 **How determined.** `notebooks/localization.py` against a dedicated **free ensemble run** (20
 members, no assimilation), over the stratified season, threshold 0.45 on all seven lakes.
@@ -376,8 +381,13 @@ members, no assimilation), over the stratified season, threshold 0.45 on all sev
 **Values in use** (`localization/<lake>.json`, derived 2026-08-06/10). A full per-depth profile is
 too long to print, and four numbers reproduce its shape: the radius at the surface, the minimum and
 where it sits, the radius at the deepest observed depth, and the maximum at the bottom. The right
-three columns are what `localization.summarize()` logs at the first analysis of the run — the mask
+three columns are what `localization.summarize()` logs at the first analysis of the run — the taper
 applied to the real Simstrat state grid and the real assimilated depths, not a derivation.
+
+!!! warning "Right three columns are stale"
+    They were logged under the binary mask. `summarize()` now counts a cell as reached at taper
+    weight ≥ 0.01 and reports summed weight rather than a tally of non-zeros, so both the counts and
+    the observations-per-cell figures will move. Re-log them from the next run.
 
 | lake | column (m) | observed (m, n) | $L$ surface | **min $L$** | at deepest obs | max $L$ | state cells updated | deepest updated | obs per updated cell |
 |---|--:|---|--:|--:|--:|--:|--:|--:|--:|
