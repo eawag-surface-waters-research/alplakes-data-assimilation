@@ -359,6 +359,24 @@ def sigma_obs_by_depth_season(obs_df, cfg, table):
     return out
 
 
+def _depth_steps_txt(spec):
+    """'>=0m: 1.52, >=4m: 2.61' for a depth-keyed step function."""
+    return ", ".join(f">={float(k):g}m: {float(v)}"
+                     for k, v in sorted(spec.items(), key=lambda kv: float(kv[0])))
+
+
+def _scale_txt(spec):
+    """sigma_rep_scale for the log line. Season-keyed is handled separately from depth-keyed:
+    its keys are season names, so sorting them as floats raises (see resolve_sigma_rep_scale)."""
+    if not isinstance(spec, dict):
+        return f"{spec:g}"
+    if _is_season_keyed(spec):
+        return "season-keyed " + "; ".join(
+            f"{s}: " + (_depth_steps_txt(v) if isinstance(v, dict) else f"{float(v):g}")
+            for s, v in sorted(spec.items()))
+    return "depth-stepped " + _depth_steps_txt(spec)
+
+
 def log_sigma_summary(cfg, table, by_depth=None):
     """Say, once, what observation-error model this run is actually using — the counterpart to the
     'sigma_obs=' knob in the run header, which no longer tells the whole story."""
@@ -370,10 +388,7 @@ def log_sigma_summary(cfg, table, by_depth=None):
     sc_txt = (f"{sc} degC" if not isinstance(sc, dict) else
               "depth-stepped " + ", ".join(f">={float(k):g}m: {float(v)}"
                                            for k, v in sorted(sc.items(), key=lambda kv: float(kv[0]))))
-    ks = cfg.get("sigma_rep_scale", 1.0)
-    ks_txt = (f"{ks:g}" if not isinstance(ks, dict) else
-              "depth-stepped " + ", ".join(f">={float(k):g}m: {float(v)}"
-                                           for k, v in sorted(ks.items(), key=lambda kv: float(kv[0]))))
+    ks_txt = _scale_txt(cfg.get("sigma_rep_scale", 1.0))
     logger.info(f"[sigma] sigma^2 = sigma_common^2 + (scale * sigma_rep(depth, month))^2 / n_stations"
                 f"  (sigma_common={sc_txt}, scale={ks_txt}, "
                 f"fallback sigma_obs={cfg['sigma_obs']} degC)")
