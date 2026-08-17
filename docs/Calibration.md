@@ -314,10 +314,11 @@ Fitted on Run A: **1.25 above 4 m, 2.23 at and below**. The ratio held when fitt
 **Evidence the split is the filter, not the lake:** refitted on the *unfiltered* series the two
 bands come out 1.12 and 1.15 — a ratio of **1.03**, against 1.79 on the filtered series.
 
-#### The fitted scales in use
+#### The annual scales — first pass
 
 Fitted from `A_final` (unsmoothed table, `sigma_rep_scale = 1.0`, localization off) and written into
-`args/experiments/C_final.json`:
+`args/experiments/C_final.json`. Superseded by the season-keyed values below, which the final run
+uses; the annual pair is kept because everything in §5 and §6 was measured under it.
 
 | lake | $k$ (0–4 m) | $k$ (≥ 4 m) | ratio |
 |---|--:|--:|--:|
@@ -349,6 +350,51 @@ shallowest sensor:
 
 $\sigma_i = \sqrt{\sigma_\text{common}^2 + (k\sigma_\text{rep})^2}$ with $N_i = 1$ — the scaled term
 dominates everywhere, and $\sigma_\text{common}$ moves $\sigma_i$ by at most 0.008 °C.
+
+#### Season-keyed scales — the final values
+
+**Why a second axis.** $\sigma_\text{rep}$ already carries a season shape, so a season-keyed $k$ is
+not re-stating it: $k$ covers the **synoptic band the estimator cannot see** — everything slower
+than one block — and that band is *not* a fixed fraction of the sub-block band that was measured.
+Where the two disagree, one annual $k$ is a count-weighted compromise that can sit wrong in both
+seasons at once. Geneva is the case that forced it: below 4 m the annual scale left pooled NIS 1.51
+mixed against 0.94 stratified.
+
+`sigma_rep_scale` therefore accepts a season key on top of the depth steps, and
+`local/sigma/fit_sigma_common.py` emits it automatically — the same closed-form band solve, run on
+each season's rows, restricted to the depths the annual fit kept so both step functions cover the
+same water. Same run, same command; read the block printed under *"per-season fit of the same two
+bands"*.
+
+```json
+"sigma_rep_scale": { "mixed":      { "0": 1.5173, "4": 2.6102 },
+                     "stratified": { "0": 1.0991, "4": 2.1410 } }
+```
+
+Fitted from `A_final` and written into `args/experiments/C_seasonal_noloc.json`, the final run:
+
+| lake | mixed 0–4 m | mixed ≥ 4 m | strat 0–4 m | strat ≥ 4 m | mixed/strat, 0–4 m | mixed/strat, ≥ 4 m |
+|---|--:|--:|--:|--:|--:|--:|
+| upperlugano | 1.5173 | 2.6102 | 1.0991 | 2.1410 | 1.38 | 1.22 |
+| maggiore | 1.8265 | 2.5512 | 1.4581 | 2.4971 | 1.25 | 1.02 |
+| geneva | 1.8592 | 2.3362 | 1.5641 | 1.7643 | 1.19 | 1.32 |
+| murten | 1.5789 | 2.5892 | 1.3931 | 2.3050 | 1.13 | 1.12 |
+| greifensee | 2.3528 | 2.0942 | 2.5128 | 2.0890 | 0.94 | 1.00 |
+| hallwil | 2.4214 | 2.0505 | 2.6896 | 2.7703 | 0.90 | 0.74 |
+| aegeri | 2.0176 | 1.9073 | 3.4782 | 1.9240 | 0.58 | 0.99 |
+
+The split is real but not large, and it does not point one way. Five lakes want **more** damping in
+winter (the measured sub-block band under-states the total worst when the lake is mixed), hallwil
+and aegeri want more in summer. **Aegeri is the largest single seasonal ratio of the seven and it is
+confined to the surface** — 3.48 stratified against 2.02 mixed above 4 m, while below 4 m the two
+seasons agree to 1 % (1.907 vs 1.924). Greifensee has effectively no split at all, and is carried
+season-keyed only so all seven read the same way; its record starts 2025-02-21, so its mixed season
+is thin.
+
+!!! note "This is a one-shot solve, not a fixed point"
+    $k$ is fitted by inverting the NIS identity on a *completed* run, but raising $\mathbf{R}$
+    changes the analysis — hence the spread and the innovations the next run produces. One pass
+    therefore lands near 1, not on it. §10 measures how near.
 
 ### 2.6 Vertical localization
 
@@ -411,6 +457,13 @@ reach** — the mask still removes long-range pairs (4.7–13.7 of the available
 given cell) but leaves no free-running water.
 
 **Config.** `localization/<lake>.json`; `"localization": true`. Deleting the json disables it.
+
+!!! warning "The final run has localization OFF on all seven lakes"
+    `C_seasonal_noloc.json` sets `"localization": false`. That is deliberate, not an oversight: the
+    season-keyed scales were fitted on `A_final`, which ran unlocalized, so this is the one
+    configuration in which the fit's own assumptions hold — see §10. The localized counterpart
+    (`C_seasonal.json`, same scales, taper on) exists and the pair isolates localization at fixed
+    $\mathbf{R}$, exactly as `A_final`/`C_final` did for the annual scale.
 
 ### 2.7 Season definition
 
@@ -857,18 +910,20 @@ band widths say whether spread or σ is responsible. Always quote the **hourly**
 
 ## 10. All seven lakes
 
-The two runs that carry every calibrated value on this page, both over 2025 with 20 members:
+The runs that carry every calibrated value on this page, all over 2025 with 20 members.
+**`C_seasonal_noloc` is the final one for now** — the numbers below are from
+`~/C_seasonal_noloc.zip`, run 2026-08-14:
 
-| | `A_final.json` | `C_final.json` |
-|---|---|---|
-| σ_rep table | `sigma_rep_filtered_nosmooth.json` | `sigma_rep_filtered_nosmooth.json` |
-| `sigma_rep_scale` | 1.0 | fitted two-band, §2.5 |
-| localization | off | **on** |
-| `obs_operator` | `linear` | `linear` |
-| role | the run the scale is fitted from | the final run |
+| | `A_final.json` | `C_final.json` | **`C_seasonal_noloc.json`** |
+|---|---|---|---|
+| σ_rep table | `sigma_rep_filtered_nosmooth.json` | same | same |
+| `sigma_rep_scale` | 1.0 | fitted two-band, annual | **fitted two-band × season**, §2.5 |
+| localization | off | on | **off** |
+| `obs_operator` | `linear` | `linear` | `linear` |
+| role | the run both scales are fitted from | first final run | **the current final run** |
 
 !!! warning "Two differences from the worked example"
-    Both final configs use the **unsmoothed** σ_rep table, and both set
+    All three configs use the **unsmoothed** σ_rep table, and all three set
     `"obs_operator": "linear"`. The linear operator spreads each observation row over the two
     bracketing state cells instead of putting 1.0 on the nearest, which matters because Simstrat
     centres cells at x.25/x.75 on its 0.5 m grid — so 135 of the 138 observation depths across
@@ -876,25 +931,98 @@ The two runs that carry every calibrated value on this page, both over 2025 with
     array order. The default stays `nearest` so older runs reproduce bit-for-bit. Neither change
     is covered by the upperlugano matrix of §4–5.
 
-### Per-lake summary
+### Per-lake summary — `C_seasonal_noloc`, the current final run
 
-Scored against the **raw hourly** series, never the filtered one the run was steered toward.
+Scored against the **raw hourly** series, never the filtered one the run was steered toward, and at
+the **assimilated depths only** (`--eval-obs hourly --assim-depths`), so a thinned lake is not scored
+mostly where it was never told anything. 2025, 20 members, 223–364 analyses per lake.
 
-| lake | free run | C_final | improvement | depths improved | NIS |
-|---|--:|--:|--:|:--:|--:|
-| hallwil | 0.93 | **0.40** | −57 % | 19/19 | 1.11 |
-| geneva | 1.39 | **0.81** | −42 % | 27/27 | 1.11 |
-| murten | 0.72 | **0.45** | −37 % | 18/18 | 1.14 |
-| maggiore | 1.54 | **1.00** | −35 % | 16/16 | 1.52 |
-| greifensee | 1.09 | **0.70** | −35 % | 17/17 | 1.28 |
-| aegeri | 0.48 | **0.34** | −29 % | 20/22 | 1.30 |
-| upperlugano | 0.83 | **0.60** | −28 % | 16/16 | 1.07 |
+| lake | free run | **C_seasonal_noloc** | improvement | depths improved | pooled NIS | *(C_final)* |
+|---|--:|--:|--:|:--:|--:|--:|
+| hallwil | 0.93 | **0.43** | −53.9 % | 19/19 | 1.32 | *0.40, −57 %* |
+| geneva | 1.39 | **0.81** | −41.7 % | 27/27 | 1.10 | *0.81, −42 %* |
+| murten | 0.72 | **0.45** | −36.5 % | 18/18 | 1.14 | *0.45, −37 %* |
+| greifensee | 1.09 | **0.71** | −34.4 % | 16/17 | 1.31 | *0.70, −35 %* |
+| maggiore | 1.54 | **1.01** | −34.2 % | 16/16 | 1.56 | *1.00, −35 %* |
+| aegeri | 0.48 | **0.34** | −29.6 % | 20/22 | 1.25 | *0.34, −29 %* |
+| upperlugano | 0.83 | **0.60** | −27.6 % | 15/16 | 1.10 | *0.60, −28 %* |
 
-RMSE in °C. **Every lake improves by 28–57 %, and 133 of 138 depths improve.** NIS sits near 1
-everywhere, so the filter's stated uncertainty now matches its actual errors — maggiore at 1.52 is
-the weakest, still over-confident.
+RMSE in °C. **Every lake improves by 28–54 %, and 131 of 135 scored depths improve.** The four
+losses are all tiny and all in water the filter has nearly nothing left to correct: upperlugano
+40 m (0.086 → 0.088), greifensee 12 m (0.659 → 0.670), aegeri 14 m (0.525 → 0.541) and aegeri 12 m
+(0.564 → 0.682, the one real loss of the set, at the bottom of that lake's thermocline).
 
-### What the last round of work changed
+Against the assimilated series, the run's own scorecards:
+
+| lake | n | bias | RMSE | MAE | mean spread | coverage 1σ | 2σ |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| aegeri | 7136 | +0.017 | 0.265 | 0.141 | 0.035 | 0.151 | 0.293 |
+| upperlugano | 5824 | +0.046 | 0.332 | 0.206 | 0.061 | 0.177 | 0.351 |
+| hallwil | 6412 | −0.036 | 0.367 | 0.228 | 0.063 | 0.184 | 0.370 |
+| murten | 6329 | −0.018 | 0.371 | 0.214 | 0.076 | 0.228 | 0.417 |
+| geneva | 7731 | −0.036 | 0.490 | 0.305 | 0.050 | 0.108 | 0.213 |
+| greifensee | 3694 | −0.014 | 0.567 | 0.366 | 0.079 | 0.164 | 0.317 |
+| maggiore | 5840 | +0.270 | 0.790 | 0.535 | 0.050 | 0.070 | 0.146 |
+
+Bias is under 0.05 °C on six of seven. **Maggiore is the exception at +0.27 °C**, and that is the
+same defect §8 names: a bias no inflation of $\mathbf{R}$ can remove.
+
+### Did the season axis work?
+
+`C_seasonal_noloc` is the **self-consistency test**. The season-keyed scales were fitted by
+`local/sigma/fit_sigma_common.py` on `A_final`, which ran localization off at
+`sigma_rep_scale = 1.0`; this run therefore restores the fit's own assumptions, and pooled NIS
+should land near 1.00 in *both* seasons and *both* bands for every lake.
+
+| lake | all | mixed | stratified | mixed 0–4 m | mixed ≥ 4 m | strat 0–4 m | strat ≥ 4 m | \|mean d\|/rms d |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| upperlugano | 1.10 | 1.06 | 1.12 | 1.00 | 1.09 | 1.04 | 1.14 | 0.15 |
+| geneva | 1.10 | 1.21 | 1.07 | 1.12 | 1.36 | 1.05 | 1.08 | 0.08 |
+| murten | 1.14 | 1.01 | 1.24 | 0.96 | 1.10 | 0.99 | 1.37 | 0.05 |
+| aegeri | 1.25 | 1.15 | 1.29 | 1.36 | 1.10 | 0.98 | 1.30 | 0.07 |
+| greifensee | 1.31 | 1.09 | 1.36 | 1.02 | 1.12 | 1.07 | 1.42 | 0.02 |
+| hallwil | 1.32 | 1.19 | 1.39 | 1.24 | 1.05 | 1.09 | 1.44 | 0.11 |
+| maggiore | 1.56 | 1.26 | 1.61 | 1.11 | 1.36 | 0.99 | 1.88 | 0.34 |
+
+**Partly.** 27 of the 28 season × band cells sit in 0.96–1.44 — the one outlier is maggiore's
+stratified deep band at 1.88 — and the thing the axis was built for is fixed: **geneva's deep band,
+1.51 mixed / 0.94 stratified under the annual scale, now reads 1.36 / 1.08.** The seasonal *spread*
+is gone even where the level is not — no lake is now
+mis-calibrated in opposite directions in its two seasons, which is what one annual $k$ could not
+avoid.
+
+**But the levels did not converge to 1.00**, and on the pooled number the run is slightly *further*
+from 1 than `C_final` on four lakes (hallwil 1.11 → 1.32, greifensee 1.28 → 1.31, upperlugano
+1.07 → 1.10, maggiore 1.52 → 1.56), flat on two and better on one (aegeri 1.30 → 1.25). Three
+things account for that, and only the first two are understood:
+
+1. **The fit is a one-shot linear solve, not a fixed point.** Raising $\mathbf{R}$ changes the
+   analysis, hence the spread and the innovations it was fitted against. One pass gets close and
+   stops.
+2. **Maggiore is bias-dominated.** 34 % of its innovation magnitude is a persistent offset, and no
+   inflation of $\mathbf{R}$ removes a bias — 1.88 in the stratified deep band is that offset, not
+   a fit error. This was predicted before the run and is confirmed by it.
+3. **The C_final comparison is confounded.** `C_final` ran with localization on (six of seven);
+   this run has it off everywhere, so the pooled-NIS deltas above mix the season axis with
+   localization. The clean pair for localization is `C_seasonal` vs `C_seasonal_noloc`, both with
+   these scales — not yet scored here.
+
+!!! note "Pooled and mean NIS diverge on hallwil"
+    Pooled 1.32 against a mean-over-cells of 2.42. The pooled ratio is variance-weighted and is the
+    one that inverts to a scale (§1); the gap says hallwil's miscalibration is concentrated in
+    low-σ cells — the exact-zero σ_rep cells at 0.5 and 1 m that §2.3 flags. Aegeri diverges the
+    other way (pooled 1.25, mean 0.84).
+
+**Reproduce:**
+
+```bash
+python local/plotting/plot_multilake_nis.py args/experiments/C_seasonal_noloc.json \
+    --run-root ~/C_seasonal_noloc --out nis.png
+python local/plotting/plot_multilake_rmse_profile.py args/experiments/C_seasonal_noloc.json \
+    --run-root ~/C_seasonal_noloc --metric degC --eval-obs hourly --assim-depths
+```
+
+### What the round before this changed
 
 Three things were found and fixed after the upperlugano matrix of §4–5, each worth its own note
 because none was visible on a single lake.
@@ -918,19 +1046,26 @@ tail, and once the operator was fixed it bought nothing. The tables are now the 
 
 ### Open items
 
-**Localization is off on murten.** With `obs_operator: linear` it diverged in April — the analysis
-inflating spread 10.8× per step until the model went non-finite. The mask is applied to
-$\mathbf{P}\mathbf{H}^{\!	op}$ but not $\mathbf{H}\mathbf{P}\mathbf{H}^{\!	op}$ (§2.6, a binary
-mask is not PSD), and the interpolating operator spreads each observation over two cells, so the mask
-can zero one of a pair. Murten runs with `"localization": false` in its lake block; the other six are
-unaffected. **A Gaspari–Cohn taper is PSD and could be applied to both sides**, which would remove
-this failure mode rather than route around it. This has now cost two runs.
+**Localization is not in the final run at all.** The binary mask that broke murten in April is gone
+— §2.6's Gaspari–Cohn taper is PSD and is applied to both $\mathbf{P}\mathbf{H}^{\!\top}$ and
+$\mathbf{H}\mathbf{P}\mathbf{H}^{\!\top}$, which removes that failure mode rather than routing
+around it. But `C_seasonal_noloc` still runs unlocalized on all seven, because that is the state the
+scales were fitted in. **The one measurement missing from this page is `C_seasonal` vs
+`C_seasonal_noloc`** — same scales, taper on or off — which would say what the taper is worth under
+the season-keyed $\mathbf{R}$, and whether the deep water on the three Ticino/Léman lakes is better
+free-running or updated. The localized run exists; it has not been scored here.
 
-**Maggiore stays over-confident** at NIS 1.52, the only lake not close to 1. A single scale per band
-cannot fix it, so the cause is upstream — most likely its 77.5 h filter window, which also has the
-worst measured lag/removed trade of the seven (0.63, §2.1).
+**One fit pass is not convergence.** Pooled NIS lands at 1.10–1.56, not 1.00, and §10's
+self-consistency table shows the residual is systematic (every lake over-confident, none
+over-damped) rather than noise. A second fit *from this run* is the obvious next step and is
+legitimate now that $k \neq 1$ — the reason the loop was never closed on `C_final` (its $k$ was
+fitted on an unlocalized system it did not run in) no longer applies here.
 
-**The scale is fitted without localization.** `A_final` must run at `sigma_rep_scale = 1.0`, and that
-combination diverges with localization on, so the scale is fitted on a slightly different system than
-`C_final` runs. A second fit *from* the localized run is legitimate once the scale is damped, and
-would close the loop.
+**Maggiore stays over-confident** at NIS 1.56, the only lake not close to 1, and its stratified deep
+band at 1.88 is the worst cell of the 28. Its innovations are 34 % bias, and no scale on
+$\mathbf{R}$ removes a bias, so the cause is upstream — most likely its 77.5 h filter window, which
+also has the worst measured lag/removed trade of the seven (0.63, §2.1).
+
+**Hallwil's exact-zero σ_rep cells.** Pooled 1.32 against mean-over-cells 2.42 points at the 0.5 and
+1 m stratified cells where the estimator floored at 0 (§2.3) and $\sigma_i$ collapses to
+$\sigma_\text{common}$. Neither the band split nor the season split can see them.
