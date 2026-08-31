@@ -339,6 +339,13 @@ def is_stratified(month):
 # with the noon state. Labels stay on the hour, so the PF's obs<->T_out time intersection
 # (rmse_in_window) is unaffected.
 def load_obs(obs_path):
+    """One row per (depth, hour): the QC'd, weighted station mean, plus the across-station spread.
+
+    weight <= 0 marks a QC reject (e.g. a probe out of the water reading air temperature) and never
+    reaches the assimilated value — but the row stays in the CSV, since a deleted sensor failure is
+    an invisible one. CSVs with no 'station'/'weight' columns (the single-station lakes) collapse to
+    exactly the previous behaviour: one station, unit weight, spread = NaN.
+    """
     import pandas as pd
     obs = pd.read_csv(obs_path)
     # ISO8601, not a single inferred format: obs CSVs mix whole-second and fractional-second
@@ -346,8 +353,26 @@ def load_obs(obs_path):
     # locks onto row 0's format and rejects the rest. Only visible once more than one lake is run.
     obs["time"] = pd.to_datetime(obs["time"], utc=True, format="ISO8601")
     obs["time"] = (obs["time"] + pd.Timedelta(minutes=30)).dt.floor("1h")
-    obs = obs.groupby(["depth", "time"])["value"].mean().reset_index()
-    return obs
+
+    if "station" not in obs.columns:
+        obs["station"] = "_single"
+    if "weight" not in obs.columns:
+        obs["weight"] = 1.0
+    obs = obs[obs["weight"] > 0]
+
+    # 1. temporal, within station (a station's weight for the hour = the mean of its kept samples')
+    per_station = obs.groupby(["depth", "time", "station"], as_index=False).agg(
+        value=("value", "mean"), weight=("weight", "mean"))
+
+    # 2. spatial, across stations. spread is the UNweighted std — a dispersion estimate, not an
+    # estimate of the mean — and is NaN at n_stations == 1 (std of one sample), which is correct:
+    # a lone station gives no information about horizontal variability.
+    per_station["_wv"] = per_station["value"] * per_station["weight"]
+    agg = per_station.groupby(["depth", "time"], as_index=False).agg(
+        _wv=("_wv", "sum"), _w=("weight", "sum"),
+        n_stations=("station", "size"), spread=("value", "std"))
+    agg["value"] = agg["_wv"] / agg["_w"]
+    return agg[["depth", "time", "value", "n_stations", "spread"]]
 
 
 def filter_obs_to_model_depths(obs_df, model_depths):
@@ -451,4 +476,5 @@ def build_python_run_args(run_raw, ensemble_raw, ensemble_base, n_members, model
         args.setdefault("diag_path",        os.path.join(ensemble_base, "enkf_diagnostics.csv"))
         args.setdefault("innov_depth_path", os.path.join(ensemble_base, "enkf_innov_by_depth.csv"))
         args.setdefault("kgain_depth_path", os.path.join(ensemble_base, "enkf_kgain_by_depth.csv"))
+        args.setdefault("incr_depth_path",  os.path.join(ensemble_base, "enkf_increment_by_depth.csv"))
     return args

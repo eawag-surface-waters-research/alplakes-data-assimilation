@@ -38,13 +38,26 @@ REQUIRED_ENKF_ENSEMBLE = ["sigma_obs"]      # run config; obs error std, shared 
 def window_obs_vector(obs_df, window_start, window_end, model):
     obs_win = obs_df[(obs_df["time"] >= window_start) & (obs_df["time"] < window_end)]
     if obs_win.empty:
-        return None, None, None
+        return None, None, None, None
     mean_per_depth = obs_win.groupby("depth")["value"].mean().dropna()
     if mean_per_depth.empty:
-        return None, None, None
+        return None, None, None, None
     obs_depths = list(mean_per_depth.index)
     sim_depths = [model.obs_to_sim_col(d) for d in obs_depths]
-    return mean_per_depth.values, sim_depths, obs_depths
+    # Mean over the window: the value assimilated is an average of hourly station-means, and it is
+    # how many STATIONS back each of those that R divides by, not how many hours went into it.
+    n_stations = _n_stations_for(obs_win.groupby("depth"), mean_per_depth.index, "mean")
+    return mean_per_depth.values, sim_depths, obs_depths, n_stations
+
+
+def _n_stations_for(grouped, depths, how):
+    """Stations backing each depth, aligned with `depths`. Ones when load_obs did not carry the
+    column -- which is every single-depth CSV without a 'station' column, i.e. unchanged behaviour."""
+    try:
+        s = getattr(grouped["n_stations"], how)()
+    except (KeyError, AttributeError):
+        return np.ones(len(depths))
+    return s.reindex(depths).fillna(1.0).to_numpy(dtype=float)
 
 
 def window_obs_vector_consistent(obs_df, window_start, window_end, model):
@@ -60,16 +73,18 @@ def window_obs_vector_consistent(obs_df, window_start, window_end, model):
     window, so it can't be assimilated on two consecutive days."""
     obs_win = obs_df[(obs_df["time"] > window_start) & (obs_df["time"] <= window_end)]
     if obs_win.empty:
-        return None, None, None
+        return None, None, None, None
     nearest = (obs_win.assign(_d=(obs_win["time"] - pd.Timestamp(window_end)).abs())
                       .sort_values("_d")
                       .groupby("depth", sort=False).first()
                       .sort_index())
     if nearest.empty:
-        return None, None, None
+        return None, None, None, None
     obs_depths = list(nearest.index)
     sim_depths = [model.obs_to_sim_col(d) for d in obs_depths]
-    return nearest["value"].values, sim_depths, obs_depths
+    n_stations = (nearest["n_stations"].to_numpy(dtype=float) if "n_stations" in nearest
+                  else np.ones(len(obs_depths)))
+    return nearest["value"].values, sim_depths, obs_depths, n_stations
 
 
 # The observation operator. "nearest" is the historical behaviour and stays the DEFAULT so every
@@ -219,6 +234,7 @@ def run_enkf_loop(args, model):
     diag_path   = args["diag_path"]
     innov_path  = args["innov_depth_path"]
     kgain_path  = args["kgain_depth_path"]
+    incr_path   = args["incr_depth_path"]
 
     if args.get("reset"):
         for i in member_ids:
@@ -226,13 +242,21 @@ def run_enkf_loop(args, model):
             if os.path.exists(live):
                 os.remove(live)
         model.clear_member_outputs(args["ensemble_base"], member_ids, args["results_dir"])
-        for p in [args["mean_traj_path"], diag_path, innov_path, kgain_path]:
+        for p in [args["mean_traj_path"], diag_path, innov_path, kgain_path, incr_path]:
             if os.path.exists(p):
                 os.remove(p)
         logger.info(f"Reset: cleared {args['results_dir']}/ snapshots and trajectory files.")
 
     obs        = load_obs(args["obs_path"])
-    obs        = filter_obs_to_model_depths(obs, model.model_output_depths(args["ensemble_base"]))
+    # Held for the increment diagnostic too: obs depths are filtered to be a SUBSET of these, so
+    # writing the increment on this grid is exact wherever it is later scored, gives a header that
+    # does not move when a sensor drops out, and still covers the depths no sensor reaches.
+    out_depths = model.model_output_depths(args["ensemble_base"])
+    obs        = filter_obs_to_model_depths(obs, out_depths)
+    # Same reasoning for the innovation file, on the obs grid rather than the output grid: the
+    # per-window depth set moves as sensors drop in and out, and the rows are APPENDED, so a header
+    # written from the first window alone would not describe them (see the write below).
+    innov_depths = sorted(obs["depth"].unique())
     log_obs_summary(obs, args["obs_path"])
     start_date = args["start_date"]
     end_date   = args["end_date"]
@@ -314,7 +338,8 @@ def run_enkf_loop(args, model):
             windows_run += 1
             t_docker    = time.perf_counter() - t0
 
-            y_obs, sim_depths, obs_depths = select_obs(obs, current, window_end, model)
+            y_obs, sim_depths, obs_depths, n_obs_stations = select_obs(obs, current, window_end,
+                                                                       model)
 
             t_enkf    = 0.0
             n_updated = 0
@@ -363,8 +388,9 @@ def run_enkf_loop(args, model):
                         # Per-observation sigma: sigma_common^2 + sigma_rep(depth, month)^2 / N.
                         # Resolved per window because the month selects the season, and returned as
                         # the scalar sigma_obs when the lake has no fitted table, so a lake without
-                        # one behaves exactly as before. n_stations is 1 until load_obs carries it.
-                        sigma_vec  = resolve_sigma_obs(obs_depths, np.ones(len(obs_depths)),
+                        # one behaves exactly as before. N comes from the selector: it is 1 on every
+                        # single-station lake, so only the multi-station lakes see a difference.
+                        sigma_vec  = resolve_sigma_obs(obs_depths, n_obs_stations,
                                                        window_end, args, sigma_table)
                         X_a, diags = enkf_update(X_f, y_obs, H, sigma_vec, inflation=inflation,
                                                  rng=rng, loc_so=loc_so, loc_oo=loc_oo)
@@ -396,10 +422,21 @@ def run_enkf_loop(args, model):
 
                             full_innov = np.full(len(y_obs), np.nan)
                             full_innov[np.array(valid_mask)] = innov_vec
-                            pd.DataFrame([{
-                                "date": window_end.isoformat(),
-                                **{f"d_{d}": round(float(v), 6) for d, v in zip(obs_depths, full_innov)}
-                            }]).to_csv(innov_path, mode="a", header=not os.path.exists(innov_path), index=False)
+                            # Written on the RUN-WIDE obs depth grid, blank where that depth had no
+                            # observation this window. Rows are appended and the header is written
+                            # once, so the values land by POSITION: emitting only the depths that
+                            # reported would silently shift every value after a dropped sensor onto
+                            # the wrong depth (measured on the 2025 seven-lake run before this fix:
+                            # geneva 343 of 359 rows, hallwil 313 of 364). A fixed grid makes
+                            # position and label agree by construction, and blank already means
+                            # "no innovation here" for an observation that failed valid_mask.
+                            row = dict.fromkeys((f"d_{d:g}" for d in innov_depths), np.nan)
+                            row.update({f"d_{d:g}": round(float(v), 6)
+                                        for d, v in zip(obs_depths, full_innov)})
+                            pd.DataFrame([{"date": window_end.isoformat(), **row}]).to_csv(
+                                innov_path, mode="a",
+                                header=not os.path.exists(innov_path), index=False,
+                            )
 
                             depth_fs   = lake_lev - z_vol
                             K_mean     = K_arr.mean(axis=1)
@@ -410,6 +447,23 @@ def run_enkf_loop(args, model):
                                 "date": window_end.isoformat(),
                                 **{f"K_{d}": round(float(v), 8) for d, v in enumerate(K_interp)}
                             }]).to_csv(kgain_path, mode="a", header=not os.path.exists(kgain_path), index=False)
+
+                            # The correction this analysis actually applied, in degC, at the model
+                            # output depths. K_mean above cannot answer this: it is a mean over the
+                            # observations, while the increment is sum_j K[:,j] d_j, and recovering
+                            # that from the row mean would assume K is uniform across obs (measured
+                            # on the 2025 seven-lake run: correlation 0.1-0.6, magnitude off 3-5x).
+                            # X_a - X_f on the MEAN is exactly X_a - X_inf, because inflation
+                            # scales the anomalies and leaves the ensemble mean alone.
+                            if out_depths:
+                                incr = X_a.mean(axis=1) - X_f.mean(axis=1)
+                                incr_out = np.interp(out_depths, depth_fs[sort_idx], incr[sort_idx])
+                                pd.DataFrame([{
+                                    "date": window_end.isoformat(),
+                                    **{f"inc_{d:g}": round(float(v), 8)
+                                       for d, v in zip(out_depths, incr_out)}
+                                }]).to_csv(incr_path, mode="a",
+                                           header=not os.path.exists(incr_path), index=False)
 
                     t_enkf = time.perf_counter() - t0
 
