@@ -250,6 +250,14 @@ def load_T(ensemble_dir, args):
 # (static/openda/simstrat_wrapper_enkf.py imports this and read_t_out_tail).
 T_OUT_OFFSET_FILE = ".t_out_read_offset"
 
+# Simstrat prints `Time [d]` with four decimals, so a row's label sits up to 4.3 s off the instant it
+# represents (01:00 = 0.0416667 is written 0.0417).  Window bounds are computed exactly, so a row AT
+# a bound can fall the wrong side of it by that much — and the row at the window end is the analysis
+# instant, the one that matters most.  This tolerance covers the quantum while staying far below any
+# usable output interval (hourly here, 5 min at the Simstrat timestep), so it can never pull in a
+# neighbouring row.
+T_OUT_TIME_TOL = 1e-4
+
 
 def read_t_out_tail(filename, offset_path, window_start=None, window_end=None):
     """Read only the rows Simstrat appended to T_out.dat since the previous step (tail read).
@@ -287,9 +295,9 @@ def read_t_out_tail(filename, offset_path, window_start=None, window_end=None):
         if not parts or not parts[0]:
             continue
         t = float(parts[0])
-        if window_start is not None and t < window_start - 1e-9:
+        if window_start is not None and t < window_start - T_OUT_TIME_TOL:
             continue
-        if window_end is not None and t > window_end + 1e-9:
+        if window_end is not None and t > window_end + T_OUT_TIME_TOL:
             continue
         times.append(t)
         T_rows.append([float(x) for x in parts[1:]])
