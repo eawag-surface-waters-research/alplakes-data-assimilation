@@ -114,6 +114,13 @@ def _is_season_keyed(spec):
     return isinstance(spec, dict) and bool(spec) and set(spec) <= set(SEASONS)
 
 
+def has_season_keyed_sigma_obs(cfg):
+    """True when the config's scalar `sigma_obs` carries a season axis. The public form of the
+    predicate, for the OpenDA adapter: a season-keyed scalar has to be season-split into series
+    exactly like a table does, and there is no table to detect it by."""
+    return _is_season_keyed(cfg.get("sigma_obs"))
+
+
 def resolve_sigma_rep_scale(cfg, depth, month=None):
     """Multiplier on the fitted sigma_rep -- a scalar, a depth-keyed step function, or a season-keyed
     dict of either. Default 1.0, i.e. the table is used exactly as fitted.
@@ -166,6 +173,46 @@ def resolve_sigma_rep_scale(cfg, depth, month=None):
             raise ValueError(f"sigma_rep_scale has no {season!r} entry (has {sorted(spec)})")
         spec = spec[season]
     return _depth_stepped(spec, depth, 1.0)
+
+
+def resolve_scalar_sigma_obs(cfg, month=None):
+    """The config's `sigma_obs` -- a plain scalar, or a season-keyed dict of scalars
+
+        "sigma_obs": {"mixed": 0.31, "stratified": 0.55}
+
+    spelled exactly like a season-keyed sigma_rep_scale (see resolve_sigma_rep_scale).
+
+    This does NOT compete with the fitted table -- it is the SIMPLIFIED option one rung below it,
+    and it applies exactly where the plain scalar applies today: as the whole error model on a lake
+    with no sigma_rep.json, and as the per-depth fallback where a table has no fitted entry. A
+    table, when present, still wins at every depth it covers.
+
+    WHY the season axis is worth having on the scalar. The free-run gap a scalar is fitted from is
+    not one population: on the 2025 seven-lake run the stratified season wants 1.1x (murten) to 2.6x
+    (maggiore) the mixed-season value, so an annual scalar is the count-weighted compromise between
+    them -- wrong in both at once, and most wrong on the lake with the widest split.
+
+    A season-keyed value REQUIRES `month`; passing None raises rather than silently picking one.
+    """
+    spec = cfg["sigma_obs"]
+    if _is_season_keyed(spec):
+        if month is None:
+            raise ValueError("sigma_obs is season-keyed, so resolving it needs a month")
+        season = season_of(month)
+        if season not in spec:
+            raise ValueError(f"sigma_obs has no {season!r} entry (has {sorted(spec)})")
+        spec = spec[season]
+    return float(spec)
+
+
+def _scalar_sigma_rms(cfg, months):
+    """RMS of the config scalar over `months` -- for OpenDA, whose per-depth format cannot carry a
+    month axis. A plain scalar is the RMS of identical values, i.e. itself, so the non-seasonal
+    path is untouched."""
+    if not _is_season_keyed(cfg["sigma_obs"]):
+        return float(cfg["sigma_obs"])
+    vals = [resolve_scalar_sigma_obs(cfg, m) for m in months]
+    return float(np.sqrt(np.mean(np.square(vals))))
 
 
 def sigma_rep_path(cfg):
@@ -255,17 +302,40 @@ def _sigma_rep_at(table, depth, month):
     return float(np.exp(np.log(v0) + w * (np.log(v1) - np.log(v0))))
 
 
+def table_n_ref(table):
+    """The station count a table's values refer to, or None when it is in the per-station form.
+
+    Two conventions, told apart by whether the table carries 'n_ref':
+
+      per-station (no key)  the value is ONE station's error, scaled by 1/N. Every single-station
+                            lake's table is this, and that branch is untouched.
+      n_ref                 the value is the error of the mean of n_ref stations -- the lake's full
+                            complement -- scaled UP by n_ref/N when fewer report. Written by
+                            notebooks/fit_std_obs.py for the multi-station lakes.
+
+    The two are the same function of N apart from the constant n_ref, so this changes what the
+    stored number means, not how sigma varies with N.
+    """
+    if table is None or table.get("n_ref") is None:
+        return None
+    n_ref = float(table["n_ref"])
+    if n_ref < 1.0:
+        raise ValueError(f"n_ref must be >= 1, got {n_ref}")
+    return n_ref
+
+
 def resolve_sigma_obs(depths, n_stations, when, cfg, table):
     """Per-observation sigma for one analysis, aligned with the obs vector.
 
     `depths` are the obs depths being assimilated, `n_stations` how many stations backed each (1 on
-    a single-station lake), `when` the analysis instant, whose month selects the season. Returns a
-    plain float when no table applies, so the scalar path stays scalar and old behaviour is
-    untouched."""
-    sigma_obs = float(cfg["sigma_obs"])
+    a single-station lake), `when` the analysis instant, whose month selects the season -- for the
+    table, and for `sigma_obs` itself when that is season-keyed. Returns a plain float when no table
+    applies, so the scalar path stays scalar and old behaviour is untouched."""
+    sigma_obs = resolve_scalar_sigma_obs(cfg, when.month)
     if table is None:
         return sigma_obs
 
+    n_ref = table_n_ref(table)
     n = np.asarray(n_stations, dtype=float)
     n = np.where(n >= 1, n, 1.0)                       # a reading exists, so at least one station
     out = np.empty(len(depths), dtype=float)
@@ -275,8 +345,9 @@ def resolve_sigma_obs(depths, n_stations, when, cfg, table):
         # depth in one vector is fine and intended.
         sc = resolve_sigma_common(cfg, d)
         ks = resolve_sigma_rep_scale(cfg, d, when.month)
+        scale = 1.0 / n[i] if n_ref is None else n_ref / n[i]
         out[i] = (sigma_obs if rep is None
-                  else float(np.sqrt(sc ** 2 + (ks * rep) ** 2 / n[i])))
+                  else float(np.sqrt(sc ** 2 + (ks * rep) ** 2 * scale)))
     return out
 
 
@@ -290,10 +361,11 @@ def sigma_obs_by_depth(obs_df, cfg, table):
     design here -- within a season the native engine varies sigma and OpenDA cannot. That divergence
     is logged rather than hidden, and it is far smaller than leaving OpenDA on the scalar 0.5 while
     the native engine uses the table, which would make any cross-engine comparison meaningless."""
-    sigma_obs = float(cfg["sigma_obs"])
     if table is None or obs_df.empty:
-        return {float(d): sigma_obs for d in sorted(obs_df["depth"].unique())}
+        return {float(d): _scalar_sigma_rms(cfg, g["time"].dt.month.to_numpy())
+                for d, g in obs_df.groupby("depth")}
 
+    n_ref = table_n_ref(table)
     out = {}
     for d, g in obs_df.groupby("depth"):
         months = g["time"].dt.month.to_numpy()
@@ -305,8 +377,9 @@ def sigma_obs_by_depth(obs_df, cfg, table):
             # inside the loop: the scale may itself be season-keyed, and this RMS is taken over
             # observations spanning both seasons
             rep_scale = resolve_sigma_rep_scale(cfg, d, m)
-            vals.append(sigma_obs if rep is None
-                        else np.sqrt(sigma_common ** 2 + (rep_scale * rep) ** 2 / ni))
+            scale = 1.0 / ni if n_ref is None else n_ref / ni
+            vals.append(resolve_scalar_sigma_obs(cfg, m) if rep is None
+                        else np.sqrt(sigma_common ** 2 + (rep_scale * rep) ** 2 * scale))
         out[float(d)] = float(np.sqrt(np.mean(np.square(vals))))
     return out
 
@@ -324,14 +397,19 @@ def sigma_obs_by_depth_season(obs_df, cfg, table):
 
     A (depth, season) with no observations is simply not emitted, so a window covering one season,
     or a depth that came online mid-year, still gets exact sigma at every depth that has data.
+
+    A season-keyed scalar `sigma_obs` with NO table is the other case this expresses exactly, and
+    the reason `table is None` is not disqualifying on its own: the loop below then takes the
+    rep-is-None branch at every depth, which is the season's scalar. Without this OpenDA would fall
+    back to sigma_obs_by_depth's RMS over the two seasons while the native engine used each season's
+    own value -- a silent divergence between the engines on the same config.
     """
-    if table is None or obs_df.empty:
+    if obs_df.empty or (table is None and not _is_season_keyed(cfg["sigma_obs"])):
         return None
     if "n_stations" in obs_df and not np.all(obs_df["n_stations"].to_numpy(dtype=float) == 1.0):
         logger.info("[sigma] OpenDA season split declined: n_stations > 1")
         return None
 
-    sigma_obs = float(cfg["sigma_obs"])
     out, differs = {}, False
     for d, g in obs_df.groupby("depth"):
         sc = resolve_sigma_common(cfg, d)
@@ -339,10 +417,10 @@ def sigma_obs_by_depth_season(obs_df, cfg, table):
         for season, gs in g.groupby(g["time"].dt.month.map(season_of)):
             vals = set()
             for m in gs["time"].dt.month.unique():
-                rep = _sigma_rep_at(table, d, m)
+                rep = None if table is None else _sigma_rep_at(table, d, m)
                 # a season-keyed scale is constant within the season, so this stays exact
                 ks = resolve_sigma_rep_scale(cfg, d, m)
-                vals.add(sigma_obs if rep is None
+                vals.add(resolve_scalar_sigma_obs(cfg, m) if rep is None
                          else round(float(np.sqrt(sc ** 2 + (ks * rep) ** 2)), 10))
             if len(vals) != 1:      # table is not a step function in season
                 logger.info(f"[sigma] OpenDA season split declined: depth {d:g} m has {len(vals)} "
@@ -381,7 +459,10 @@ def log_sigma_summary(cfg, table, by_depth=None):
     """Say, once, what observation-error model this run is actually using — the counterpart to the
     'sigma_obs=' knob in the run header, which no longer tells the whole story."""
     if table is None:
-        logger.info(f"[sigma] scalar sigma_obs={cfg['sigma_obs']} degC (no sigma_rep table)")
+        spec = cfg["sigma_obs"]
+        txt = ("season-keyed " + ", ".join(f"{s}: {float(v):g}" for s, v in sorted(spec.items()))
+               if _is_season_keyed(spec) else f"{spec} degC")
+        logger.info(f"[sigma] scalar sigma_obs={txt} (no sigma_rep table)")
         return
     depths = sorted(table["sigma_rep"], key=float)
     sc = cfg.get("sigma_common", DEFAULT_SIGMA_COMMON)
