@@ -1,0 +1,25 @@
+{
+  "lake": "lowerzurich",
+  "reanalysis_lake": "zurich",
+  "source": "ICON KENDA-CH1 - control Forcing.dat",
+  "fit_window": {
+    "start": "2025-01-01",
+    "end": "2025-12-31"
+  },
+  "n_timesteps": 8736,
+  "fitted_on": "2026-08-13",
+  "variables": {
+    "U": {
+      "phi": 0.625192,
+      "sigma": 0.950367
+    },
+    "V": {
+      "phi": 0.622486,
+      "sigma": 0.840935
+    },
+    "GLOB": {
+      "phi": 0.525733,
+      "sigma": 51.679688
+    }
+  }
+}
