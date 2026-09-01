@@ -23,14 +23,15 @@ grid it runs on, MIN_SUPPORT and MAX_AGE_FACTOR reject values a gappy window can
 W_SEICHE really varies per lake. Resolved in precedence order (see load_params): CLI overrides, a
 "filter" block in the run config, filter/<lake>.json, then DEFAULTS. Deleting filter/<lake>.json is
 the kill switch.
+
 Usage:
     python notebooks/filter_observations.py args/run_enkf.json --lake upperlugano
     python notebooks/filter_observations.py args/run_enkf.json --lakes all
 
 Output is the full sub-daily filtered record, one row per instant the instrument actually sampled.
-Choosing which of those instants get assimilated is thinning, and belongs to local/thin_obs.py:
+Choosing which of those instants get assimilated is thinning, and belongs to notebooks/generate_assimilation_series.py:
 
-    python local/thin_obs.py --lake upperlugano --hour 6 \
+    python notebooks/generate_assimilation_series.py --lake upperlugano --hour 6 \
         --in-file  observations/upperlugano/temperature_filtered.csv \
         --out-file observations/upperlugano/temperature_filtered_h06_1d.csv
 """
