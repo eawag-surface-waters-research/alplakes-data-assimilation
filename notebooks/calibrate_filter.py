@@ -1,26 +1,22 @@
 """Derive the observation filter's per-lake parameters -> filter/<lake>.json.
-
-NOTHING HERE IS FITTED. The filter applies a trailing box of one internal-seiche period, and a box
-of width W nulls W, W/2, W/3, ... -- so the window that kills the fundamental mode and all its
-harmonics at the least lag IS the fundamental period. That is a physical quantity read off the lake.
+Finding the window that kills the fundamental seiche mode and all its
+harmonics at the least lag (fundamental period). It is a physical quantity read off the lake.
 
 THE MODEL. Merian's formula for the fundamental (V1H1) mode of a two-layer basin:
 
     T = 2L / sqrt(g' * h_eff)     h_eff = h1*h2 / (h1 + h2)     g' = g (rho_2 - rho_1) / rho_2
 
-    L     basin length, a published value in the lake's config ("length_km").
+    L     basin length, a published value (or measured on a map) added in the lake's config ("length_km").
     h1    epilimnion = the observed thermocline depth, 6-10 m on these lakes.
-    h2    hypolimnion = mean lake depth minus h1, likewise from the config ("mean_depth").
+    h2    hypolimnion = mean lake depth minus h1, likewise from the config ("mean_depth"), mean depth searched online.
           Mean, not maximum: the seiche runs over the whole basin, most of which is shallower
-          than the deepest point. See lake_geometry for why neither is computed any more.
-    rho   at the mean epilimnion temperature and at the deepest observed depth (see
-          monthly_two_layer for which way the latter biases the answer).
+          than the deepest point. 
+    rho   at the mean epilimnion temperature and at the deepest observed depth
 
 EVALUATED AT PEAK STRATIFICATION, the most consequential choice here. So the model is read off the months within PEAK_STRAT_FRAC of the annual maximum density contrast --
 Jul-Aug on every configured lake, from the data, plus June on the two shallow ones. That is when the
 thermocline is sharpest and seiche displacement injects the most variance into a fixed-depth sensor,
-and it is the shortest period of the year, so the least lag that does the job. The cost is that a
-longer autumn seiche is attenuated rather than nulled. Only W_SEICHE is derived. THERMO_DEPTH_MIN (conservative estimate
+and it is the shortest period of the year, so the least lag that does the job. Only W_SEICHE is derived. THERMO_DEPTH_MIN (conservative estimate)
 from analyses) is written out as the fixed 4 m it always is, so the
 json records the complete parameter set the filter will run with.
 

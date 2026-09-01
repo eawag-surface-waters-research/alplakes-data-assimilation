@@ -12,8 +12,7 @@ Gaspari-Cohn taper applied in assimilator/localization.py -- weight 1 at zero se
 radius -- so this table is unchanged by the move from a binary mask to the taper; only how the
 number is used changed.
 
-    no fit         no L0, no slope, no functional form imposed on the radius profile
-    one knob       THRESHOLD
+    one parameter       THRESHOLD
 
 STRATIFIED SEASON ONLY. A mixed column is coherent top to bottom, so its correlations reach much
 further and its radius is much wider. Adopting the stratified radius year-round therefore localizes

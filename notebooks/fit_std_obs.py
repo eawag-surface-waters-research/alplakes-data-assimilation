@@ -7,7 +7,7 @@ leak into R.
     sigma_i^2 = sigma_common^2 + sigma_rep(depth_i, season_i)^2 / N_i
 
 sigma_rep is the error of ONE station; the runtime divides by the N stations actually backing each
-observation. sigma_common stays a config constant: a component shared by every station shifts their
+observation. sigma_common stays a config constant (instrument error): a component shared by every station shifts their
 mean, not their spread, so an across-station estimator cannot see it at all.
 
 KNOWN LIMIT of the /N term. It credits the full 1/N, which assumes station errors are independent.
