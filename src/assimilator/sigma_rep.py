@@ -1,39 +1,57 @@
 """Observation-error model: turn the observation set into a per-observation sigma.
 
-The scalar `sigma_obs` the filters have used until now is really an estimate of REPRESENTATIVENESS
-error, not instrument error -- a thermistor is good to ~0.05 degC, so a 0.5 degC observation error
-is almost entirely "how far a point measurement sits from the lake-mean value a 1D column model
-predicts". That quantity is not a constant. It peaks at the thermocline, where a sharp gradient is
-displaced past a fixed sensor by internal seiches, and it collapses in the deep and in the mixed
-season. On upperlugano at 11 m it runs 0.21 degC in winter against 1.17 degC in summer, and at 40 m
-it is 0.03 degC all year -- so the single 0.5 is roughly half the truth at the thermocline and
-seventeen times too large in the deep.
+  The scalar `sigma_obs` is really an estimate of REPRESENTATIVENESS error, not instrument error --
+  a thermistor is good to ~0.05 degC, so a 0.5 degC observation error is almost entirely "how far a
+  point measurement sits from the lake-mean value a 1D column model predicts", plus the observation
+  variability the model cannot reproduce. That quantity is not a constant: it peaks at the
+  thermocline, where a sharp gradient is displaced past a fixed sensor by internal seiches, and
+  collapses in the deep and in the mixed season. 
 
-Sigma is therefore resolved per observation as
+  Sigma is resolved per observation as
 
-    sigma_i^2  =  sigma_common^2  +  (scale * sigma_rep(depth_i, month_i))^2 / N_i
+      sigma_i^2  =  sigma_common(depth_i)^2  +  (scale * sigma_rep(depth_i, month_i))^2 * f(N_i)
 
-  sigma_rep    the depth- and season-dependent representativeness error, FITTED from the
-               observations and the lake's free run by notebooks/sigma_rep_from_obs.py ->
-               observations/<lake>/sigma_rep.json. It is the part that AVERAGES DOWN across
-               stations, which is why N_i (= n_stations) divides it; N_i is 1 on every
-               single-station lake, which is all of them today.
+  THE LADDER. Each live config stops at a different rung, and that is the only difference between
+  the first two:
 
-  sigma_common the part no station can see in itself -- instrument error, plus the slower
-               representativeness error the fitted term does not cover. A config scalar, not
-               fitted. See DEFAULT_SIGMA_COMMON for why it is not optional.
+      simplified_final.json      no table -> resolve_scalar_sigma_obs IS the whole model, and every
+                                 term below is unreached (the function returns before sigma_common).
+                                 A float, or {"mixed": .., "stratified": ..} keyed off the window's
+                                 month.
+      
+      gap_nocommon.json          the same fit with the depth axis KEPT
+      
+      gap_nocommon_scale2.json   fitted per depth band and season from that run
 
-  scale        "sigma_rep_scale", default 1.0 (so omitting it changes nothing). The fitted table is
-               a lower bound -- the estimator sees only the sub-daily band -- and this is the factor
-               that lifts it to the level the innovations imply. See resolve_sigma_rep_scale.
+    sigma_rep    fitted, depth- and season-dependent. Two live estimators, which BRACKET the truth
+                 rather than agreeing:
+                   
+                   fit_sigma_gap.py -> sigma_rep_gap.json    obs vs the free run; carries model
+                                                             error too
+                                                             
+                   fit_std_obs.py   -> sigma_rep_nref.json   across-station scatter; no model can
+                                                             leak in, but it sees only what stations
+                                                             disagree about (so rather a LOWER bound)
+                                                             
+                 f(N) = 1/N for a per-station table (the value is one station's error); n_ref/N for
+                 an n_ref table (the value is the full complement's, scaled up when fewer report --
+                 see table_n_ref). Multi-station lakes exist: lowerlugano has 4, lowerzurich 2.
+                 
+    sigma_common the part no station can see in itself -- instrument error, plus slow
+                 representativeness error a station-based estimator is structurally blind to. A
+                 config value, not fitted; may be depth-stepped (see resolve_sigma_common). It is a
+                 floor under a LOWER bound, so it belongs with the across-station tables and not with
+                 the gap ones.
+                 
+    scale        "sigma_rep_scale", default 1.0. Scalar, depth-stepped, or a season-keyed dict of
+                 either. Which DIRECTION it moves depends on which estimator wrote the table: it
+                 lifts a lower bound toward the innovations, and walks an upper bound down -- 25 of
+                 the 28 bands in gap_nocommon_scale2.json are below 1. See resolve_sigma_rep_scale.
 
-Deliberately CLIMATOLOGICAL, not instantaneous: sigma_rep is a fitted function of (depth, month),
-never the spread of the hour being assimilated. An instantaneous estimate would correlate with the
-innovation it is weighting -- both are large when the lake is horizontally heterogeneous -- which
-breaks the filter's assumption that R is independent of the observation.
+  Deliberately CLIMATOLOGICAL
 
-A lake with no sigma_rep.json falls back to the scalar `sigma_obs`, so its behaviour is bit-for-bit
-what it was before this module existed. Deleting the json is the kill switch.
+  A lake with no table falls back to the scalar `sigma_obs`, so its behaviour is bit-for-bit what it
+  was before this module existed. Deleting the json is the kill switch.
 """
 import os
 import json
@@ -45,18 +63,8 @@ from .functions import ROOT, resolve_root, SEASONS, season_of
 
 logger = logging.getLogger(__name__)
 
-# The instrument term, and the floor under the whole error model.
-#
-# It is NOT optional when a sigma_rep table is present, which is why the default is non-zero. The
-# fitted sigma_rep measures only the SUB-DAILY band -- the variability the free run cannot reproduce
-# within a day -- so representativeness error at synoptic scales (a storm tilting the lake for three
-# days) is not in it, and sigma_rep is a lower bound. That matters most in the deep, where sigma_rep
-# collapses to a few hundredths: with no floor, R there would fall ~250x against the scalar 0.5 it
-# replaces and the filter would overtrust the observation. At 0.075 the deep observation error lands
-# at sqrt(0.075^2 + 0.03^2) ~ 0.08 degC instead, a 38x reduction rather than 250x.
-#
-# 0.075 degC: a thermistor chain is good to ~0.05, the rest allows for calibration drift between
-# services. Set "sigma_common" in the run config to override.
+# The instrument term, and the floor under the whole error model (optional).
+
 DEFAULT_SIGMA_COMMON = 0.075
 
 
@@ -70,8 +78,8 @@ def _depth_stepped(spec, depth, default):
 
         {"0": 0.2, "7": 0.1}
 
-    read as "0.2 from 0 m down, 0.1 from 7 m down" -- the value of the deepest key at or above
-    `depth`. Shared by sigma_common and sigma_rep_scale so the two spell depth-dependence the same
+    read as "0.2 from 0 m down, 0.1 from 7 m down". 
+    Shared by sigma_common and sigma_rep_scale so the two spell depth-dependence the same
     way in a run config.
     """
     if spec is None:
@@ -89,13 +97,6 @@ def _depth_stepped(spec, depth, default):
 
 def resolve_sigma_common(cfg, depth):
     """sigma_common for one depth -- a scalar or a depth-keyed step function (see _depth_stepped).
-
-    WHY it may need to be depth-dependent. sigma_common carries the error a station cannot see in
-    itself: its offset from the pelagic column the 1D model represents. That offset is largest at
-    the surface, where a moored buoy sits in shallower, more sheltered water than mid-lake, and
-    vanishes at depth where the basin is horizontally homogeneous. Measured on upperlugano against
-    the Gandria CTD, the buoy runs +0.45 degC at 0.5 m and +0.28 at 1 m (21 of 23 casts) but is
-    within noise of zero from 3 m down.
 
     Note what a depth step buys and what it does not: it absorbs a persistent bias as variance, so
     it improves calibration, not accuracy -- a warm surface analysis stays warm, the filter just
@@ -123,46 +124,47 @@ def has_season_keyed_sigma_obs(cfg):
 
 def resolve_sigma_rep_scale(cfg, depth, month=None):
     """Multiplier on the fitted sigma_rep -- a scalar, a depth-keyed step function, or a season-keyed
-    dict of either. Default 1.0, i.e. the table is used exactly as fitted.
+      dict of either. Default 1.0, i.e. the table is used exactly as fitted.
 
-        "sigma_rep_scale": {"mixed": {"0": 1.52, "4": 2.61},
-                            "stratified": {"0": 1.10, "4": 2.14}}
+          "sigma_rep_scale": {"mixed":      {"0": 0.818, "4": 0.818},
+                              "stratified": {"0": 0.622, "4": 0.723}}
+                                                                                                                                                                                                                                                                      
+      A season-keyed scale REQUIRES `month`; passing None raises rather than silently picking a
+      season.
 
-    A season-keyed scale REQUIRES `month`; passing None raises rather than silently picking a season,
-    because the two differ by up to 1.8x and the wrong one is invisible in the log line.
+      WHY a multiplier is a legitimate parameter: The fitted sigma_rep is a BOUND, not an estimate,
+      and k walks it to what the innovations imply -- closing
+      <d^2> = <spread^2> + sigma_common^2 + k^2 * <sigma_rep^2/N>. WHICH DIRECTION depends on which
+      estimator wrote the table:
 
-    WHY a multiplier is a legitimate knob and not a fudge. The fitted sigma_rep is a LOWER BOUND by
-    construction: the estimator is sqrt(mean within-day var(obs) - mean within-day var(free run)),
-    so it measures only the sub-daily band and cannot see representativeness error at synoptic
-    scales. A multiplier says "the sub-daily band is a fraction 1/scale of the whole", which is
-    exactly the missing piece, and it inherits sigma_rep's depth profile AND its month dependence
-    rather than imposing a new shape.
+        gap tables       an UPPER bound (they carry model error too), so k < 1 walks them DOWN.
+                         25 of the 28 bands in gap_nocommon_scale2.json are below 1, running 0.414
+                         (hallwil mixed, deep) to 1.372 (geneva mixed, shallow). Most of them ... 
+                         
+        station tables   a LOWER bound (across-station scatter sees only what stations disagree
+                         about), so k > 1 lifts them.
 
-    Measured on the 2025 seven-lake run (local/sigma/fit_sigma_common.py), one scale per lake brings
-    the pooled NIS to ~1 in BOTH seasons, where a year-round sigma_common fitted to the same budget
-    leaves the mixed season at 0.26-0.86. Fitted values, on RAW observations, ran 1.14 (aegeri) to
-    2.18 (maggiore).
+      Either way it inherits sigma_rep's depth profile AND its month axis rather than imposing a new
+      shape, which is what makes one number per band defensible.
 
-    THE SCALE IS A PROPERTY OF THE OBSERVATION SERIES, NOT OF THE LAKE. Refitted on the adaptively
-    filtered series (uniform window, 2026-08), the same seven lakes wanted 1.88 (murten) to 3.08
-    (hallwil) -- roughly double, because the filter removes most of the sub-daily band the estimator
-    measures while leaving the synoptic-scale error it cannot see, so the fitted table drops and the
-    shortfall the multiplier has to cover grows. Refit whenever the assimilated series changes; a
-    scale carried over from a differently filtered series is wrong in a direction that is invisible
-    in the log line.
+      WHAT k ABSORBS, and it is not only observation error. The identity pushes everything the
+      innovation carries and the spread does not into R -- model bias included. `bias_share` in the
+      fit JSON is (mean d)^2/<d^2> per band, and it is systematically worse in the SHALLOW band,
+      which is deliberately unfiltered: aegeri mixed shallow is 41% bias by variance, greifensee
+      stratified 32%, upperlugano stratified 25%. Those bands want a bias correction, not a scale.
 
-    Prefer a scalar. A depth-stepped scale is accepted for symmetry, but fitting one per depth band
-    on a single year overfits -- the fit wanted 3.9x on greifensee's top 2.5 m and 5.4x at 25 m on
-    hallwil, on a handful of depths each.
+      THE SCALE IS A PROPERTY OF THE OBSERVATION SERIES, NOT OF THE LAKE. The 4 m breakpoint is
+      THERMO_DEPTH_MIN from notebooks/filter_observations.py: at or below it the assimilated series
+      is a causal seiche box mean, above it the record passes through raw. So the filter, not
+      the lake, is where the multiplier genuinely steps. Refit whenever the thinning or the filter
+      changes.
 
-    WHY A SEASON AXIS, given sigma_rep already carries one. The multiplier covers the synoptic band
-    the estimator cannot see, and that band is not a fixed fraction of the sub-daily band it can.
-    Fitted per season on A_final the two disagree by more than the depth split does, and not in one
-    direction: geneva and upperlugano want a larger scale in the mixed season (geneva below 4 m,
-    2.34 vs 1.76), aegeri and hallwil in the stratified one (aegeri above 4 m, 3.48 vs 2.02). One
-    annual value is the count-weighted compromise and is therefore wrong in both seasons at once --
-    geneva's deep water pools to NIS 1.51 mixed against 0.94 stratified. Lakes with no split
-    (greifensee, maggiore below 4 m) simply fit two near-equal numbers.
+      ON BAND COUNT. Two bands beat one and are not overfitting at this count. The overfitting risk
+      would be one k PER DEPTH not per band.
+
+      ONE PASS IS NOT A FIXED POINT. R and the innovations are coupled: shrink R, the analysis pulls
+      harder, the next innovation shrinks again. Refit against the run that used the last k and stop
+      when NIS aproaches 1.
     """
     spec = cfg.get("sigma_rep_scale")
     if _is_season_keyed(spec):
@@ -223,7 +225,7 @@ def sigma_rep_path(cfg):
         return resolve_root(override)
     return os.path.join(ROOT, "observations", cfg["lake"], "sigma_rep.json")
 
-
+# NOTE: needs rewriting ... 
 def load_sigma_rep(cfg):
     """The fitted sigma_rep table, or None when the lake has none.
 
@@ -241,10 +243,7 @@ def load_sigma_rep(cfg):
     # table applied to filtered observations overstates R several-fold at the thermocline.
     src = str(table.get("source", ""))
     obs_file = str(cfg.get("obs_file", ""))
-    # Filename markers, because the pairing is expressed by convention and nothing else records it.
-    # "new" joined "filtered" when the uniform-window series were thinned to temperature_new_h??_1d
-    # -- those ARE filtered, and matching on "_filtered" alone made the guard fire on every one of
-    # them. A marker list is fragile by nature: any future series naming has to be added here, and
+    # Filename markers. A marker list is fragile by nature: any future series naming has to be added here, and
     # the failure is a spurious warning rather than a wrong R, which is the safe direction.
     marks = ("_filtered", "temperature_new")
     is_filtered = lambda s: any(m in s for m in marks)          # noqa: E731
@@ -353,14 +352,24 @@ def resolve_sigma_obs(depths, n_stations, when, cfg, table):
 
 def sigma_obs_by_depth(obs_df, cfg, table):
     """One sigma per depth for OpenDA, whose stochObserver carries a single standardDeviation per
-    depth time series (openda/config.py::_obs_formatter_rows) and so CANNOT express the month and
-    N dependence the native engine applies per observation.
+      depth time series (openda/config.py::_obs_formatter_rows).
 
-    The closest single number the format admits: the RMS, over the observations actually present, of
-    the per-observation sigma the native engine would have used. The two engines therefore differ by
-    design here -- within a season the native engine varies sigma and OpenDA cannot. That divergence
-    is logged rather than hidden, and it is far smaller than leaving OpenDA on the scalar 0.5 while
-    the native engine uses the table, which would make any cross-engine comparison meaningless."""
+      THE FALLBACK, not the normal path: adapter.py tries sigma_obs_by_depth_season first and lands
+      here only when that declines. The number is the RMS, over the observations actually present, of
+      the per-observation sigma the native engine would have used.
+
+      OFTEN STILL EXACT. Two of the season split's guards decline for lack of anything to split, not
+      for lack of precision: an annual scalar with no table is one number, so its RMS is itself, and
+      a table whose two seasons are equal collapses the same way.
+
+      GENUINELY APPROXIMATE in two cases, and the engines then differ by design:
+        n_stations > 1   the native engine divides sigma_rep by each observation's own N; one number
+                         per depth cannot. Multi-station lakes only.
+        monthly table    finer than seasonal, so sigma varies WITHIN a season. No table in use today
+                         is -- sigma_rep_gap.json is 'resolution: seasonal'.
+      Both are logged rather than hidden, and either beats leaving OpenDA on the scalar 0.5 while the
+      native engine uses the table, which would make any cross-engine comparison meaningless."""
+      
     if table is None or obs_df.empty:
         return {float(d): _scalar_sigma_rms(cfg, g["time"].dt.month.to_numpy())
                 for d, g in obs_df.groupby("depth")}
