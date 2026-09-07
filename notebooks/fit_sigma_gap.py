@@ -15,6 +15,12 @@ Because both come out of one pass, the median over depths of the written table r
 scalar by construction. That check used to be a coincidence across two scripts; here it is an
 invariant, and the run prints both so it stays visible.
 
+WHERE THE SCALAR LIVES. In two places, deliberately: the --scalars-out JSON (every lake in one
+blob, the paste source for a multi-lake config) and each table's own 'sigma_obs' key (one file per
+lake, so a table can be checked against the config that quotes it without opening a second file).
+Both come from the same `scalars()` call. The --annual rung writes no table, so its scalar has the
+JSON as its only home.
+
 TWO RUNGS, and a lake needs the right one. The default splits the seasons and removes each one's
 own mean, so "bias-free" means free of BOTH seasonal offsets -> the {"mixed": .., "stratified": ..}
 form. `--annual` keeps one block and one bias for the whole year, so the seasonal swing stays
@@ -52,7 +58,8 @@ sys.path.insert(0, os.path.join(_ROOT, "src"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from assimilator.functions import ROOT, load_obs, merge_lake_args, season_of   # noqa: E402
-from assimilator.sigma_rep import DEFAULT_SIGMA_COMMON, depth_key              # noqa: E402
+from assimilator.sigma_rep import (DEFAULT_SIGMA_COMMON, depth_key,           # noqa: E402
+                                   has_season_keyed_sigma_obs)
 import visualize as viz                                                        # noqa: E402
 
 logger = logging.getLogger("sigma_gap")
@@ -203,11 +210,17 @@ def scalars(g, annual):
 
 # ===================================================================== step 2 output: the table ==
 
-def build_table(lake, g, sigma_common, summary_rel, obs_file):
+def build_table(lake, g, sigma_common, summary_rel, obs_file, scalar):
     """One lake's rows -> a sigma_rep table in the runtime's format.
 
     `obs_file` goes into 'source' so load_sigma_rep's filtered-vs-raw guard sees the series these
     numbers were actually fitted on. Naming only the CSV makes it warn on every filtered lake.
+
+    `scalar` is step 3's median over depths, recorded here as 'sigma_obs'. The runtime does NOT
+    read it -- a scalar config carries its own copy -- but a table that only ASSERTS the relation
+    in prose cannot be checked against the config, which is how upperlugano's mixed value came to
+    read 0.300 against a fitted 0.299. Written beside the table it is the median of, one file per
+    lake answers both "what is the table" and "what scalar does it collapse to".
     """
     table = {}
     for depth, row in g.set_index("depth").iterrows():
@@ -239,10 +252,59 @@ def build_table(lake, g, sigma_common, summary_rel, obs_file):
         "_upper_bound_note": "The gap contains model error as well as observation error, so this is "
                              "an UPPER bound. Run with sigma_rep_scale = 1.0: the multipliers "
                              "fitted for the across-station tables lift a LOWER bound.",
-        "_step3_note": "The median over depths of by_season is the scalar sigma_obs written "
-                       "alongside this table in the same run, and the one a scalar config carries.",
+        # Step 3, carried here so the table and the scalar cannot drift apart unnoticed. The
+        # runtime ignores this key: resolve_scalar_sigma_obs reads the RUN CONFIG's sigma_obs, and
+        # a config using this table does not use a scalar at all.
+        "sigma_obs": scalar,
+        "_step3_note": "'sigma_obs' above is the median over depths of by_season -- step 3 of the "
+                       "same fit, and the value a scalar config (simplified_final) carries for "
+                       "this lake. Recorded for checking, never read at run time. The annual rung "
+                       "emits no table, so an annual scalar lives only in the --scalars-out JSON.",
         "sigma_rep": table,
     }
+
+
+# ============================================================== the config-vs-fit check ==========
+
+def check_config(arg_file, fitted, annual):
+    """Compare a run config's sigma_obs against the scalars just fitted. Returns an exit code.
+
+    The one step of the chain nothing else guards: `scalars()` computes the median and a person
+    retypes it into args/experiments/<name>.json. That is where upperlugano's mixed value became
+    0.300 against a fitted 0.299 -- a hand-rounded 0.2995, invisible to every other check because
+    the config is the only place the run reads.
+
+    A config on the OTHER rung is reported, not failed: aegeri deliberately carries the annual
+    scalar while the seasonal fit runs, and flagging that as an error would train the eye to ignore
+    the output. Only a same-rung disagreement is a mismatch.
+    """
+    path = arg_file if os.path.isfile(arg_file) else os.path.join(ROOT, arg_file)
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    rung = "annual" if annual else "seasonal"
+    logger.info(f"\ncheck: {os.path.relpath(path, ROOT)} against the {rung} fit above")
+
+    bad = 0
+    for lake in raw.get("lakes") or {}:
+        have = merge_lake_args(raw, lake=lake).get("sigma_obs")
+        want = fitted.get(lake)
+        if want is None:
+            logger.info(f"  {lake:<12} not fitted in this run - skipped")
+            continue
+        # has_season_keyed_sigma_obs, NOT np.ndim: np.ndim({...}) is 0, so a dict takes the scalar
+        # branch and every lake reads as annual. That is the same confusion that makes enkf_update
+        # raise on a season dict (porting_simplified.md 1.1) -- the predicate has to be structural.
+        if has_season_keyed_sigma_obs({"sigma_obs": have}) == annual:
+            logger.info(f"  {lake:<12} config is on the OTHER rung ({have}) - not compared")
+            continue
+        if have == want:
+            logger.info(f"  {lake:<12} ok   {want}")
+            continue
+        bad += 1
+        logger.warning(f"  {lake:<12} MISMATCH  config {have}  fitted {want}")
+    logger.info(f"check: {bad} mismatch(es)"
+                + ("" if bad else " - every compared lake matches its fit"))
+    return 1 if bad else 0
 
 
 # ==================================================================================== driver ====
@@ -272,7 +334,12 @@ def main():
     ap.add_argument("--scalars-out", default=None,
                     help="step 3 as JSON, ready to paste into a run config (default beside --out)")
     ap.add_argument("--dry-run", action="store_true", help="print everything, write nothing")
+    ap.add_argument("--check-config", default=None, metavar="ARG_FILE",
+                    help="refit, then compare each lake's sigma_obs in ARG_FILE against the fit "
+                         "and exit non-zero on a mismatch. Implies --dry-run: it is a check, so it "
+                         "must not leave new artefacts behind for the next one to agree with")
     cli = ap.parse_args()
+    cli.dry_run = cli.dry_run or bool(cli.check_config)
 
     stem = (f"sigma_obs_candidates{'_annual' if cli.annual else ''}"
             f"{'_daily' if cli.daily else ''}")
@@ -331,12 +398,14 @@ def main():
     logger.info(f"{verb} {summary_rel} ({len(summary)} depth rows, steps 1-2)")
     logger.info(f"{verb} {os.path.relpath(cli.scalars_out, ROOT)} (step 3)")
 
+    if cli.check_config:
+        raise SystemExit(check_config(cli.check_config, out_scalars, cli.annual))
     if not write_tables:
         return
     for lake, (src, g) in fitted.items():
         obs_file = merge_lake_args(raw, lake=lake).get(
             "obs_file", os.path.relpath(src, ROOT).replace("\\", "/"))
-        out = build_table(lake, g, cli.sigma_common, summary_rel, obs_file)
+        out = build_table(lake, g, cli.sigma_common, summary_rel, obs_file, out_scalars[lake])
         # The invariant: the median of what the table carries IS the scalar written above. Both
         # sides are rounded to the CSV's 3 decimals first — an even depth count makes the median an
         # average of two entries, so an unrounded comparison shows a spurious 0.0005 half the time.
