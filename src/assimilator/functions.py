@@ -471,6 +471,37 @@ def resolve_sigma_obs(depths, when, cfg):
     return [resolve_scalar_sigma_obs(cfg, when.month)] * len(depths)
 
 
+def should_season_split(cfg):
+    """Whether the OpenDA adapter should write one observation series per (depth, season).
+
+    OpenDA's stochObserver carries one standardDeviation per SERIES, and the series are ours to
+    define -- so one series per (depth, season) reproduces the native engine's per-window sigma
+    EXACTLY.
+    Decidable from the config alone, which is what lets the adapter write the files BEFORE the
+    sigma per series is known -- see sigma_obs_for_series."""
+    spec = sigma_obs_spec(cfg)
+    if not _is_season_keyed(spec):
+        return False
+    if len({float(v) for v in spec.values()}) == 1:
+        logger.info("[sigma] OpenDA season split declined: sigma identical in both seasons")
+        return False
+    return True
+
+
+def sigma_obs_for_series(series_keys, cfg):
+    """{(depth, season): sigma} for the series the adapter ACTUALLY wrote.
+
+    Keyed off the written files rather than off the observation frame, so the series the config
+    declares and the files on disk cannot disagree -- a disagreement is fatal inside OpenDA, which
+    opens a _real.csv that is not there and dies with no member output. Deriving both from one obs
+    frame is not enough: the adapter keeps only the samples in its target hour, so a (depth,
+    season) can exist in the observations and still have no file.
+    A (depth, season) with no file is simply absent, so an operational window inside one season
+    carries exact sigma at every depth that reported."""
+    spec = sigma_obs_spec(cfg)
+    return {(float(d), s): float(spec[s]) for d, s in series_keys}
+
+
 def log_sigma_summary(cfg):
     """Say, once, what observation-error model this run is using -- the counterpart to the
     'sigma_obs=' knob in the run header, which no longer tells the whole story. Names the SOURCE
