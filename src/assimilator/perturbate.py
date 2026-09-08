@@ -17,7 +17,7 @@ the next slice resumes the AR(1) chain instead of restarting it from zero. Cold 
 or when the perturbation parameters change.
 
 Fitting the AR(1) stats from ICON (the heavy, once-per-lake step that produces the
-JSON) lives in notebooks/perturbations_from_icon.py.
+JSON) lives in notebooks/generate_perturbation.py.
 """
 import os
 import sys
@@ -120,7 +120,7 @@ def load_perturbations(args: dict) -> dict:
     json_path = perturbations_path(args)
     if not os.path.isfile(json_path):
         raise FileNotFoundError(
-            f"{json_path} not found — fit it with notebooks/perturbations_from_icon.py "
+            f"{json_path} not found — fit it with notebooks/generate_perturbation.py "
             f"(needs the ICON API / EAWAG VPN).")
     with open(json_path, encoding="utf-8") as f:
         params = json.load(f)

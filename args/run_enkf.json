@@ -16,15 +16,61 @@
     "save_intermediates": false,
     "skip": [],
 
+    "_lakes_note": "One block per lake. With more than one block a run must name its lake: pass --lake <name>. Each block carries the lake's identity (lake_bbox / lake_key / reanalysis_lake, used to cut the ICON area when fitting perturbations), the observation series it assimilates, and the sigma_obs fitted ON that series. A lake naming no sigma_obs falls back to the top-level sigma_default. Refit sigma whenever obs_file changes: python notebooks/generate_sigma.py --lakes <name> prints the pair to paste, and writes observations/<name>/sigma_obs.json, which nothing reads at run time. The perturbation calibration lives in perturbations/<name>.json: python notebooks/generate_perturbation.py args/run_enkf.json --lake <name> [--icon].",
+
+    "_sigma_obs_operator_note": "These sigma_obs were fitted against T_out.dat, which Simstrat writes by interpolating onto the z_out depths -- i.e. they assume \"obs_operator\": \"linear\". That operator is not on this branch yet, so until it lands a run uses nearest-cell snapping and carries a 0.25 m discretisation error these numbers do not, leaving sigma under-stated and the filter over-trusting the observations.",
+
     "lakes": {
         "upperlugano": {
             "obs_file":         "observations/upperlugano/temperature_filtered_h06_1d.csv",
             "reanalysis_lake":  "lugano",
             "lake_bbox":        [45.89, 8.85, 46.03, 9.13],
             "lake_key":         "lugano",
+            "sigma_obs":        {"mixed": 0.299, "stratified": 0.586}
+        },
+        "maggiore": {
+            "obs_file":         "observations/maggiore/temperature_filtered_h01_1d.csv",
+            "reanalysis_lake":  "maggiore",
+            "lake_bbox":        [45.72, 8.48, 46.18, 8.87],
+            "lake_key":         "maggiore",
+            "sigma_obs":        {"mixed": 0.697, "stratified": 1.172}
+        },
+        "greifensee": {
+            "obs_file":         "observations/greifensee/temperature_filtered_w0006_1d.csv",
+            "reanalysis_lake":  "greifensee",
+            "lake_bbox":        [47.32, 8.65, 47.38, 8.71],
+            "lake_key":         "greifensee",
+            "sigma_obs":        {"mixed": 0.523, "stratified": 0.939}
+        },
+        "geneva": {
+            "obs_file":         "observations/geneva/temperature_filtered_h02_1d.csv",
+            "reanalysis_lake":  "geneva",
+            "lake_bbox":        [46.20, 6.14, 46.52, 6.93],
+            "lake_key":         "geneva",
+            "sigma_obs":        {"mixed": 0.278, "stratified": 0.589}
+        },
+        "aegeri": {
+            "obs_file":         "observations/aegeri/temperature_filtered_h23_1d.csv",
+            "reanalysis_lake":  "ageri",
+            "lake_bbox":        [47.10, 8.61, 47.14, 8.67],
+            "lake_key":         "ageri",
 
-            "_sigma_obs_note":  "Rename the key below to \"sigma_obs\" to use it; without one this lake falls back to the top-level \"sigma_default\". Print the pair with: python notebooks/generate_sigma.py --lakes upperlugano (it also writes observations/upperlugano/sigma_obs.json, which nothing reads at run time - the paste is deliberate, since a sigma is only valid for the observation series it was fitted on, i.e. \"obs_file\" above). Refit whenever that series changes",
-            "_sigma_obs":       {"mixed": 0.299, "stratified": 0.586}
+            "_sigma_obs_note":  "The one lake NOT on the seasonal value, kept as a plain scalar so the exception is visible here rather than hidden in two dict keys. Seasonal breaks it: pooled NIS 1.70 against 0.94 annual, stratified deep band 6.77. See local/analyses&plans/final_simple.md.",
+            "sigma_obs":        0.237
+        },
+        "hallwil": {
+            "obs_file":         "observations/hallwil/temperature_filtered_h23_1d.csv",
+            "reanalysis_lake":  "hallwil",
+            "lake_bbox":        [47.24, 8.19, 47.31, 8.23],
+            "lake_key":         "hallwil",
+            "sigma_obs":        {"mixed": 0.412, "stratified": 0.391}
+        },
+        "murten": {
+            "obs_file":         "observations/murten/temperature_filtered_h04_1d.csv",
+            "reanalysis_lake":  "murten",
+            "lake_bbox":        [46.90, 7.04, 46.97, 7.14],
+            "lake_key":         "murten",
+            "sigma_obs":        {"mixed": 0.341, "stratified": 0.601}
         }
     }
 }

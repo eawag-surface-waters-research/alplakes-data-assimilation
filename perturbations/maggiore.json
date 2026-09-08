@@ -1,67 +1,67 @@
 {
-  "lake": "upperlugano",
-  "reanalysis_lake": "lugano",
+  "lake": "maggiore",
+  "reanalysis_lake": "maggiore",
   "fit_window": {
     "start": "2025-01-01",
     "end": "2025-12-31"
   },
-  "n_timesteps": 8713,
-  "fitted_on": "2026-09-08",
+  "n_timesteps": 8736,
+  "fitted_on": "2026-07-08",
   "variables": {
     "U": {
-      "phi": 0.754079,
-      "sigma": 0.588286
+      "phi": 0.765544,
+      "sigma": 0.689772
     },
     "V": {
-      "phi": 0.819307,
-      "sigma": 0.715974
+      "phi": 0.827062,
+      "sigma": 0.761446
     },
     "GLOB": {
-      "phi": 0.86973,
-      "sigma": 25.717096
+      "phi": 0.849256,
+      "sigma": 32.089221
     }
   },
   "amplitude": {
-    "source": "ICON KENDA-CH1 lake mean - control Forcing.dat",
+    "source": "ICON KENDA-CH1 - control Forcing.dat",
     "stationary_std": {
-      "U": 0.895707,
-      "V": 1.248745,
-      "GLOB": 52.108704
+      "U": 1.072101,
+      "V": 1.354619,
+      "GLOB": 60.777193
     }
   },
   "persistence": {
     "bound": "envelope",
     "chosen": {
       "U": "upper",
-      "V": "upper",
+      "V": "lower",
       "GLOB": "upper"
     },
     "lower": {
       "source": "ACF of the ICON residual; a floor",
       "tau_h": {
-        "U": 2.375,
-        "V": 2.709,
-        "GLOB": 1.387
+        "U": 2.359,
+        "V": 5.267,
+        "GLOB": 1.854
       },
       "phi": {
-        "U": 0.656318,
-        "V": 0.691316,
-        "GLOB": 0.486352
+        "U": 0.654535,
+        "V": 0.827062,
+        "GLOB": 0.58314
       }
     },
     "upper": {
       "source": "ACF of the station signal (clearness); a ceiling",
-      "fitted_on": "2026-09-08",
       "tau_h": {
-        "U": 3.543,
-        "V": 5.018,
-        "GLOB": 7.165
+        "U": 3.743,
+        "V": 3.179,
+        "GLOB": 6.12
       },
       "phi": {
-        "U": 0.754079,
-        "V": 0.819307,
-        "GLOB": 0.86973
-      }
+        "U": 0.765544,
+        "V": 0.730086,
+        "GLOB": 0.849256
+      },
+      "fitted_on": "2026-07-29"
     },
     "_note": "phi is bracketed, not measured. lower is a floor (the ICON residual carries white spatial mismatch, which shortens any measured tau); upper is a ceiling (the station signal measures weather persistence, not error persistence); envelope takes the longer tau per channel. The honest number needs the ACF of (forecast - station obs), which requires archived ICON forecasts."
   }
