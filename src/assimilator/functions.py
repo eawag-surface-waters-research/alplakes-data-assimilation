@@ -3,7 +3,7 @@ import sys
 import json
 import logging
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
 
 # pandas is imported lazily inside load_obs (the only user here): this module is on the import path
 # of the OpenDA wrapper (via models.simstrat), launched 21×/step, and a top-level `import pandas`
@@ -268,8 +268,12 @@ def discover_n_members(ensemble_base):
 # (rmse_in_window) is unaffected.
 def load_obs(obs_path):
     import pandas as pd
-    obs = pd.read_csv(obs_path, parse_dates=["time"])
-    obs["time"] = pd.to_datetime(obs["time"], utc=True)
+    # format="ISO8601", and no parse_dates: the filtered/thinned CSVs mix whole-second and
+    # fractional-second stamps, and pandas 2.x locks onto row 0's format and rejects every row
+    # that differs (aegeri dies on "...17:00:21+00:00" at row 2098). Which lakes this bites
+    # depends on the CSV, not the code, so it is unconditional.
+    obs = pd.read_csv(obs_path)
+    obs["time"] = pd.to_datetime(obs["time"], utc=True, format="ISO8601")
     obs["time"] = (obs["time"] + pd.Timedelta(minutes=30)).dt.floor("1h")
     obs = obs.groupby(["depth", "time"])["value"].mean().reset_index()
     return obs
@@ -377,3 +381,102 @@ def build_python_run_args(run_raw, ensemble_raw, ensemble_base, n_members, model
         args.setdefault("innov_depth_path", os.path.join(ensemble_base, "enkf_innov_by_depth.csv"))
         args.setdefault("kgain_depth_path", os.path.join(ensemble_base, "enkf_kgain_by_depth.csv"))
     return args
+
+
+# =============================================================================
+# Observation-error model (sigma_obs)
+# =============================================================================
+# The scalar `sigma_obs` is an estimate of REPRESENTATIVENESS error, not instrument error. That
+# quantity is not a constant: it peaks at the thermocline, where a sharp gradient is displaced past
+# a fixed sensor by internal seiches, and collapses in the deep and in the mixed season.
+#
+# One axis for now, the season:
+#
+#     sigma_obs    a float, or {"mixed": .., "stratified": ..}
+#
+# A float is bit-for-bit what the filters did before this section existed.
+
+# Two seasons, on the calendar. The project's stratified window is May-Oct everywhere: a
+# stratification rule was tried and did not beat it, and a calendar split keeps the fit and the run
+# configs keyed the same way without either needing the run's own state.
+SEASONS      = ("mixed", "stratified")
+STRAT_MONTHS = range(5, 11)
+
+
+def season_of(month):
+    return "stratified" if int(month) in STRAT_MONTHS else "mixed"
+
+
+def _is_season_keyed(spec):
+    """True for {"mixed": .., "stratified": ..}, so a plain scalar config is recognised unchanged."""
+    return isinstance(spec, dict) and bool(spec) and set(spec) <= set(SEASONS)
+
+
+def has_season_keyed_sigma_obs(cfg):
+    """Whether the sigma_obs this run resolves to carries a season axis.
+
+    Structural, NOT np.ndim: np.ndim({...}) is 0, so a dict takes the scalar branch and silently
+    reads as annual -- and np.full(n, dict) then builds an object array enkf_update cannot square."""
+    return _is_season_keyed(sigma_obs_spec(cfg))
+
+
+# The fallback when a lake's block names no sigma_obs of its own. A separate key, not a top-level
+# "sigma_obs": merge_lake_args overlays the top level onto the lake block, so a top-level sigma_obs
+# is indistinguishable from a value typed for that lake -- every lake would look explicitly set.
+SIGMA_DEFAULT_KEY = "sigma_default"
+SIGMA_DEFAULT     = 0.5
+
+
+def sigma_obs_spec(cfg):
+    """What sigma_obs this run uses: the config's own value if it names one, else sigma_default.
+
+    The fitted pair reaches a run by being PASTED into its lake block from
+    observations/<lake>/sigma_obs.json -- nothing reads that file at run time, by design. It is
+    provenance, and the paste is deliberate: a sigma is only valid for the observation series it
+    was fitted on, so adopting one should be an edit somebody made, not a file appearing on disk."""
+    spec = cfg.get("sigma_obs")
+    return cfg.get(SIGMA_DEFAULT_KEY, SIGMA_DEFAULT) if spec is None else spec
+
+
+def resolve_scalar_sigma_obs(cfg, month=None):
+    """The run's sigma_obs -- a plain float, or a season-keyed pair
+
+        "sigma_obs": {"mixed": 0.31, "stratified": 0.55}
+
+    The gap a scalar is fitted from is not one population: across the 2025 lakes the stratified
+    season wants 1.1x to 2.6x the mixed-season value, so a single annual number is the
+    count-weighted compromise between them -- wrong in both at once.
+
+    A season-keyed value REQUIRES `month`; None raises rather than silently picking a season."""
+    spec = sigma_obs_spec(cfg)
+    if _is_season_keyed(spec):
+        if month is None:
+            raise ValueError("sigma_obs is season-keyed, so resolving it needs a month")
+        season = season_of(month)
+        if season not in spec:
+            raise ValueError(f"sigma_obs has no {season!r} entry (has {sorted(spec)})")
+        spec = spec[season]
+    return float(spec)
+
+
+def resolve_sigma_obs(depths, when, cfg):
+    """Per-observation sigma for one analysis, aligned with the obs vector.
+
+    One entry per depth in `depths` whether the config carries one number or two, so the filters
+    have a single code path. `when` is the analysis instant, whose month selects the season.
+    Uniform over depth today -- the vector is the shape a depth axis would fill in.
+
+    A plain list, not an array: this module is on the OpenDA wrapper's import path (see the pandas
+    note at the top), and the callers that need an array already import numpy."""
+    return [resolve_scalar_sigma_obs(cfg, when.month)] * len(depths)
+
+
+def log_sigma_summary(cfg):
+    """Say, once, what observation-error model this run is using -- the counterpart to the
+    'sigma_obs=' knob in the run header, which no longer tells the whole story. Names the SOURCE
+    too: falling back to sigma_default is silent otherwise, and it is the case worth noticing."""
+    spec = sigma_obs_spec(cfg)
+    src  = "config" if cfg.get("sigma_obs") is not None else f"{SIGMA_DEFAULT_KEY} fallback"
+    txt = ("season-keyed " + ", ".join(f"{s}: {float(v):g}" for s, v in sorted(spec.items()))
+           if _is_season_keyed(spec) else f"{float(spec):g} degC")
+    logger.info(f"[sigma] sigma_obs={txt} (from {src})")

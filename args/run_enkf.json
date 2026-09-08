@@ -10,7 +10,7 @@
     "n_members":   20,
     "start_date":  "2025-01-01",
     "end_date":    "2025-12-31",
-    "sigma_obs":   0.5,
+    "sigma_default": 0.5,
     "rng_seed":    42,
     "sigma_scale": 1.0,
     "save_intermediates": false,
@@ -18,9 +18,13 @@
 
     "lakes": {
         "upperlugano": {
+            "obs_file":         "observations/upperlugano/temperature_filtered_h06_1d.csv",
             "reanalysis_lake":  "lugano",
             "lake_bbox":        [45.89, 8.85, 46.03, 9.13],
-            "lake_key":         "lugano"
+            "lake_key":         "lugano",
+
+            "_sigma_obs_note":  "Rename the key below to \"sigma_obs\" to use it; without one this lake falls back to the top-level \"sigma_default\". Print the pair with: python notebooks/generate_sigma.py --lakes upperlugano (it also writes observations/upperlugano/sigma_obs.json, which nothing reads at run time - the paste is deliberate, since a sigma is only valid for the observation series it was fitted on, i.e. \"obs_file\" above). Refit whenever that series changes",
+            "_sigma_obs":       {"mixed": 0.299, "stratified": 0.586}
         }
     }
 }

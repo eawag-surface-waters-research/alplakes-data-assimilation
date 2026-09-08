@@ -61,7 +61,8 @@ import subprocess
 from assimilator.functions import (verify_args, resolve_src, resolve_root, resolve_obs_path,
                                    merge_lake_args, make_progress, log_run_header, log_run_footer,
                                    resolve_max_workers, resolve_run_root, display_path,
-                                   start_persistent_container, stop_persistent_container)
+                                   start_persistent_container, stop_persistent_container,
+                                   sigma_obs_spec, has_season_keyed_sigma_obs)
 from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
 from assimilator.summarize import report_summary
 from .config import FILTERS, render as render_oda
@@ -483,9 +484,24 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # OpenDA runs n_members + 1 instances (the main/control model + every member), so the cap is
     # n_members+1 — matching the original full-parallel maxThreads. (auto = min(cpu, n_members+1).)
     max_threads = resolve_max_workers(cfg, n_members + 1)
+    # Same resolution rule as the native engine (config's sigma_obs, else sigma_default), so the
+    # two cannot silently diverge on a config that names neither.
+    #
+    # A SEASON PAIR IS NOT SUPPORTED HERE YET. OpenDA renders one static standardDeviation per
+    # depth, so a dict would be f-stringed into the XML as standardDeviation="{'mixed': ...}" and
+    # die inside the Java run, minutes later, with nothing in our log to explain it. Fail here
+    # instead, naming the fix. Collapsing it to one number is NOT the fix: the native EnKF switches
+    # sigma per window, and a period-average would make the two engines incomparable, which is the
+    # only reason the OpenDA path exists. The port is one obs series per (depth, season).
+    obs_std = sigma_obs_spec(ensemble_raw)
+    if has_season_keyed_sigma_obs(ensemble_raw):
+        raise ValueError(
+            f"season-keyed sigma_obs ({obs_std}) is not supported by the OpenDA engine yet: it "
+            f"renders one standardDeviation per depth for the whole run. Give this lake a single "
+            f"float sigma_obs for OpenDA runs, or run the native EnKF engine.")
     oda_file = render_oda(openda_dir, filter_type, n_members, obs_depths,
                           ensemble_raw["start_date"], ensemble_raw["end_date"],
-                          obs_std=ensemble_raw.get("sigma_obs", 0.5), max_threads=max_threads)
+                          obs_std=obs_std, max_threads=max_threads)
     logger.info(f"[5/5] rendered {oda_file} + chain for filter={filter_type} "
                 f"(Results/work0..N, {len(obs_depths)} obs depths, maxThreads={max_threads})")
     # OpenDA launch: build the full OpenDA environment in-process from cfg["openda_bin"] (the dir

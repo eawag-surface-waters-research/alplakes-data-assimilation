@@ -7,6 +7,9 @@ logs/*
 !logs/.gitkeep
 observations/*
 !observations/.gitkeep
+args/experiments
+filter/
+localization/
 
 # Local-only scratch
 local/

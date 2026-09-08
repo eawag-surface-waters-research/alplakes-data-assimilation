@@ -8,14 +8,17 @@ from datetime import timedelta
 
 from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
                          verify_args, build_python_run_args, make_progress, log_obs_summary,
-                         log_run_header, log_run_footer, time_keyed_rng)
+                         log_run_header, log_run_footer, time_keyed_rng,
+                         resolve_sigma_obs, log_sigma_summary)
 from ..summarize import report_summary
 
 logger = logging.getLogger(__name__)
 
 REQUIRED_RUN  = ["algorithm", "results_dir", "par_file"]
 REQUIRED_ENKF = ["inflation"]               # run config; Python-EnKF-only knob
-REQUIRED_ENKF_ENSEMBLE = ["sigma_obs"]      # run config; obs error std, shared with OpenDA
+# "sigma_obs" is NOT required: a lake block that names none falls back to the run config's
+# "sigma_default" (functions.sigma_obs_spec), and the resolved value is logged with its source.
+REQUIRED_ENKF_ENSEMBLE = []
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +135,6 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
 
 def run_enkf_loop(args, model):
     member_ids  = args["member_ids"]
-    sigma_obs   = args["sigma_obs"]
     inflation   = args["inflation"]
     max_workers = args.get("max_workers")
     diag_path   = args["diag_path"]
@@ -176,7 +178,8 @@ def run_enkf_loop(args, model):
         select_obs = window_obs_vector_consistent
         logger.info(f"Obs-driven EnKF: {start_date.date()} → {end_date.date()} "
                     f"({len(boundaries)} windows — one per obs time + tail, "
-                    f"{len(member_ids)} members, σ_obs={sigma_obs} °C, inflation={inflation})")
+                    f"{len(member_ids)} members, inflation={inflation})")
+        log_sigma_summary(args)
     else:
         # Legacy fixed daily stepping. Observation selector per daily window (run-arg
         # "obs_selector", default "window_end"):
@@ -206,7 +209,8 @@ def run_enkf_loop(args, model):
             boundaries.append(b)
         logger.info(f"Daily EnKF: {start_date.date()} → {end_date.date()} "
                     f"({len(boundaries)} days, {len(member_ids)} members, "
-                    f"σ_obs={sigma_obs} °C, inflation={inflation}, obs_selector={obs_selector_name})")
+                    f"inflation={inflation}, obs_selector={obs_selector_name})")
+        log_sigma_summary(args)
 
     model.start_containers(args, max_workers=max_workers)
     try:
@@ -254,10 +258,15 @@ def run_enkf_loop(args, model):
 
                         # Note: Assuming lake levels of different members the same, T column too. Intentional.
                         H          = build_H(z_vol, lake_lev, sim_depths)
+                        # One sigma per observation, keyed on the analysis instant's season.
+                        # Resolved to a vector HERE, so enkf_update's scalar-vs-vector test only
+                        # ever sees a list -- np.ndim on a season dict is 0, which would take the
+                        # scalar branch and build an object array that cannot be squared.
+                        sigma_win  = resolve_sigma_obs(obs_depths, window_end, args)
                         # Obs-perturbation draw keyed by the analysis instant: identical whether
                         # the period is run in one go or continued operationally in slices.
                         rng        = time_keyed_rng(rng_seed, "enkf_obs", int(window_end.timestamp()))
-                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_obs, inflation=inflation, rng=rng)
+                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_win, inflation=inflation, rng=rng)
 
                         def _write_T(col_i):
                             col, i = col_i
