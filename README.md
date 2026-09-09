@@ -40,7 +40,7 @@ Docker — no local build).
   | `2025-06-01T11:55:00+00:00` (UTC) | `0.5` (m, positive down) | `12.3` (°C) |
 
 You also need the forcing-perturbation calibration `perturbations/<lake>.json` (fit once,
-offline, via `notebooks/perturbations_from_icon.py`).
+offline, via `notebooks/generate_perturbation.py`).
 
 **3. Run**
 

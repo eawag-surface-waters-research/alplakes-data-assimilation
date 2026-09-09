@@ -99,7 +99,7 @@ def run(cfg, model="simstrat", skip_oda=False, force=None):
 
     # --- 3. perturbate forcings (always) ----------------------------------
     #   Source the AR(1) calibration from perturbations/<lake>.json. It must already
-    #   exist (committed); fit it once with notebooks/perturbations_from_icon.py.
+    #   exist (committed); fit it once with notebooks/generate_perturbation.py.
     #   Noise is keyed by absolute time and the chain state persists in
     #   ensemble_base/perturbation_state.json, so operational continuations reproduce
     #   a continuous run exactly (cold start on reset / fresh run dir).

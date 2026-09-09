@@ -1,25 +1,62 @@
 {
-    "engine":      "python",
-    "model":       "simstrat",
-    "algorithm":   "PF",
+    "engine": "python",
+    "model": "simstrat",
+    "algorithm": "PF",
     "results_dir": "Results_PF",
-    "par_file":    "Settings_PF.par",
-    "reset":       true,
-
-    "n_members":   20,
-    "start_date":  "2025-01-01",
-    "end_date":    "2025-12-31",
-    "sigma_obs":   0.5,
-    "rng_seed":    42,
+    "par_file": "Settings_PF.par",
+    "reset": true,
+    "n_members": 20,
+    "start_date": "2025-01-01",
+    "end_date": "2025-12-31",
+    "sigma_default": 0.5,
+    "rng_seed": 42,
     "sigma_scale": 1.0,
     "save_intermediates": false,
     "skip": [],
-
+    "_lakes_note": "One block per lake. With more than one block a run must name its lake: pass --lake <name>. Each block carries the lake's identity (lake_bbox / lake_key / reanalysis_lake, used to cut the ICON area when fitting perturbations), the observation series it assimilates, and the sigma_obs fitted ON that series. A lake naming no sigma_obs falls back to the top-level sigma_default. Refit sigma whenever obs_file changes: python notebooks/generate_sigma.py --lakes <name> prints the pair to paste, and writes observations/<name>/sigma_obs.json, which nothing reads at run time. The perturbation calibration lives in perturbations/<name>.json: python notebooks/generate_perturbation.py args/run_enkf.json --lake <name> [--icon].",
+    "_sigma_note": "No per-lake sigma_obs here on purpose: the native PF does not read one. It ranks members by RMSE weighted by layer thickness (algorithms/pf.py), so sigma appears nowhere in its analysis. Even once it did, a season pair with no depth axis is uniform across depths within a window and cancels out of a weighted RMSE entirely. sigma_default above is kept only so every config resolves the same way.",
     "lakes": {
         "upperlugano": {
-            "reanalysis_lake":  "lugano",
-            "lake_bbox":        [45.89, 8.85, 46.03, 9.13],
-            "lake_key":         "lugano"
+            "obs_file": "observations/upperlugano/temperature_filtered_h06_1d.csv",
+            "reanalysis_lake": "lugano",
+            "lake_bbox": [45.89, 8.85, 46.03, 9.13],
+            "lake_key": "lugano"
+        },
+        "maggiore": {
+            "obs_file": "observations/maggiore/temperature_filtered_h01_1d.csv",
+            "reanalysis_lake": "maggiore",
+            "lake_bbox": [45.72, 8.48, 46.18, 8.87],
+            "lake_key": "maggiore"
+        },
+        "greifensee": {
+            "obs_file": "observations/greifensee/temperature_filtered_w0006_1d.csv",
+            "reanalysis_lake": "greifensee",
+            "lake_bbox": [47.32, 8.65, 47.38, 8.71],
+            "lake_key": "greifensee"
+        },
+        "geneva": {
+            "obs_file": "observations/geneva/temperature_filtered_h02_1d.csv",
+            "reanalysis_lake": "geneva",
+            "lake_bbox": [46.2, 6.14, 46.52, 6.93],
+            "lake_key": "geneva"
+        },
+        "aegeri": {
+            "obs_file": "observations/aegeri/temperature_filtered_h23_1d.csv",
+            "reanalysis_lake": "ageri",
+            "lake_bbox": [47.1, 8.61, 47.14, 8.67],
+            "lake_key": "ageri"
+        },
+        "hallwil": {
+            "obs_file": "observations/hallwil/temperature_filtered_h23_1d.csv",
+            "reanalysis_lake": "hallwil",
+            "lake_bbox": [47.24, 8.19, 47.31, 8.23],
+            "lake_key": "hallwil"
+        },
+        "murten": {
+            "obs_file": "observations/murten/temperature_filtered_h04_1d.csv",
+            "reanalysis_lake": "murten",
+            "lake_bbox": [46.9, 7.04, 46.97, 7.14],
+            "lake_key": "murten"
         }
     }
 }

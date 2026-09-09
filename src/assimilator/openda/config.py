@@ -43,6 +43,7 @@ import logging
 from datetime import date, datetime
 
 from assimilator.models.simstrat import SIMSTRAT_REF_YEAR
+from assimilator.functions import SEASONS
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,26 @@ DEFAULT_OBS_STD = 0.5  # per-depth observation standard deviation (°C)
 def depth_label(d):
     """'1m', '0.5m', '40m' — matches the T_<label>_real.csv / T_<label>.csv naming."""
     return f"{d:g}m"
+
+
+def is_season_keyed(obs_std):
+    """True if obs_std is {(depth, season): sigma} rather than a plain scalar."""
+    return isinstance(obs_std, dict) and bool(obs_std) and all(isinstance(k, tuple) for k in obs_std)
+
+
+def series_specs(depths, obs_std):
+    """[(series_id, depth, sigma)] — the observation series to emit, one row each in all four
+    generated files. The single place the series set is decided, so they cannot disagree.
+
+    One series per depth, unless obs_std is season-keyed: then one per (depth, season), each with
+    its own standardDeviation. That is how the season pair reaches OpenDA EXACTLY -- the
+    stochObserver carries one standardDeviation per series, and the series are ours to define
+    (functions.sigma_obs_by_depth_season). A (depth, season) with no observations in the window is
+    not emitted, so an operational window inside one season declares only that season's series."""
+    if is_season_keyed(obs_std):
+        return [(f"T_{depth_label(d)}_{s}", d, obs_std[(float(d), s)])
+                for d in depths for s in SEASONS if (float(d), s) in obs_std]
+    return [(f"T_{depth_label(d)}", d, obs_std) for d in depths]
 
 
 def _simstrat_day(d):
@@ -283,30 +304,41 @@ time: [{start_day:.1f}, 1.0, {end_day:.1f}]  #oda:time_control
 """
 
 
-def _predictor_lines(depths):
-    return "\n".join(f'\t\t\t<vector id="T_{depth_label(d)}" />' for d in depths)
+# All four row sets below are driven by series_specs, so the series a run declares are decided
+# once. A disagreement between them is fatal inside OpenDA, with nothing in our log to explain it.
+
+def _predictor_lines(depths, obs_std=DEFAULT_OBS_STD):
+    return "\n".join(f'\t\t\t<vector id="{sid}" />' for sid, _, _ in series_specs(depths, obs_std))
 
 
-def _output_lines(depths):
+def _output_lines(depths, obs_std=DEFAULT_OBS_STD):
+    specs = series_specs(depths, obs_std)
+    pad   = max([len(sid) + 2 for sid, _, _ in specs] + [10])
     lines = []
-    for d in depths:
-        vid = f'"T_{depth_label(d)}"'
-        lines.append(f'\t\t<vector id={vid:<10} ioObjectId="output" elementId="model.T_{depth_label(d)}" />')
+    for sid, _, _ in specs:
+        vid = f'"{sid}"'
+        lines.append(f'\t\t<vector id={vid:<{pad}} ioObjectId="output" elementId="model.{sid}" />')
     return "\n".join(lines)
 
 
 def _obs_formatter_rows(depths, obs_std):
+    """How the fitted observation-error model reaches OpenDA: the stochObserver carries one
+    standardDeviation per SERIES, so a season-keyed obs_std gives each season its own sigma and
+    reproduces the native engine exactly."""
     return "\n".join(
-        f'  <timeSeries id="T_{depth_label(d)}" status="use" standardDeviation="{obs_std}">'
-        f'T_{depth_label(d)}_real.csv</timeSeries>'
-        for d in depths
+        f'  <timeSeries id="{sid}" status="use" standardDeviation="{sigma}">'
+        f'{sid}_real.csv</timeSeries>'
+        for sid, _, sigma in series_specs(depths, obs_std)
     )
 
 
-def _model_formatter_rows(depths):
+def _model_formatter_rows(depths, obs_std=DEFAULT_OBS_STD):
+    """Every series maps to its DEPTH's single predictor file: the observer samples model output
+    only at its own observation times, so two seasons of one depth never collide and the wrapper
+    keeps writing one T_<depth>.csv."""
     return "\n".join(
-        f'  <timeSeries id="model.T_{depth_label(d)}">T_{depth_label(d)}.csv</timeSeries>'
-        for d in depths
+        f'  <timeSeries id="model.{sid}">T_{depth_label(d)}.csv</timeSeries>'
+        for sid, d, _ in series_specs(depths, obs_std)
     )
 
 
@@ -355,7 +387,7 @@ def render(openda_dir, filter_type, n_members, obs_depths, start_date, end_date,
         results_dir=results_subdir, results_file=results_filename(filter_type),
     )
     parallel   = _PARALLEL.format(max_threads=max_threads if max_threads else n_members + 1)
-    stochmodel = _STOCHMODEL.format(predictors=_predictor_lines(depths),
+    stochmodel = _STOCHMODEL.format(predictors=_predictor_lines(depths, obs_std),
                                     stoch_restart_info=_STOCH_RESTART_INFO if spec.get("needs_restart") else "")
     # instanceDir: relative is fine for the Kalman filters.  PF additionally uses the INSTANCE_DIR
     # restart token (see _STOCH_RESTART_INFO), and OpenDA only resolves that correctly when the
@@ -370,11 +402,11 @@ def render(openda_dir, filter_type, n_members, obs_depths, start_date, end_date,
     else:
         instance_dir = "../Results/work"
     model      = _MODEL.format(filter=filter_type, instance_dir=instance_dir,
-                               ref_year=SIMSTRAT_REF_YEAR, outputs=_output_lines(depths),
+                               ref_year=SIMSTRAT_REF_YEAR, outputs=_output_lines(depths, obs_std),
                                restart_info=_RESTART_INFO if spec.get("needs_restart") else "")
     obs_fmt    = _OBS_FORMATTER.format(ref_year=SIMSTRAT_REF_YEAR, start_day=start_day,
                                        end_day=end_day, rows=_obs_formatter_rows(depths, obs_std))
-    model_fmt  = _MODEL_FORMATTER.format(ref_year=SIMSTRAT_REF_YEAR, rows=_model_formatter_rows(depths))
+    model_fmt  = _MODEL_FORMATTER.format(ref_year=SIMSTRAT_REF_YEAR, rows=_model_formatter_rows(depths, obs_std))
     time_ctrl  = _TIME_CONTROL.format(ref_year=SIMSTRAT_REF_YEAR, start_day=start_day, end_day=end_day)
     algo_cfg   = _ALGORITHM.format(root=spec["root"], schema=spec["schema"], filter=filter_type,
                                    n_members=n_members, extra=spec.get("extra", ""))

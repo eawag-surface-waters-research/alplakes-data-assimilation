@@ -61,10 +61,13 @@ import subprocess
 from assimilator.functions import (verify_args, resolve_src, resolve_root, resolve_obs_path,
                                    merge_lake_args, make_progress, log_run_header, log_run_footer,
                                    resolve_max_workers, resolve_run_root, display_path,
-                                   start_persistent_container, stop_persistent_container)
+                                   start_persistent_container, stop_persistent_container,
+                                   sigma_obs_spec, should_season_split,
+                                   sigma_obs_for_series, season_of)
 from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
 from assimilator.summarize import report_summary
-from .config import FILTERS, render as render_oda
+from .config import (FILTERS, render as render_oda, series_specs,
+                     is_season_keyed as is_season_keyed_series)
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +76,16 @@ REQUIRED = ["lake", "n_members", "ensemble_base"]
 # Black-box coupling files OpenDA owns — never overwrite these in the template.
 OPENDA_SPECIFIC = {"temperature_state.txt", "time_control.yaml", "timeSeriesFormatter.xml"}
 
-# Observations: each day, keep the single reading nearest this UTC hour (noon snapshot).
+# Observations: for a SUB-DAILY series, each day keeps the single reading nearest this UTC hour
+# (the noon snapshot). A series already thinned to one reading a day is used at its own times
+# instead -- see _is_thinned. Override the hour with "obs_target_hour" in the run config.
 OBS_TARGET_HOUR = 12
+
+# An observation this soon after the run start is dropped: it becomes the end of OpenDA's very
+# first window, and too short a window leaves no model output rows to pair the observation
+# against. Costs one analysis out of ~365 (first window); two hours clears any plausible output interval.
+# Only reachable since observations are stamped at their own time -- a fixed noon never was.
+FIRST_WINDOW_MIN_MINUTES = 120
 
 # The only hand-maintained OpenDA pieces (everything else in openda_simstrat/ is
 # generated/synced). Copied into the working dir at adapt time so the working dir
@@ -98,16 +109,39 @@ def _copy_path(src, dst):
         shutil.copy2(src, dst)
 
 
-def _noon_simstrat_day(day_str, ref_date):
-    """Fractional Simstrat day at noon (integer day + 0.5) for a YYYY-MM-DD string."""
-    return (date.fromisoformat(day_str) - ref_date).days + 0.5
+def _simstrat_day_at(day_str, ref_date, hour=OBS_TARGET_HOUR):
+    """Fractional Simstrat day at `hour` UTC for a YYYY-MM-DD string (noon -> day + 0.5).
+
+    Kept EXACT, not rounded: the observation time becomes the window end Simstrat integrates to."""
+    return (date.fromisoformat(day_str) - ref_date).days + hour / 24.0
 
 
 def _utc_minutes_since_midnight(iso_str):
-    dt = datetime.fromisoformat(iso_str)
+    # Drop sub-second precision before parsing. Whole seconds is all this needs.
+    dt = datetime.fromisoformat(re.sub(r"\.\d+", "", iso_str))
     if dt.tzinfo is not None:
         dt = dt.astimezone(timezone.utc)
     return dt.hour * 60 + dt.minute + dt.second / 60.0
+
+
+def _is_thinned(obs_csv):
+    """True when the file already carries at most one reading per (depth, day).
+
+    That is the case where the target-hour bin has nothing to choose BETWEEN: every row is already
+    the day's single observation, so it is assimilated at ITS OWN timestamp rather than matched
+    against a fixed hour. This is what makes a series whose sampling hour drifts work, and a lake 
+    sampling 00-06Z would match a noon it never samples. It is also what the native engine does: 
+    load_obs keeps every reading at its own hour."""
+    seen = set()
+    with open(obs_csv, newline="") as f:
+        for row in csv.DictReader(f):
+            if not row.get("value"):
+                continue
+            key = (row["depth"], row["time"][:10])
+            if key in seen:
+                return False
+            seen.add(key)
+    return True
 
 
 def _model_output_depths(inputs_dir):
@@ -130,12 +164,20 @@ def _model_output_depths(inputs_dir):
 def _build_observations(raw, openda_dir, model_inputs):
     """Build the OpenDA stochObserver obs files from the raw profile CSV.
 
-    For each depth/day, writes the mean of samples in the centered noon hour [11:30, 12:30) to
-    stochObserver/T_{depth}m_real.csv (time in fractional Simstrat days since 1 Jan
-    SIMSTRAT_REF_YEAR), mirroring functions.load_obs so OpenDA and the native engines assimilate
-    identical obs. Depths are auto-detected from the CSV, dropped if they have fewer than
-    `obs_min_days` days or no matching model-output depth (model_inputs/z_out.dat), and
-    returned sorted for the config generator to wire everywhere.
+    Writes stochObserver/T_{depth}m[_{season}]_real.csv, time in fractional Simstrat days since
+    1 Jan SIMSTRAT_REF_YEAR. WHEN an observation is taken depends on the series:
+
+      already one reading per (depth, day)  -> that reading, at ITS OWN time (_is_thinned)
+      sub-daily                             -> the mean of the centered target-hour bin, at that
+                                               hour ([11:30, 12:30) by default; "obs_target_hour")
+
+    Both mirror functions.load_obs's centered hourly bin, so OpenDA and the native engines
+    assimilate identical obs -- and OpenDA analyses at exactly these times, since its
+    analysisTimes is "fromObservationTimes", the same rule as the native window_mode="obs".
+
+    Depths are auto-detected from the CSV, dropped if they have fewer than `obs_min_days` days or
+    no matching model-output depth (model_inputs/z_out.dat), and returned sorted for the config
+    generator to wire everywhere.
     """
     lake      = raw["lake"]
     stoch_dir = os.path.join(openda_dir, "stochObserver")
@@ -147,13 +189,17 @@ def _build_observations(raw, openda_dir, model_inputs):
     ref_date     = date(SIMSTRAT_REF_YEAR, 1, 1)
     start = date.fromisoformat(raw["start_date"][:10]) if raw.get("start_date") else None
     end   = date.fromisoformat(raw["end_date"][:10])   if raw.get("end_date")   else None
-    min_days       = raw.get("obs_min_days", 1)
-    target_minutes = OBS_TARGET_HOUR * 60
+    min_days = raw.get("obs_min_days", 1)
+    # An explicit "obs_target_hour" always wins: it is the escape hatch for a series the one-per-day test reads wrongly.
+    thinned        = raw.get("obs_target_hour") is None and _is_thinned(obs_csv)
+    target_hour    = int(raw.get("obs_target_hour", OBS_TARGET_HOUR))
+    target_minutes = target_hour * 60
 
-    # acc[depth][day_str] = [sum, count] over samples in the centered noon hour [11:30, 12:30).
-    # Mirrors functions.load_obs's centered hourly bin, so OpenDA and the native engines assimilate
-    # byte-identical obs. (A day with no sample in that hour emits no obs, like load_obs's empty bin.)
-    acc = defaultdict(lambda: defaultdict(lambda: [0.0, 0]))
+    # acc[depth][day_str] = [sum, count, minutes] — `minutes` is when the observation is assimilated
+    # (its own time when thinned, else the target hour). Mirrors functions.load_obs's centered
+    # hourly bin. (A day with no sample in that bin emits no obs, like load_obs's empty bin.)
+    acc = defaultdict(lambda: defaultdict(lambda: [0.0, 0, 0.0]))
+    too_early = 0
     with open(obs_csv, newline="") as f:
         for row in csv.DictReader(f):
             if not row.get("value"):
@@ -163,18 +209,28 @@ def _build_observations(raw, openda_dir, model_inputs):
             if (start and day < start) or (end and day > end):
                 continue
             minutes = _utc_minutes_since_midnight(row["time"])
-            if not (target_minutes - 30 <= minutes < target_minutes + 30):
+            if not thinned and not (target_minutes - 30 <= minutes < target_minutes + 30):
+                continue
+            # The run's very first window ends at this observation; too short and OpenDA gets no
+            # model rows to pair against (see FIRST_WINDOW_MIN_MINUTES).
+            if start and day == start and minutes < FIRST_WINDOW_MIN_MINUTES:
+                too_early += 1
                 continue
             depth = float(row["depth"])
             cell = acc[depth][day_str]
             cell[0] += float(row["value"])
             cell[1] += 1
+            cell[2] = minutes if thinned else target_minutes
+
+    if too_early:
+        logger.warning(f"[adapter] dropped {too_early} observation(s) on {start} taken less than "
+                       f"{FIRST_WINDOW_MIN_MINUTES / 60:g} h after the run start — OpenDA's first "
+                       f"window would be too short to produce model rows to pair against")
 
     depths = sorted(d for d in acc if len(acc[d]) >= min_days)
 
     # Keep only depths the model actually outputs (z_out.dat): an obs depth with no
-    # matching model output depth (e.g. 0.5 m on a whole-metre grid) can't be
-    # assimilated, since there is no model prediction to compare it against.
+    # matching model output depth can't be assimilated, since there is no model prediction to compare it against.
     model_depths = _model_output_depths(model_inputs)
     if model_depths:
         matched = [d for d in depths if any(abs(d - m) <= 1e-6 for m in model_depths)]
@@ -184,19 +240,38 @@ def _build_observations(raw, openda_dir, model_inputs):
                            f"{[f'{d:g}' for d in dropped]} m")
         depths = matched
 
+    # One file per SERIES, and the series set is decided by config.series_specs -- season-split
+    # when sigma is season-keyed, else one per depth. The two must agree or OpenDA opens a
+    # timeSeries file that does not exist and dies with no member output.
+    season_split = bool(raw.get("_season_series"))
     window = f"{start or 'start'}..{end or 'end'}"
+    when   = "at their own times (already thinned)" if thinned else f"hour {target_hour:02d}Z"
     logger.info(f"[adapter] observations: {os.path.relpath(obs_csv, ROOT)} -> "
-                f"stochObserver/T_*_real.csv  ({len(depths)} depths {[f'{d:g}' for d in depths]}, window {window})")
+                f"stochObserver/T_*_real.csv  ({len(depths)} depths {[f'{d:g}' for d in depths]}, "
+                f"window {window}, {when}"
+                f"{', season-split' if season_split else ''})")
     os.makedirs(stoch_dir, exist_ok=True)
-    for depth in depths:
-        out_path = os.path.join(stoch_dir, f"T_{depth:g}m_real.csv")
-        records  = acc[depth]
-        with open(out_path, "w", newline="") as f:
-            f.write("time,value\n")
-            for day_str in sorted(records):
-                s, c = records[day_str]
-                f.write(f"{_noon_simstrat_day(day_str, ref_date):.6f},{s / c:.6f}\n")
-    logger.info(f"  wrote {len(depths)} depth files -> {os.path.relpath(stoch_dir, ROOT)}")
+
+    series_keys = []            # [(depth, season)] when split, else [(depth, None)] -- what the
+    for depth in depths:        # config declares, taken from what is actually on disk.
+        records = acc[depth]
+        # {season: [day_str]} -- one bucket unless split, and then the buckets partition the days,
+        # so no observation is dropped or written twice.
+        buckets = defaultdict(list)
+        for day_str in sorted(records):
+            buckets[season_of(date.fromisoformat(day_str).month) if season_split else None
+                    ].append(day_str)
+        for season, days in buckets.items():
+            suffix = f"_{season}" if season else ""
+            out_path = os.path.join(stoch_dir, f"T_{depth:g}m{suffix}_real.csv")
+            with open(out_path, "w", newline="") as f:
+                f.write("time,value\n")
+                for day_str in days:
+                    s, c, minutes = records[day_str]
+                    f.write(f"{_simstrat_day_at(day_str, ref_date, minutes / 60.0):.6f},"
+                            f"{s / c:.6f}\n")
+            series_keys.append((depth, season))
+    logger.info(f"  wrote {len(series_keys)} series files -> {os.path.relpath(stoch_dir, ROOT)}")
 
     # Distinct analysis (noon-obs) times across the kept depths = how many forecast/analysis
     # steps OpenDA will run. Drives the progress-bar total so the bar tracks the real step count
@@ -204,7 +279,7 @@ def _build_observations(raw, openda_dir, model_inputs):
     analysis_days = set()
     for d in depths:
         analysis_days.update(acc[d])
-    return depths, len(analysis_days)
+    return depths, len(analysis_days), series_keys
 
 
 def adapt(raw):
@@ -299,10 +374,10 @@ def adapt(raw):
     #    (noon-snapshot per depth; formerly prepare_real_obs.py).  Returns the
     #    auto-detected depth list for the config generator to wire everywhere.
     # ------------------------------------------------------------------
-    obs_depths, n_analysis = _build_observations(raw, openda_dir, model_inputs)
+    obs_depths, n_analysis, series_keys = _build_observations(raw, openda_dir, model_inputs)
 
     logger.info("[adapter] done.")
-    return obs_depths, n_analysis
+    return obs_depths, n_analysis, series_keys
 
 
 # ---------------------------------------------------------------------------
@@ -457,8 +532,35 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
 
     # --- 4. adapter (always): sync inputs/forcings/warmup + build observations,
     #         returning the auto-detected obs depth list for the render below ----
+    # Whether to split the observation series by season is decidable from the config alone, so the
+    # adapter can write the files first and report back WHICH (depth, season) series it actually
+    # wrote. The sigma per series is then keyed off those files, which is what makes the declared
+    # series and the files on disk agree by construction -- deriving them from two passes over the
+    # observations does not, since the adapter keeps only its target hour.
     logger.info(f"[4/5] adapt framework -> {display_path(openda_dir)}")
-    obs_depths, n_analysis = adapt({**ensemble_raw, "openda_dir": openda_dir})
+    obs_depths, n_analysis, series_keys = adapt({
+        **ensemble_raw, "openda_dir": openda_dir,
+        "_season_series": should_season_split(ensemble_raw)})
+
+    # Same resolution rule as the native engine (the config's sigma_obs, else sigma_default), so
+    # the two engines cannot diverge on a config that names neither. A season pair becomes one
+    # standardDeviation per (depth, season) -- exactly the value the native engine uses in that
+    # season, rather than an average over the run, which would key sigma to the window.
+    obs_std = (sigma_obs_for_series(series_keys, ensemble_raw)
+               if should_season_split(ensemble_raw) else sigma_obs_spec(ensemble_raw))
+    if is_season_keyed_series(obs_std):
+        logger.info(f"[sigma] OpenDA series: {len(obs_std)} season-split (exact — one "
+                    f"standardDeviation per (depth, season), matching the native engine)")
+
+    # The config declares one timeSeries per entry of series_specs; the adapter has just written
+    # one file per series. A disagreement is fatal INSIDE OpenDA — it opens a _real.csv that does
+    # not exist and dies with no member output, tens of seconds later and with nothing in our log
+    # to explain it. Cheap to assert here, where both numbers are in hand.
+    n_declared = len(series_specs(obs_depths, obs_std))
+    if n_declared != len(series_keys):
+        raise ValueError(f"observation series mismatch: the config declares {n_declared} series "
+                         f"but the adapter wrote {len(series_keys)}. OpenDA would die opening the "
+                         f"missing one.")
 
     # Bridge the model image + the shared-container contract to the (separate-process) wrapper via a
     # generated file (single source of truth: models.py). The wrapper execs Simstrat into ONE
@@ -483,9 +585,10 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # OpenDA runs n_members + 1 instances (the main/control model + every member), so the cap is
     # n_members+1 — matching the original full-parallel maxThreads. (auto = min(cpu, n_members+1).)
     max_threads = resolve_max_workers(cfg, n_members + 1)
+    # obs_std was resolved before step 4 — it decided the series set the adapter just wrote.
     oda_file = render_oda(openda_dir, filter_type, n_members, obs_depths,
                           ensemble_raw["start_date"], ensemble_raw["end_date"],
-                          obs_std=ensemble_raw.get("sigma_obs", 0.5), max_threads=max_threads)
+                          obs_std=obs_std, max_threads=max_threads)
     logger.info(f"[5/5] rendered {oda_file} + chain for filter={filter_type} "
                 f"(Results/work0..N, {len(obs_depths)} obs depths, maxThreads={max_threads})")
     # OpenDA launch: build the full OpenDA environment in-process from cfg["openda_bin"] (the dir
