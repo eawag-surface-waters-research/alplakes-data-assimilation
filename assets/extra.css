@@ -1,0 +1,25 @@
+/* ── Shared: primary color (header, links, sidebar) ── */
+:root > * {
+  --md-primary-fg-color: #44bca7;
+  --md-primary-fg-color--light: #6fcfbe;
+  --md-primary-fg-color--dark: #339e8c;
+  --md-accent-fg-color: #44bca7;
+}
+
+/* ── Light mode ── */
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #fff;           /* page background */
+  --md-default-bg-color--light: #eef1f5;
+  --md-primary-fg-color: #44bca7;           /* header */
+  --md-primary-fg-color--light: #6fcfbe;
+  --md-primary-fg-color--dark: #339e8c;
+}
+
+/* ── Dark mode ── */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #22232a;           /* page background */
+  --md-default-bg-color--light: #16213e;
+  --md-primary-fg-color: #2d2d34;           /* header */
+  --md-primary-fg-color--light: #6fcfbe;
+  --md-primary-fg-color--dark: #339e8c;
+}
