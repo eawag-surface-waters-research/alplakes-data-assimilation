@@ -67,7 +67,8 @@ from assimilator.functions import (verify_args, resolve_src, resolve_root, resol
 from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
 from assimilator.summarize import report_summary
 from .config import (FILTERS, render as render_oda, series_specs,
-                     is_season_keyed as is_season_keyed_series)
+                     is_season_keyed as is_season_keyed_series, run_window_days, results_filename)
+from . import restart as restart_chain
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,12 @@ OBS_TARGET_HOUR = 12
 # against. Costs one analysis out of ~365 (first window); two hours clears any plausible output interval.
 # Only reachable since observations are stamped at their own time -- a fixed noon never was.
 FIRST_WINDOW_MIN_MINUTES = 120
+
+# Continuing from an OpenDA restart (adapt() step 3): the marker file tells the wrapper every member
+# must be restored, and the sentinel fills the template state so an un-restored one is caught.
+# static/openda/simstrat_wrapper_enkf.py keeps its own copy of both values.
+RESTART_MARKER   = "RESTART_EXPECTED"
+RESTART_SENTINEL = -999.0
 
 # The only hand-maintained OpenDA pieces (everything else in openda_simstrat/ is
 # generated/synced). Copied into the working dir at adapt time so the working dir
@@ -190,6 +197,11 @@ def _build_observations(raw, openda_dir, model_inputs):
     start = date.fromisoformat(raw["start_date"][:10]) if raw.get("start_date") else None
     end   = date.fromisoformat(raw["end_date"][:10])   if raw.get("end_date")   else None
     min_days = raw.get("obs_min_days", 1)
+    # Restart cycle: keep only observations in (t_start, t_end]; the one at t_start was the
+    # previous cycle's analysis.
+    exact = bool(raw.get("_exact_window"))
+    if exact:
+        t_start, t_end = run_window_days(raw["start_date"], raw["end_date"], exact=True)
     # An explicit "obs_target_hour" always wins: it is the escape hatch for a series the one-per-day test reads wrongly.
     thinned        = raw.get("obs_target_hour") is None and _is_thinned(obs_csv)
     target_hour    = int(raw.get("obs_target_hour", OBS_TARGET_HOUR))
@@ -211,9 +223,17 @@ def _build_observations(raw, openda_dir, model_inputs):
             minutes = _utc_minutes_since_midnight(row["time"])
             if not thinned and not (target_minutes - 30 <= minutes < target_minutes + 30):
                 continue
+            if exact:
+                t_obs = _simstrat_day_at(day_str, ref_date, (minutes if thinned else target_minutes) / 60.0)
+                if not (t_start < t_obs <= t_end):
+                    continue
+                # Same first-window guard, measured from the cycle start.
+                if (t_obs - t_start) * 1440.0 < FIRST_WINDOW_MIN_MINUTES:
+                    too_early += 1
+                    continue
             # The run's very first window ends at this observation; too short and OpenDA gets no
             # model rows to pair against (see FIRST_WINDOW_MIN_MINUTES).
-            if start and day == start and minutes < FIRST_WINDOW_MIN_MINUTES:
+            elif start and day == start and minutes < FIRST_WINDOW_MIN_MINUTES:
                 too_early += 1
                 continue
             depth = float(row["depth"])
@@ -223,7 +243,7 @@ def _build_observations(raw, openda_dir, model_inputs):
             cell[2] = minutes if thinned else target_minutes
 
     if too_early:
-        logger.warning(f"[adapter] dropped {too_early} observation(s) on {start} taken less than "
+        logger.warning(f"[adapter] dropped {too_early} observation(s) {'' if exact else f'on {start} '}taken less than "
                        f"{FIRST_WINDOW_MIN_MINUTES / 60:g} h after the run start — OpenDA's first "
                        f"window would be too short to produce model rows to pair against")
 
@@ -347,9 +367,32 @@ def adapt(raw):
     #    (the live name OpenDA clones into each work dir and continues from).
     #    Source: the dated warmup archive in model_inputs (stable; the live
     #    model_inputs/Results/ copy may have been overwritten by later runs).
+    #    Continuing from a restart (`_restart_in` = a file): no warmup. The template snapshot is
+    #    removed, the state is filled with RESTART_SENTINEL and RESTART_MARKER is set, so the
+    #    wrapper stops if a member was not restored. "" (cold start) and None use the warmup.
     # ------------------------------------------------------------------
+    restart_in = raw.get("_restart_in")
+    marker     = os.path.join(template_dir, RESTART_MARKER)
     dated = sorted(glob.glob(os.path.join(model_inputs, "simulation-snapshot_*.dat")))
-    if not dated:
+    if not restart_in and os.path.exists(marker):
+        os.remove(marker)       # left over from an earlier restart cycle
+    if restart_in:
+        if not os.path.isfile(restart_in):
+            raise FileNotFoundError(f"OpenDA restart file not found: {restart_in}")
+        if not dated:
+            raise FileNotFoundError(f"no simulation-snapshot_*.dat in {os.path.relpath(model_inputs, ROOT)} "
+                                    f"— needed for the grid size of the restart template")
+        live_snap = os.path.join(template_dir, "Results", "simulation-snapshot.dat")
+        if os.path.exists(live_snap):
+            os.remove(live_snap)
+        n = len(read_snapshot(dated[-1], par_path=os.path.join(template_dir, "Settings.par")).model["T"])
+        with open(os.path.join(template_dir, "temperature_state.txt"), "w") as f:
+            f.write(f"{RESTART_SENTINEL:.6f}\n" * n)
+        with open(marker, "w") as f:
+            f.write(f"{restart_in}\n")
+        logger.info(f"[adapter] continuing from restart {restart_in}: warmup skipped, "
+                    f"temperature_state.txt = {n} x {RESTART_SENTINEL:g}, {RESTART_MARKER} set")
+    elif not dated:
         logger.warning(f"[adapter] no simulation-snapshot_*.dat in "
                        f"{os.path.relpath(model_inputs, ROOT)} — skipping warmup sync")
     else:
@@ -537,10 +580,26 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # wrote. The sigma per series is then keyed off those files, which is what makes the declared
     # series and the files on disk agree by construction -- deriving them from two passes over the
     # observations does not, since the adapter keeps only its target hour.
+    # Restart chain (opt-in, see openda/restart.py). Decided before adapt(), which needs to know
+    # whether the template gets the warmup. Without "openda_restart" nothing changes.
+    restart_cfg = cfg.get("openda_restart")
+    restart_in = restart_dir = restart_id = run_start_day = run_end_day = cycle_seed = None
+    if restart_cfg:
+        rng_seed = ensemble_raw.get("rng_seed", 42)
+        cycle_seed = restart_chain.cycle_seed(rng_seed, ensemble_raw["end_date"])
+        logger.info(f"[restart] OpenDA seed {cycle_seed} (rng_seed {rng_seed}, cycle end {ensemble_raw['end_date']})")
+        restart_dir = resolve_root(os.path.expanduser(restart_cfg.get("dir") or os.path.join(openda_dir, "restart")))
+        # A cycle runs (previous analysis, this analysis]: start_date/end_date are exact instants.
+        run_start_day, run_end_day = run_window_days(ensemble_raw["start_date"], ensemble_raw["end_date"], exact=True)
+        restart_id = {"lake": ensemble_raw["lake"], "filter": filter_type, "n_members": n_members}
+        restart_in = restart_chain.select_restart(restart_dir, run_start_day, restart_id)
+
     logger.info(f"[4/5] adapt framework -> {display_path(openda_dir)}")
-    obs_depths, n_analysis, series_keys = adapt({
-        **ensemble_raw, "openda_dir": openda_dir,
-        "_season_series": should_season_split(ensemble_raw)})
+    adapt_raw = {**ensemble_raw, "openda_dir": openda_dir,
+                 "_season_series": should_season_split(ensemble_raw)}
+    if restart_cfg:
+        adapt_raw.update(_restart_in=restart_in, _exact_window=True)
+    obs_depths, n_analysis, series_keys = adapt(adapt_raw)
 
     # Same resolution rule as the native engine (the config's sigma_obs, else sigma_default), so
     # the two engines cannot diverge on a config that names neither. A season pair becomes one
@@ -588,7 +647,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # obs_std was resolved before step 4 — it decided the series set the adapter just wrote.
     oda_file = render_oda(openda_dir, filter_type, n_members, obs_depths,
                           ensemble_raw["start_date"], ensemble_raw["end_date"],
-                          obs_std=obs_std, max_threads=max_threads)
+                          obs_std=obs_std, max_threads=max_threads, restart=restart_in, seed=cycle_seed)
     logger.info(f"[5/5] rendered {oda_file} + chain for filter={filter_type} "
                 f"(Results/work0..N, {len(obs_depths)} obs depths, maxThreads={max_threads})")
     # OpenDA launch: build the full OpenDA environment in-process from cfg["openda_bin"] (the dir
@@ -627,6 +686,8 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # Results/ holds both the per-member work dirs (Results/work0..N) and the PythonResultWriter
     # output; create it up front so OpenDA's result writer has somewhere to write.
     os.makedirs(os.path.join(openda_dir, "Results"), exist_ok=True)
+    if restart_cfg:
+        restart_chain.clear_openda_output(openda_dir, restart_dir)
     start_persistent_container(cfg, container, openda_dir, mount_base, image)
     logger.info(f"      started 1 persistent Simstrat container ({container})")
     logger.info(f"      {oda_exe} {oda_file}  (cwd={os.path.relpath(openda_dir, ROOT)})")
@@ -650,6 +711,13 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
         logger.info(f"      removed persistent Simstrat container ({container})")
     elapsed = time.perf_counter() - t0
 
+    # The cycle is done only once its restart is in the chain; a run that raised never gets here.
+    if restart_cfg:
+        restart_chain.commit_restart(openda_dir, restart_dir, run_end_day, restart_id, restart_in,
+                                     extra={"start_date": str(ensemble_raw["start_date"]),
+                                            "end_date": str(ensemble_raw["end_date"]),
+                                            "openda_seed": cycle_seed})
+
     # Tidy the run dir: OpenDA writes its run log into the .oda cwd — move it into log/.
     log_src = os.path.join(openda_dir, "openda_logfile.txt")
     if os.path.isfile(log_src):
@@ -664,15 +732,33 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
                     for i in range(1, n_members + 1)]
 
     results_dir = cfg.get("results_dir", "Results")
-    for i, member_file in enumerate(member_files, start=1):
-        if os.path.exists(member_file):
-            dst_dir = os.path.join(openda_dir, f"ensemble{i}", results_dir)
-            os.makedirs(dst_dir, exist_ok=True)
-            shutil.copy2(member_file, os.path.join(dst_dir, "T_out.dat"))
+    if restart_cfg:
+        # Work dirs hold only this cycle: archive its result file and logs (the next cycle overwrites
+        # them), append the member trajectories, and build mean and summary from the whole chain.
+        arch = restart_chain.archive_cycle(openda_dir, run_end_day, [
+            os.path.join(openda_dir, "Results", results_filename(filter_type)),
+            os.path.join(openda_dir, "log", "openda_logfile.txt")] + [
+            (os.path.join(work_base, f"work{k}", "simstrat_wrapper_enkf.log"), f"wrapper_work{k}.log")
+            for k in range(n_members + 1)])
+        chain_files = [os.path.join(openda_dir, f"ensemble{i}", results_dir, "T_out.dat")
+                       for i in range(1, n_members + 1)]
+        counts = [restart_chain.append_trajectory(dst, src, run_start_day)
+                  for src, dst in zip(member_files, chain_files)]
+        member_files = chain_files
+        logger.info(f"      appended member trajectories -> ensemble{{1..{n_members}}}/{results_dir}/T_out.dat "
+                    f"(kept {counts[0][0]} + added {counts[0][1]} rows per member); "
+                    f"cycle outputs archived -> {os.path.relpath(arch, openda_dir)}")
+    else:
+        for i, member_file in enumerate(member_files, start=1):
+            if os.path.exists(member_file):
+                dst_dir = os.path.join(openda_dir, f"ensemble{i}", results_dir)
+                os.makedirs(dst_dir, exist_ok=True)
+                shutil.copy2(member_file, os.path.join(dst_dir, "T_out.dat"))
     mean_path = mean_traj_path(openda_dir, filter_type)
     accumulate_mean(member_files, mean_path)
-    logger.info(f"      mirrored member trajectories -> ensemble{{1..{n_members}}}/{results_dir}/T_out.dat "
-                f"+ {os.path.basename(mean_path)}")
+    if not restart_cfg:
+        logger.info(f"      mirrored member trajectories -> ensemble{{1..{n_members}}}/{results_dir}/T_out.dat "
+                    f"+ {os.path.basename(mean_path)}")
 
     obs_csv = resolve_obs_path(ensemble_raw)
     out_csv, skill = report_summary("openda", filter_type, member_files, ensemble_raw["lake"], obs_csv, openda_dir)

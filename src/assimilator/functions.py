@@ -330,6 +330,7 @@ RNG_STREAMS = {
     "forcing_V":    1,
     "forcing_GLOB": 2,
     "enkf_obs":     3,   # enkf.py: obs-perturbation draw per analysis (step = unix s of window_end)
+    "openda_obs":   4,   # openda/restart.py: OpenDA seed per restart cycle (step = unix s of cycle end)
 }
 
 

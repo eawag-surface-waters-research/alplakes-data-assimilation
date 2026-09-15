@@ -217,6 +217,10 @@ def summarize_from_config(cfg, model_name="simstrat"):
         work_base   = os.path.join(openda_dir, "Results")
         member_files = [os.path.join(work_base, f"work{i}", "Results", "T_out.dat")
                         for i in range(1, n_members + 1)]
+        if cfg.get("openda_restart"):
+            # Restart chain: work dirs hold only the last cycle; the appended files hold all of it.
+            member_files = [os.path.join(openda_dir, f"ensemble{i}", cfg.get("results_dir", "Results"), "T_out.dat")
+                            for i in range(1, n_members + 1)]
         report_summary("openda", filter_type, member_files, lake, obs_csv, openda_dir)
     else:
         raise ValueError(f"unknown engine '{engine}'; choose 'python' or 'openda'")
