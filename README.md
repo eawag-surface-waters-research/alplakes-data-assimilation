@@ -93,6 +93,43 @@ period:
 The chain cold-starts (first forcing row unperturbed) on a fresh run dir, on `"reset": true`,
 or when the perturbation parameters (`rng_seed`, `sigma_scale`, `n_members`, phi/sigma) change.
 
+### OpenDA: restart chain
+
+OpenDA normally runs a whole window from the warmup. To keep an OpenDA run going as new
+observations arrive, add to the OpenDA run config:
+
+```json
+"openda_restart": {"dir": "<chain folder>"}
+```
+
+Then run the same command whenever there is new data:
+
+```bash
+python src/assimilate.py args/run_openda.json --lake <name>
+```
+
+- It continues from where the chain stopped and runs one cycle per new observation time: each
+  cycle perturbs the forcing, runs OpenDA up to that observation, and saves the ensemble.
+- `start_date` is used only when the chain is empty (cold start from the warmup). `end_date` is
+  optional: without it the chain runs up to the end of the forcing.
+- No new observation (or no forcing for it): it logs `nothing to do` and exits.
+- A failed cycle saves nothing and is retried on the next run.
+- `--max-cycles N` runs at most N cycles (e.g. a long catch-up in parts).
+
+What it writes:
+
+| Where | What |
+|---|---|
+| `<chain folder>/restart_<day>.zip` + `.json` | the saved ensemble after each cycle; the json has the exact start/end and seed |
+| `ensemble<i>/Results/T_out.dat` (run folder) | each member's trajectory over the whole chain |
+| `cycles/<day>/` (run folder) | that cycle's OpenDA result file and logs |
+| `<lake>_openda_<filter>.csv/.json` | summary and skill over the whole chain |
+
+The forcing perturbation continues exactly across cycles. OpenDA's own random draws get a new
+seed per cycle (from `rng_seed` and the cycle time), so a chain is statistically, not bitwise,
+equal to one continuous run. A chain belongs to one lake, filter and ensemble size; a
+different set-up is refused. To start over, empty the chain folder.
+
 Useful CLI flags:
 
 - `--no-progress` — disable the progress bar (auto-off when not a TTY; for server/headless runs).
