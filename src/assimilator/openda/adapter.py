@@ -67,7 +67,8 @@ from assimilator.functions import (verify_args, resolve_src, resolve_root, resol
 from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
 from assimilator.summarize import report_summary
 from .config import (FILTERS, render as render_oda, series_specs,
-                     is_season_keyed as is_season_keyed_series, run_window_days, results_filename)
+                     is_season_keyed as is_season_keyed_series, run_window_days, results_filename,
+                     simstrat_time)
 from . import restart as restart_chain
 
 logger = logging.getLogger(__name__)
@@ -546,6 +547,61 @@ def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled
     return proc.returncode
 
 
+def openda_run_dir(cfg, model_name="simstrat"):
+    """This run's OpenDA working dir: cfg["openda_dir"], else run/openda_<model>_<lake>_<filter>."""
+    default_dir = os.path.join(resolve_run_root(cfg),
+                               f"openda_{model_name}_{cfg['lake']}_{cfg.get('algorithm', 'EnKF').lower()}")
+    return resolve_root(cfg.get("openda_dir") or default_dir)
+
+
+def restart_chain_dir(cfg, openda_dir):
+    """The restart chain dir: openda_restart["dir"], else <openda_dir>/restart."""
+    return resolve_root(os.path.expanduser(cfg["openda_restart"].get("dir") or os.path.join(openda_dir, "restart")))
+
+
+def observation_times(raw):
+    """ISO instants OpenDA will analyse at, picked like _build_observations: each row's own time
+    for a thinned series, else the target hour of each day with a reading in its bin."""
+    obs_csv = resolve_obs_path(raw)
+    thinned = raw.get("obs_target_hour") is None and _is_thinned(obs_csv)
+    target_hour = int(raw.get("obs_target_hour", OBS_TARGET_HOUR))
+    target_minutes = target_hour * 60
+    times = set()
+    with open(obs_csv, newline="") as f:
+        for row in csv.DictReader(f):
+            if not row.get("value"):
+                continue
+            if thinned:
+                times.add(row["time"])
+            elif target_minutes - 30 <= _utc_minutes_since_midnight(row["time"]) < target_minutes + 30:
+                times.add(f"{row['time'][:10]}T{target_hour:02d}:00:00+00:00")
+    return times
+
+
+def forcing_end_day(model_inputs):
+    """Simstrat day of the last row of the control Forcing.dat."""
+    with open(os.path.join(model_inputs, "Forcing.dat"), "rb") as f:
+        f.seek(0, os.SEEK_END)
+        f.seek(max(0, f.tell() - 4096))
+        last = [ln for ln in f.read().decode("latin1").splitlines() if ln.strip()][-1]
+    return float(last.split()[0])
+
+
+def plan_restart_cycles(cfg, model_inputs, model_name="simstrat", max_cycles=None):
+    """Cycles [(start, end)] still to run for this config's restart chain."""
+    chain = restart_chain_dir(cfg, openda_run_dir(cfg, model_name))
+    start = restart_chain.chain_start(chain, cfg["start_date"])
+    last_day = forcing_end_day(model_inputs)
+    if cfg.get("end_date"):
+        end = str(cfg["end_date"])
+        # A plain date includes its whole day, as in a normal run.
+        last_day = min(last_day, simstrat_time(end) + (1 if len(end) == 10 else 0))
+    cycles = restart_chain.plan_cycles(start, observation_times(cfg), last_day,
+                                       FIRST_WINDOW_MIN_MINUTES, max_cycles)
+    logger.info(f"[restart] chain {display_path(chain)}: next start {start}, {len(cycles)} cycle(s) to run")
+    return cycles
+
+
 def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
                model_cfg=None, model_name="simstrat"):
     """OpenDA engine driver: sync inputs/forcings/warmup + build observations (adapt),
@@ -569,9 +625,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     if filter_type not in FILTERS:
         raise ValueError(f"unknown algorithm '{filter_type}'; choose from {sorted(FILTERS)}")
     log_run_header(cfg)
-    default_dir = os.path.join(resolve_run_root(cfg),
-                               f"openda_{model_name}_{ensemble_raw['lake']}_{filter_type.lower()}")
-    openda_dir  = resolve_root(cfg.get("openda_dir") or default_dir)
+    openda_dir = openda_run_dir(cfg, model_name)
 
     # --- 4. adapter (always): sync inputs/forcings/warmup + build observations,
     #         returning the auto-detected obs depth list for the render below ----
@@ -588,7 +642,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
         rng_seed = ensemble_raw.get("rng_seed", 42)
         cycle_seed = restart_chain.cycle_seed(rng_seed, ensemble_raw["end_date"])
         logger.info(f"[restart] OpenDA seed {cycle_seed} (rng_seed {rng_seed}, cycle end {ensemble_raw['end_date']})")
-        restart_dir = resolve_root(os.path.expanduser(restart_cfg.get("dir") or os.path.join(openda_dir, "restart")))
+        restart_dir = restart_chain_dir(cfg, openda_dir)
         # A cycle runs (previous analysis, this analysis]: start_date/end_date are exact instants.
         run_start_day, run_end_day = run_window_days(ensemble_raw["start_date"], ensemble_raw["end_date"], exact=True)
         restart_id = {"lake": ensemble_raw["lake"], "filter": filter_type, "n_members": n_members}

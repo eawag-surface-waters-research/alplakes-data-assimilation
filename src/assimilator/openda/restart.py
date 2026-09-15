@@ -4,7 +4,9 @@ Opt-in through the run config:
 
     "openda_restart": {"dir": "<restart dir>"}      # dir optional, default <openda_dir>/restart
 
-Without it nothing here runs.
+Without it nothing here runs. With it, src/assimilate.py plans the cycles itself (plan_cycles): from
+the chain's last end (or start_date for an empty chain) to each next observation time, up to
+end_date if set and the forcing's end. So the same command resumes the chain every time.
 
 After a successful cycle, the one rst_*.zip OpenDA wrote is moved into the chain as
 restart_<end_day>.zip (we name it, OpenDA's own time tag is not trusted). A sidecar .json records
@@ -23,6 +25,7 @@ from datetime import datetime, timezone
 import numpy as np
 
 from assimilator.functions import RNG_STREAMS
+from .config import simstrat_time
 
 logger = logging.getLogger(__name__)
 
@@ -178,3 +181,44 @@ def archive_cycle(openda_dir, end_day, paths):
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(dst, name))
     return dst
+
+
+# --- cycle planning ------------------------------------------------------------------------
+
+def iso_utc(stamp):
+    """ISO UTC instant of a timestamp (naive = UTC, sub-seconds dropped), e.g. 2025-01-01T06:00:00+00:00."""
+    dt = datetime.fromisoformat(re.sub(r"\.\d+", "", str(stamp).strip()))
+    dt = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+    return dt.isoformat()
+
+
+def chain_start(restart_dir, cold_start):
+    """Start instant of the next cycle: the end recorded by the last committed restart,
+    or `cold_start` when the chain is empty."""
+    days = chain_days(restart_dir)
+    if not days:
+        return iso_utc(cold_start)
+    side = _sidecar(restart_path(restart_dir, days[-1]))
+    end = (json.load(open(side)) if os.path.isfile(side) else {}).get("end_date")
+    if not end or _key(simstrat_time(end)) != _key(days[-1]):
+        raise ValueError(f"[restart] {side} has no end_date matching its restart day {_key(days[-1])}")
+    return iso_utc(end)
+
+
+def plan_cycles(start_iso, obs_times, last_day, min_minutes, max_cycles=None):
+    """Cycles [(start, end)] from `start_iso`: one per observation time after it, up to `last_day`
+    (Simstrat day). An end less than `min_minutes` after the previous one is skipped (the adapter
+    would drop its observation)."""
+    cycles, prev = [], start_iso
+    for end in sorted({iso_utc(t) for t in obs_times}, key=simstrat_time):
+        t = simstrat_time(end)
+        if t <= simstrat_time(start_iso) + TIME_TOL:
+            continue
+        if t > last_day + TIME_TOL or (max_cycles and len(cycles) >= max_cycles):
+            break
+        if (t - simstrat_time(prev)) * 1440.0 < min_minutes:
+            logger.info(f"[restart] skipped cycle end {end}: less than {min_minutes} min after {prev}")
+            continue
+        cycles.append((prev, end))
+        prev = end
+    return cycles
