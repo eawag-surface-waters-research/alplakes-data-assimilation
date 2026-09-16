@@ -100,6 +100,18 @@ RESTART_SENTINEL = -999.0
 # stays fully reproducible from static/openda/.
 STATIC_OPENDA = os.path.join(ROOT, "static", "openda")
 
+# Restart cycles only: these inputs cover the whole record (~35 MB for one lake) but a cycle reads
+# one day of them, and OpenDA clones the template into every work dir. So they are kept once in
+# <openda_dir>/shared and Settings.par points every member there; the template's Forcing.dat is cut
+# to the cycle (the wrapper replaces it for every member except work0). The work dir is
+# <openda_dir>/Results/work<k>, hence two levels up, and it resolves inside the persistent
+# container, which mounts openda_dir (run_openda always starts one).
+SHARED_INPUTS = ("Qin.dat", "Tin.dat", "Sin.dat", "AED2_inflow")
+SHARED_DIR = "shared"
+SHARED_REL = "../../" + SHARED_DIR
+# Settings.par key -> the file it names.
+PAR_SHARED = {"Inflow": "Qin.dat", "Inflow temperature": "Tin.dat", "Inflow salinity": "Sin.dat"}
+
 
 def _copy(src, dst):
     os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -115,6 +127,58 @@ def _copy_path(src, dst):
     else:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(src, dst)
+
+
+def _unchanged(src, dst):
+    return (os.path.isfile(dst) and os.path.getsize(src) == os.path.getsize(dst)
+            and abs(os.path.getmtime(src) - os.path.getmtime(dst)) < 1e-6)
+
+
+def _sync_shared(model_inputs, shared_dir):
+    """Copy SHARED_INPUTS into <openda_dir>/shared; files already there unchanged are left alone.
+    Returns the number copied (0 on every cycle after the first)."""
+    copied = 0
+    for name in SHARED_INPUTS:
+        src = os.path.join(model_inputs, name)
+        if not os.path.exists(src):
+            continue
+        pairs = [(src, os.path.join(shared_dir, name))] if os.path.isfile(src) else \
+                [(os.path.join(src, f), os.path.join(shared_dir, name, f))
+                 for f in sorted(os.listdir(src)) if os.path.isfile(os.path.join(src, f))]
+        for s, d in pairs:
+            if not _unchanged(s, d):
+                _copy(s, d)
+                copied += 1
+    return copied
+
+
+def _point_par_at_shared(par_path):
+    """Point the template's Settings.par at the shared copies instead of its own."""
+    s = open(par_path).read()
+    for key, name in PAR_SHARED.items():
+        s = re.sub(rf'("{key}"\s*:\s*)"[^"]*"', lambda m: f'{m.group(1)}"{SHARED_REL}/{name}"', s)
+    s = re.sub(r'("PathAED2inflow"\s*:\s*)"[^"]*"',
+               lambda m: f'{m.group(1)}"{SHARED_REL}/AED2_inflow/"', s)
+    with open(par_path, "w") as f:
+        f.write(s)
+
+
+def _write_cycle_forcing(src, dst, start_day, end_day):
+    """Write the cycle's rows of the control Forcing.dat into the template, with one row on each
+    side so Simstrat can interpolate at the boundaries. Returns (rows written, rows in the control)."""
+    header, *rows = open(src).read().splitlines()
+    def day(r):
+        try:
+            return float(r.split()[0])
+        except (ValueError, IndexError):
+            return None
+    days = [(day(r), r) for r in rows]
+    lo = max([t for t, _ in days if t is not None and t <= start_day] or [-1e9])
+    hi = min([t for t, _ in days if t is not None and t >= end_day] or [1e9])
+    keep = [r for t, r in days if t is not None and lo <= t <= hi]
+    with open(dst, "w") as f:
+        f.write("\n".join([header] + keep) + "\n")
+    return len(keep), len(rows)
 
 
 def _simstrat_day_at(day_str, ref_date, hour=OBS_TARGET_HOUR):
@@ -345,11 +409,22 @@ def adapt(raw):
         raise FileNotFoundError(
             f"model_inputs not found: {model_inputs} (provide it manually — Simstrat inputs + a dated simulation-snapshot_*.dat)")
     logger.info(f"[adapter] model inputs -> template/ (skipping OpenDA-specific {sorted(OPENDA_SPECIFIC)}):")
+    cycle = bool(raw.get("_exact_window"))      # restart cycle: share the long inputs (SHARED_INPUTS)
     for name in sorted(os.listdir(model_inputs)):
         if name in OPENDA_SPECIFIC or name in ("Results", "ref") or name.startswith("simulation-snapshot_"):
             continue
+        if cycle and (name in SHARED_INPUTS or name == "Forcing.dat"):
+            continue
         _copy_path(os.path.join(model_inputs, name),
                    os.path.join(template_dir, name))
+    if cycle:
+        n = _sync_shared(model_inputs, os.path.join(openda_dir, SHARED_DIR))
+        _point_par_at_shared(os.path.join(template_dir, "Settings.par"))
+        kept, total = _write_cycle_forcing(os.path.join(model_inputs, "Forcing.dat"),
+                                           os.path.join(template_dir, "Forcing.dat"),
+                                           *run_window_days(raw["start_date"], raw["end_date"], exact=True))
+        logger.info(f"[adapter] cycle inputs: {sorted(SHARED_INPUTS)} shared from {SHARED_DIR}/ "
+                    f"({n} file(s) copied), Forcing.dat cut to {kept}/{total} rows")
 
     # ------------------------------------------------------------------
     # 2. Perturbed forcings: ensemble{i}/Forcing.dat -> forcings/Forcing_{i}.dat

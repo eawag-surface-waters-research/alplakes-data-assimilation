@@ -123,7 +123,14 @@ What it writes:
 | `<chain folder>/restart_<day>.zip` + `.json` | the saved ensemble after each cycle; the json has the exact start/end and seed |
 | `ensemble<i>/Results/T_out.dat` (run folder) | each member's trajectory over the whole chain |
 | `cycles/<day>/` (run folder) | that cycle's OpenDA result file and logs |
+| `shared/` (run folder) | the long inputs (`Qin/Tin/Sin`, `AED2_inflow`), kept once instead of per member |
 | `<lake>_openda_<filter>.csv/.json` | summary and skill over the whole chain |
+
+A cycle only reads one day of the inflow files and of the control forcing, so it does not copy the
+whole record into every member: the inflow files are shared through `shared/` (refreshed when the
+source changes, e.g. new data appended) and the template's `Forcing.dat` holds just the cycle's
+rows. Same inputs, same results, about 2.5x faster per cycle. The perturbed member forcing is
+unaffected — the perturbator still reads the complete control forcing in `inputs/<lake>/`.
 
 The forcing perturbation continues exactly across cycles. OpenDA's own random draws get a new
 seed per cycle (from `rng_seed` and the cycle time), so a chain is statistically, not bitwise,
