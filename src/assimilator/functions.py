@@ -1,8 +1,10 @@
 import os
 import sys
 import json
+import math
 import logging
 import subprocess
+from collections import defaultdict, deque
 from datetime import datetime, timezone, date, timedelta
 
 # pandas is imported lazily inside load_obs (the only user here): this module is on the import path
@@ -512,3 +514,87 @@ def log_sigma_summary(cfg):
     txt = ("season-keyed " + ", ".join(f"{s}: {float(v):g}" for s, v in sorted(spec.items()))
            if _is_season_keyed(spec) else f"{float(spec):g} degC")
     logger.info(f"[sigma] sigma_obs={txt} (from {src})")
+
+
+# ---------------------------------------------------------------------------
+# Adaptive observation error (opt-in)
+# ---------------------------------------------------------------------------
+
+# window_days   trailing window in days, strictly before the analysis instant
+# min_samples   analyses needed in that window before the estimate replaces the configured sigma
+# sigma_min     floor in degC: it keeps a negative <d^2> - <spread^2> (an over-dispersive
+#               ensemble) off the gain. Not sigma_common, which is a different term.
+ADAPTIVE_SIGMA_DEFAULTS = {"window_days": 14.0, "min_samples": 8, "sigma_min": 0.05}
+
+
+class AdaptiveSigma:
+    """Observation error estimated per depth from recent innovations, switched on with
+
+        "adaptive_sigma": {"window_days": 14.0, "min_samples": 8, "sigma_min": 0.05}
+
+    At each analysis a depth has an innovation d (observation minus ensemble-mean forecast) and a
+    prior spread, and <d^2> = <spread^2> + sigma^2. So, over the analyses in the window before t,
+
+        sigma(z, t)^2 = <d(z)^2> - <spread(z)^2>
+
+    `resolve` reads the history and `record` appends to it, in that order, so a sigma never uses
+    its own innovation. A depth with fewer than `min_samples` analyses in the window keeps the
+    configured sigma_obs, so a run starts on it and moves off it as the window fills.
+
+    <d^2> constrains only R + HPHT, so an under-dispersive ensemble is charged to R here."""
+
+    def __init__(self, cfg):
+        spec = cfg.get("adaptive_sigma")
+        p = dict(ADAPTIVE_SIGMA_DEFAULTS)
+        if isinstance(spec, dict):
+            unknown = set(spec) - set(ADAPTIVE_SIGMA_DEFAULTS)
+            if unknown:
+                raise ValueError(f"adaptive_sigma: unknown key(s) {sorted(unknown)}; "
+                                 f"expected {sorted(ADAPTIVE_SIGMA_DEFAULTS)}")
+            p.update(spec)
+        self.window      = timedelta(days=float(p["window_days"]))
+        self.min_samples = int(p["min_samples"])
+        self.sigma_min   = float(p["sigma_min"])
+        self.hist        = defaultdict(deque)
+        self.n_adapted   = 0        # observations that used the estimate
+        self.n_total     = 0
+
+    def resolve(self, depths, when, fallback):
+        """Sigma per depth for an analysis at `when`, as a list. `fallback` (a scalar or one value
+        per depth) is kept wherever the window is still too thin."""
+        scalar = not hasattr(fallback, "__len__")
+        out = [float(fallback)] * len(depths) if scalar else [float(v) for v in fallback]
+        for i, z in enumerate(depths):
+            h = self._prune(z, when)
+            self.n_total += 1
+            if len(h) < self.min_samples:
+                continue
+            d2 = sum(r[1] ** 2 for r in h) / len(h)
+            s2 = sum(r[2] ** 2 for r in h) / len(h)
+            out[i] = max(math.sqrt(max(d2 - s2, 0.0)), self.sigma_min)
+            self.n_adapted += 1
+        return out
+
+    def record(self, when, depths, innov, spread):
+        """Append one analysis: its innovation and prior spread per depth. A depth that did not
+        report (a value that is not finite) is skipped."""
+        for z, d, s in zip(depths, innov, spread):
+            if math.isfinite(d) and math.isfinite(s):
+                self.hist[round(float(z), 6)].append((when, float(d), float(s)))
+
+    def _prune(self, z, when):
+        """Drop what is at or before the window's trailing edge; return what is left."""
+        h, cut = self.hist[round(float(z), 6)], when - self.window
+        while h and h[0][0] <= cut:
+            h.popleft()
+        return h
+
+    def summary(self):
+        return (f"[sigma] ADAPTIVE: sigma(z)^2 = <d^2> - <spread^2> over a trailing "
+                f"{self.window.total_seconds() / 86400:g} d window (min_samples={self.min_samples}, "
+                f"floor={self.sigma_min:g} degC); sigma_obs is the fallback until the window fills")
+
+    def footer(self):
+        pct = 100.0 * self.n_adapted / self.n_total if self.n_total else 0.0
+        return (f"[sigma] adaptive covered {self.n_adapted}/{self.n_total} observations "
+                f"({pct:.0f}%); the rest used the configured sigma_obs")
