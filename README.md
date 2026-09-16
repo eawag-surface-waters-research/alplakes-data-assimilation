@@ -75,6 +75,41 @@ Edit these top-level fields in the run config:
 | `window_mode` | Native engines: `obs` (default — one forecast+analysis window per observation time, like OpenDA) or `daily` (legacy fixed noon-to-noon windows) |
 | `algorithm` | DA scheme — native: `EnKF` / `PF`; OpenDA: `EnKF` / `DEnKF` / `EnSR` / `PF` |
 
+### Adaptive observation error (optional)
+
+`sigma_obs` is a fixed number (or one per season). It can instead be estimated from the run's own
+recent misses, per depth. Add:
+
+```json
+"adaptive_sigma": {"window_days": 14.0, "min_samples": 8, "sigma_min": 0.05}
+```
+
+At each analysis a depth has an innovation `d` (observation minus ensemble-mean forecast) and an
+ensemble spread, and on average `d² = spread² + σ²`. So over the analyses in the last
+`window_days`:
+
+    σ(z)² = ⟨d²⟩ − ⟨spread²⟩
+
+- A depth with fewer than `min_samples` analyses in the window keeps the configured `sigma_obs`
+  for that month, so a run starts on the seasonal value and moves off it as the window fills. The
+  fallback is per depth: some depths can be adaptive while others are not.
+- `sigma_min` is a floor (°C): an ensemble wider than its own misses would otherwise give a
+  negative estimate.
+- σ is resolved before the analysis is recorded, so a σ never uses its own innovation.
+- Bear in mind `⟨d²⟩` only constrains `R + HPHT`: if the ensemble is under-dispersed, the missing
+  spread is charged to the observation error.
+
+**Native engine.** Works in any run. The history (innovation and spread per depth) is written to
+`enkf_adaptive_history.csv` in the run folder and replayed at start-up, so a run continued in
+slices resolves the same σ as one continuous run.
+
+**OpenDA.** Only on a restart chain (`openda_restart`), whose archived cycles are the history — a
+config with `adaptive_sigma` and no chain is refused. Each cycle rebuilds σ from the cycles
+archived in its window and declares one σ per depth, so the series are one per depth rather than
+season-split, and the σ used is recorded in the cycle's sidecar. Cycles archived before this
+feature existed carry no series formatter and cannot serve as history: start a new chain, or
+expect the first `window_days` to run on the configured σ.
+
 ## Operational continuation
 
 A run continued in slices (e.g. a daily pipeline extending `end_date` each day, with
