@@ -9,7 +9,7 @@ from datetime import timedelta
 from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
                          verify_args, build_python_run_args, make_progress, log_obs_summary,
                          log_run_header, log_run_footer, time_keyed_rng,
-                         resolve_sigma_obs, log_sigma_summary)
+                         resolve_sigma_obs, log_sigma_summary, AdaptiveSigma)
 from ..summarize import report_summary
 
 logger = logging.getLogger(__name__)
@@ -167,6 +167,21 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
     return X_a, diags
 
 
+def _resume_adaptive(adaptive, history_path):
+    """Refill the trailing window from the history this run already wrote, so a run continued in
+    slices resolves the same sigma as one continuous run. Returns the analyses replayed."""
+    if not os.path.exists(history_path):
+        return 0
+    h = pd.read_csv(history_path)
+    depths = [float(c[2:]) for c in h.columns if c.startswith("d_")]
+    n = 0
+    for _, row in h.sort_values("date").iterrows():
+        adaptive.record(pd.Timestamp(row["date"]).to_pydatetime(), depths,
+                        [row[f"d_{d:g}"] for d in depths], [row[f"s_{d:g}"] for d in depths])
+        n += 1
+    return n
+
+
 def run_enkf_loop(args, model):
     member_ids  = args["member_ids"]
     inflation   = args["inflation"]
@@ -174,6 +189,12 @@ def run_enkf_loop(args, model):
     diag_path   = args["diag_path"]
     innov_path  = args["innov_depth_path"]
     kgain_path  = args["kgain_depth_path"]
+    # Adaptive observation error: only when the config carries "adaptive_sigma". Its history file
+    # holds the innovation AND the prior spread per depth, unrounded: the diagnostics keep only a
+    # depth-mean spread, and enkf_innov_by_depth.csv is rounded for reporting, which would make a
+    # continued run resolve a slightly different sigma than a continuous one.
+    adaptive     = AdaptiveSigma(args) if args.get("adaptive_sigma") else None
+    history_path = os.path.join(os.path.dirname(diag_path), "enkf_adaptive_history.csv")
 
     if args.get("reset"):
         for i in member_ids:
@@ -181,7 +202,7 @@ def run_enkf_loop(args, model):
             if os.path.exists(live):
                 os.remove(live)
         model.clear_member_outputs(args["ensemble_base"], member_ids, args["results_dir"])
-        for p in [args["mean_traj_path"], diag_path, innov_path, kgain_path]:
+        for p in [args["mean_traj_path"], diag_path, innov_path, kgain_path, history_path]:
             if os.path.exists(p):
                 os.remove(p)
         logger.info(f"Reset: cleared {args['results_dir']}/ snapshots and trajectory files.")
@@ -250,6 +271,13 @@ def run_enkf_loop(args, model):
                     f"inflation={inflation}, obs_selector={obs_selector_name})")
         log_sigma_summary(args)
 
+    if adaptive is not None:
+        logger.info(adaptive.summary())
+        resumed = _resume_adaptive(adaptive, history_path)
+        if resumed:
+            logger.info(f"[sigma] refilled the window from {resumed} earlier analyses "
+                        f"({os.path.basename(history_path)})")
+
     model.start_containers(args, max_workers=max_workers)
     try:
         windows_run     = 0
@@ -301,6 +329,12 @@ def run_enkf_loop(args, model):
                         # ever sees a list -- np.ndim on a season dict is 0, which would take the
                         # scalar branch and build an object array that cannot be squared.
                         sigma_win  = resolve_sigma_obs(obs_depths, window_end, args)
+                        if adaptive is not None:
+                            # Prior spread per OBSERVATION (enkf_update keeps only its depth mean),
+                            # and the trailing-window sigma. Resolved before record() below, so
+                            # this sigma never uses its own innovation.
+                            spread_vec = np.std(H @ X_f, axis=1, ddof=1)
+                            sigma_win  = adaptive.resolve(obs_depths, window_end, sigma_win)
                         # Obs-perturbation draw keyed by the analysis instant: identical whether
                         # the period is run in one go or continued operationally in slices.
                         rng        = time_keyed_rng(rng_seed, "enkf_obs", int(window_end.timestamp()))
@@ -338,6 +372,16 @@ def run_enkf_loop(args, model):
                                 **{f"d_{d}": round(float(v), 6) for d, v in zip(obs_depths, full_innov)}
                             }]).to_csv(innov_path, mode="a", header=not os.path.exists(innov_path), index=False)
 
+                            if adaptive is not None:
+                                full_spread = np.full(len(y_obs), np.nan)
+                                full_spread[np.array(valid_mask)] = spread_vec[np.array(valid_mask)]
+                                adaptive.record(window_end, obs_depths, full_innov, full_spread)
+                                pd.DataFrame([{
+                                    "date": window_end.isoformat(),
+                                    **{f"d_{d:g}": float(v) for d, v in zip(obs_depths, full_innov)},
+                                    **{f"s_{d:g}": float(v) for d, v in zip(obs_depths, full_spread)},
+                                }]).to_csv(history_path, mode="a", header=not os.path.exists(history_path), index=False)
+
                             depth_fs   = lake_lev - z_vol
                             K_mean     = K_arr.mean(axis=1)
                             sort_idx   = np.argsort(depth_fs)
@@ -368,6 +412,8 @@ def run_enkf_loop(args, model):
         member_files = [os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "T_out.dat")
                         for i in member_ids]
         model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from full T_out.dat
+        if adaptive is not None:
+            logger.info(adaptive.footer())
         logger.info(f"Done. {windows_run} windows run, {windows_updated} EnKF updates applied.")
         return windows_run, windows_updated
 
