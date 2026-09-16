@@ -723,9 +723,16 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
         restart_id = {"lake": ensemble_raw["lake"], "filter": filter_type, "n_members": n_members}
         restart_in = restart_chain.select_restart(restart_dir, run_start_day, restart_id)
 
+    # Adaptive observation error (opt-in, restart chains only: its history is the archived cycles).
+    # It gives one sigma per depth for this cycle, so the series are NOT season-split.
+    adaptive = bool(restart_cfg) and bool(cfg.get("adaptive_sigma"))
+    if cfg.get("adaptive_sigma") and not restart_cfg:
+        raise ValueError("adaptive_sigma needs openda_restart: the history comes from the "
+                         "archived cycles of a restart chain")
+
     logger.info(f"[4/5] adapt framework -> {display_path(openda_dir)}")
     adapt_raw = {**ensemble_raw, "openda_dir": openda_dir,
-                 "_season_series": should_season_split(ensemble_raw)}
+                 "_season_series": should_season_split(ensemble_raw) and not adaptive}
     if restart_cfg:
         adapt_raw.update(_restart_in=restart_in, _exact_window=True)
     obs_depths, n_analysis, series_keys = adapt(adapt_raw)
@@ -734,8 +741,12 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # the two engines cannot diverge on a config that names neither. A season pair becomes one
     # standardDeviation per (depth, season) -- exactly the value the native engine uses in that
     # season, rather than an average over the run, which would key sigma to the window.
-    obs_std = (sigma_obs_for_series(series_keys, ensemble_raw)
-               if should_season_split(ensemble_raw) else sigma_obs_spec(ensemble_raw))
+    if adaptive:
+        obs_std = restart_chain.cycle_sigma(ensemble_raw, openda_dir, results_filename(filter_type),
+                                            ensemble_raw["end_date"], obs_depths)
+    else:
+        obs_std = (sigma_obs_for_series(series_keys, ensemble_raw)
+                   if should_season_split(ensemble_raw) else sigma_obs_spec(ensemble_raw))
     if is_season_keyed_series(obs_std):
         logger.info(f"[sigma] OpenDA series: {len(obs_std)} season-split (exact — one "
                     f"standardDeviation per (depth, season), matching the native engine)")
@@ -845,7 +856,8 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
         restart_chain.commit_restart(openda_dir, restart_dir, run_end_day, restart_id, restart_in,
                                      extra={"start_date": str(ensemble_raw["start_date"]),
                                             "end_date": str(ensemble_raw["end_date"]),
-                                            "openda_seed": cycle_seed})
+                                            "openda_seed": cycle_seed,
+                                            **({"sigma_obs": obs_std} if adaptive else {})})
 
     # Tidy the run dir: OpenDA writes its run log into the .oda cwd — move it into log/.
     log_src = os.path.join(openda_dir, "openda_logfile.txt")
@@ -866,6 +878,9 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
         # them), append the member trajectories, and build mean and summary from the whole chain.
         arch = restart_chain.archive_cycle(openda_dir, run_end_day, [
             os.path.join(openda_dir, "Results", results_filename(filter_type)),
+            # The result vectors are in this cycle's series order; the formatter is the only record
+            # of it, and the adaptive error model reads both back.
+            os.path.join(openda_dir, "stochObserver", restart_chain.FORMATTER),
             os.path.join(openda_dir, "log", "openda_logfile.txt")] + [
             (os.path.join(work_base, f"work{k}", "simstrat_wrapper_enkf.log"), f"wrapper_work{k}.log")
             for k in range(n_members + 1)])

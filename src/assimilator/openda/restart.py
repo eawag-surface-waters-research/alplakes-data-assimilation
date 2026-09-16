@@ -17,14 +17,16 @@ import os
 import re
 import glob
 import json
+import math
 import fnmatch
 import shutil
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import numpy as np
 
-from assimilator.functions import RNG_STREAMS
+from assimilator.functions import RNG_STREAMS, AdaptiveSigma, resolve_scalar_sigma_obs
+from assimilator.models.simstrat import SIMSTRAT_REF_YEAR
 from .config import simstrat_time
 
 logger = logging.getLogger(__name__)
@@ -222,3 +224,88 @@ def plan_cycles(start_iso, obs_times, last_day, min_minutes, max_cycles=None):
         cycles.append((prev, end))
         prev = end
     return cycles
+
+
+# --- adaptive observation error ---------------------------------------------------------------
+# A cycle's result file holds, per analysis, the observations and each member's forecast at the
+# observation points, in the order of THAT cycle's series; the archived formatter is the only
+# record of that order. So the innovation and the prior spread the estimator needs are recoverable
+# from the archives, and a resumed chain gets the sigma an uninterrupted one would.
+
+FORMATTER = "timeSeriesFormatter.gen.xml"
+_EPOCH = datetime(SIMSTRAT_REF_YEAR, 1, 1, tzinfo=timezone.utc)
+
+
+def _day_to_dt(day):
+    return _EPOCH + timedelta(days=float(day))
+
+
+def parse_results(path):
+    """{name: [vector per record]} from OpenDA's PythonResultWriter file."""
+    out = {}
+    for raw in open(path, encoding="latin1"):
+        m = re.match(r"([A-Za-z_]\w*)\.append\(\[?(.*?)\]?\)\s*$", raw)
+        if m:
+            out.setdefault(m.group(1), []).append([float(v) for v in m.group(2).split(",") if v.strip()])
+    return out
+
+
+def series_depths(formatter_path):
+    """Depth of each observation series, in the formatter's order (ids T_<d>m or T_<d>m_<season>)."""
+    ids = re.findall(r'<timeSeries id="T_([0-9.]+)m(?:_[a-z]+)?"', open(formatter_path).read())
+    return [float(d) for d in ids]
+
+
+def adaptive_history(openda_dir, results_file, t_end, window_days):
+    """[(when, depth, innovation, prior spread)] from the cycles archived in the window before
+    `t_end`, oldest first, plus how many cycles were skipped for lack of an archived formatter."""
+    rows, skipped, lo = [], 0, t_end - window_days
+    for cdir in sorted(glob.glob(os.path.join(openda_dir, "cycles", "*"))):
+        try:
+            end_key = float(os.path.basename(cdir))
+        except ValueError:
+            continue
+        if not (lo - 1.0 < end_key < t_end + TIME_TOL):          # coarse filter on the folder name
+            continue
+        res_path, fmt_path = os.path.join(cdir, results_file), os.path.join(cdir, FORMATTER)
+        if not os.path.isfile(res_path):
+            continue
+        if not os.path.isfile(fmt_path):
+            skipped += 1
+            continue
+        res, depths = parse_results(res_path), series_depths(fmt_path)
+        n_members = len([k for k in res if re.fullmatch(r"pred_f_\d+", k)])
+        for i, t in enumerate(v[0] for v in res.get("analysis_time", [])):
+            if not (lo < t < t_end - TIME_TOL):
+                continue
+            y = [v for v in res["obs"][i]]
+            P = [res[f"pred_f_{j}"][i] for j in range(n_members)]
+            if len(y) != len(depths) or any(len(p) != len(depths) for p in P):
+                logger.warning(f"[sigma] {cdir}: {len(y)} observations vs {len(depths)} series — skipped")
+                continue
+            for k, z in enumerate(depths):
+                col = [p[k] for p in P]
+                mean = sum(col) / len(col)
+                var = sum((v - mean) ** 2 for v in col) / (len(col) - 1)
+                rows.append((_day_to_dt(t), z, y[k] - mean, math.sqrt(var)))
+    rows.sort(key=lambda r: r[0])
+    return rows, skipped
+
+
+def cycle_sigma(cfg, openda_dir, results_file, end_iso, depths):
+    """{depth: sigma} for the cycle ending at `end_iso`, from the archived cycles in the window.
+    Depths short of min_samples keep the run's configured sigma_obs. Stateless: the history is
+    rebuilt every cycle, so a resumed chain resolves what an uninterrupted one would."""
+    est = AdaptiveSigma(cfg)
+    when = _day_to_dt(simstrat_time(end_iso))
+    rows, skipped = adaptive_history(openda_dir, results_file, simstrat_time(end_iso),
+                                     est.window.total_seconds() / 86400.0)
+    for t, z, d, s in rows:
+        est.record(t, [z], [d], [s])
+    fallback = resolve_scalar_sigma_obs(cfg, when.month)
+    sigma = est.resolve(depths, when, fallback)
+    n_adapted = sum(1 for z in depths if len(est.hist[round(float(z), 6)]) >= est.min_samples)
+    logger.info(f"[sigma] cycle {end_iso}: adaptive at {n_adapted}/{len(depths)} depths from "
+                f"{len(rows)} archived observations; the rest use sigma_obs={fallback:g}"
+                + (f" ({skipped} cycle(s) skipped: no archived {FORMATTER})" if skipped else ""))
+    return {float(z): float(v) for z, v in zip(depths, sigma)}

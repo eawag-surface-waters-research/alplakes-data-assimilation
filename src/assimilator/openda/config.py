@@ -99,6 +99,10 @@ def series_specs(depths, obs_std):
     if is_season_keyed(obs_std):
         return [(f"T_{depth_label(d)}_{s}", d, obs_std[(float(d), s)])
                 for d in depths for s in SEASONS if (float(d), s) in obs_std]
+    if isinstance(obs_std, dict):
+        # One sigma per depth (the adaptive error model): one series per depth, as for a scalar,
+        # but each carrying its own standardDeviation.
+        return [(f"T_{depth_label(d)}", d, float(obs_std[float(d)])) for d in depths]
     return [(f"T_{depth_label(d)}", d, obs_std) for d in depths]
 
 
