@@ -11,8 +11,6 @@
     "sigma_default": 0.5,
     "rng_seed": 42,
     "sigma_scale": 1.0,
-    "save_intermediates": false,
-    "skip": [],
     "_lakes_note": "One block per lake. With more than one block a run must name its lake: pass --lake <name>. Each block carries the lake's identity (lake_bbox / lake_key / reanalysis_lake, used to cut the ICON area when fitting perturbations), the observation series it assimilates, and the sigma_obs fitted ON that series. A lake naming no sigma_obs falls back to the top-level sigma_default. Refit sigma whenever obs_file changes: python notebooks/generate_sigma.py --lakes <name> prints the pair to paste, and writes observations/<name>/sigma_obs.json, which nothing reads at run time. The perturbation calibration lives in perturbations/<name>.json: python notebooks/generate_perturbation.py args/run_enkf.json --lake <name> [--icon].",
     "_sigma_note": "No per-lake sigma_obs here on purpose: the native PF does not read one. It ranks members by RMSE weighted by layer thickness (algorithms/pf.py), so sigma appears nowhere in its analysis. Even once it did, a season pair with no depth axis is uniform across depths within a window and cancels out of a weighted RMSE entirely. sigma_default above is kept only so every config resolves the same way.",
     "lakes": {

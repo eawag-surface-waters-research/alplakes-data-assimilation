@@ -12,8 +12,6 @@
     "sigma_default": 0.5,
     "rng_seed": 42,
     "sigma_scale": 1.0,
-    "save_intermediates": false,
-    "skip": [],
     "_lakes_note": "One block per lake. With more than one block a run must name its lake: pass --lake <name>. Each block carries the lake's identity (lake_bbox / lake_key / reanalysis_lake, used to cut the ICON area when fitting perturbations), the observation series it assimilates, and the sigma_obs fitted ON that series. A lake naming no sigma_obs falls back to the top-level sigma_default. Refit sigma whenever obs_file changes: python notebooks/generate_sigma.py --lakes <name> prints the pair to paste, and writes observations/<name>/sigma_obs.json, which nothing reads at run time. The perturbation calibration lives in perturbations/<name>.json: python notebooks/generate_perturbation.py args/run_enkf.json --lake <name> [--icon].",
     "_sigma_obs_operator_note": "These sigma_obs were fitted against T_out.dat, which Simstrat writes by interpolating onto the z_out depths -- i.e. they assume the LINEAR observation operator. That is now the default (algorithms/enkf.py OBS_OPERATOR_DEFAULT), so the two agree without setting anything. Set \"obs_operator\": \"nearest\" only to reproduce a run made before the linear operator existed; it snaps each observation to the closest cell, which on this grid is 0.25 m away and leaves these sigmas under-stated.",
     "lakes": {
