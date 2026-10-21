@@ -31,7 +31,7 @@ nav:
   - Literature Review: literature-review.md
   - Onboarding: onboarding.md
   - Getting Started: getting-started.md
-  - Workblog: Workblog.md
+  - Workblog: workblog.md
 
 markdown_extensions:
   - pymdownx.highlight:
