@@ -1,5 +1,7 @@
 # Correcting a lake model with observations
 
+*Status: October 2026. All results are for the 2025 calendar year unless stated otherwise.*
+
 Alplakes runs one-dimensional Simstrat simulations for a large set of Swiss lakes. The models are calibrated, and they can still be significantly wrong from time to time (errors of up to 2 °C, sustained for weeks, are ordinary). Meanwhile, moored thermistor chains and profilers sit in several of those same lakes reporting temperature every few minutes/hours.
 
 Data assimilation is the right machinery for putting those two things in the same product. This post documents the module we built for it, in collaboration with the Canton of Ticino: the filters, the choices behind them, results across seven lakes, and, with equal weight, the things that still don't work properly.
@@ -33,13 +35,13 @@ In practice that means we need a calibrated model, a real-time in-situ data sour
 
 2) Two interchangeable engines: a customisable Python implementation and a parallel OpenDA setup, running a simple selection of the best-fitting member (Python), a particle filter (OpenDA), an Ensemble Kalman Filter (Python and OpenDA), and further versions thereof (OpenDA).
 
-It is currently designed for lakes with high-resolution in-situ profiles at at sub-daily frequency.
+It is currently designed for lakes with high-resolution in-situ profiles at sub-daily frequency.
 
 The **Ensemble Kalman Filter (EnKF)** updates the state by weighing two uncertainties against each other: how wrong the ensemble thinks the model is, and how wrong we say the observation is. The Kalman gain can be read as a trust ratio: if the ensemble is confident, the observation moves the state very little; if the ensemble is uncertain, the observation wins and pulls the state a lot. The property that makes this filter attractive for a lake column is that information propagates in depth through the ensemble covariance, which comes from the model spread and so reflects the model physics: an observation at one depth can correct the whole profile, by an amount the ensemble says those depths move together (and, in a 3D model, this also translates to whole regions of the lake). We use the *stochastic* EnKF: where each member is updated with its own perturbed observation, to avoid ensemble collapse.
 
 The **Particle Filter (PF)**, on the other hand, never builds a correction. It re-weights and clones whole member states in proportion to their likelihood, so every surviving trajectory stays a physically untouched Simstrat run. The price is that the analysis can only ever contain states the model itself produced: if no member happens to have the right profile, there is no mechanism to produce a fitting one.
 
-> **Why an ensemble filter and not a standard Kalman filter?** The models are nonlinear, which a classic KF handles poorly. An ensemble method treats the model as a black box, so the same strategy transfers to other models (see §12.5); it needs no derivatives to build the error covariances; and the members run naturally in parallel. The EnKF is our main method; the PF is kept as a check and optional method.
+> **Why an ensemble filter and not a standard Kalman filter?** The models are nonlinear, which a classic KF handles poorly. An ensemble method treats the model as a black box, so the same strategy transfers to other models (see §12.6); it needs no derivatives to build the error covariances; and the members run naturally in parallel. The EnKF is our main method; the PF is kept as a check and optional method.
 
 ## 3. Where the spread comes from
 
@@ -49,7 +51,7 @@ You cannot run an ensemble filter without spread, and the spread has to come fro
   <img src="images/02_ensemble_envelope.png" alt="Ensemble envelope around the control forcing" width="880">
 </div>
 
-The figure shows a blue ensemble envelope around the black control station forcing, here for one wind component in Lugano Lake during July 2025.
+The figure shows a blue ensemble envelope around the black control station forcing, here for one wind component on Lake Lugano during July 2025.
 
 **Only three variables are perturbed: wind U, wind V, solar radiation.** Temperature, vapour pressure, cloud cover and rain pass through untouched. Those three dominate the surface momentum and energy budget, and restricting to them keeps the mechanism simpler and potentially more interpretable.
 
@@ -71,7 +73,7 @@ The practical advantage is that **the ensemble is generated at the forcing, not 
   <img src="images/03_assimilation_hour.png" alt="Choosing the assimilation hour & RMSE by assimilation frequency, Upper Lugano 2025" width="800">
 </div>
 
-The left figure shows the daily distribution of error bias and random for Lake Geneva, The right one the decrease in accuracy of the assimilation with decreasing frequency for Lugano Lake.
+The left figure shows how the bias and random error are distributed over the day for Lake Geneva. The right one shows how the accuracy of the assimilation decreases with decreasing frequency for Lake Lugano.
 
 **Daily:** A daily frequency reduces the error correlation between successive analyses, and avoids a sub-daily reversal of the error sign eating into the gains. Assimilating more often would make the filter less efficient (information counted twice) and noisier (potential reversals of the corrections). Going below daily, on the other hand, costs accuracy: daily outperforms the lower frequencies we tested. On Upper Lugano in 2025, scored against hourly buoy data, the free run's 0.83 °C drops to 0.61 °C (−26 %) with daily assimilation (365 profiles), 0.64 °C (−23 %) every 3 days (122 profiles) and 0.67 °C (−20 %) every 7 days (53 profiles).
 
@@ -79,7 +81,7 @@ The left figure shows the daily distribution of error bias and random for Lake G
 
 **At night:** Candidates are restricted to 23–06 UTC, so that every lake is sampled at a comparable point in its diurnal cycle, with the operational bonus that it is off-hours.
 
-Only hours the lake actually samples are candidates, with adaptation where a fixed frequency cannot be guaranteed. This is a significant change from the setup in the previous post.
+Only hours the lake actually samples are candidates, with adaptation where a fixed frequency cannot be guaranteed. This is a significant change from the current BETA, which assimilates at noon.
 
 ---
 
@@ -103,7 +105,7 @@ But **a 1D model cannot reproduce it by construction**. There is no horizontal d
   <img src="images/06_causal_filtering.png" alt="Causal filtering of the observation series" width="800">
 </div>
 
-Here we have the original timeseries of the temperature at 11 in upperlugano in black (already aggregated to hourly) and the filtered observation with 27.3h trailing seiche defined window in blue. The fix is to remove large part of the signal the model cannot represent. Three constraints shape the solution:
+Here we have the original time series of the temperature at 11 m in Upper Lugano in black (already aggregated to hourly) and, in blue, the observation filtered with a 27.3 h trailing window set by the seiche period. The fix is to remove large part of the signal the model cannot represent. Three constraints shape the solution:
 
 - **It must be causal:** no leakage of future information, because this runs operationally (a centred moving average would be better but useless). We use a trailing moving average.
 - **It must be split in depth:** above a threshold (currently 4 m) the series passes through untouched. Surface temperature does not suffer thermocline displacement in the same way, and we do not want to blur a signal that is genuinely fast.
@@ -127,7 +129,7 @@ The solution is a per-lake **target vertical grid**: dense profiles are thinned 
 
 The observed ~1 m series (black) against the model (dashed), over a summer time window in 2025 in Lake Lugano, again debiased. The unrepresented variability is still present in smaller magnitude at filtered depths but *also at unfiltered depths*, and this mismatch cannot easily be covered by spread generated through forcing perturbation alone: we are asking the ensemble to cover variability that no member could ever produce with the current setup.
 
-The sensors are accurate; their precision is not the issue. So the uncertainty we hand the filter has to come from somewhere else, or the filter will pull far too hard toward the observations. We therefore define σ **not as instrument error but as representativeness error**: an honest statement of what the model cannot reproduce. It varies by lake, by depth, and by season. That is partly process: variability, like the internal-wave signal above, that a 1D column cannot reproduce. And it is partly space: a buoy measures one point, while Simstrat represents a horizontally averaged column for the whole lake. It varies by lake, by depth, and by season.
+The sensors are accurate; their precision is not the issue. So the uncertainty we hand the filter has to come from somewhere else, or the filter will pull far too hard toward the observations. We therefore define σ **not as instrument error but as representativeness error**: an honest statement of what the model cannot reproduce. It varies by lake, by depth, and by season. That is partly process: variability, like the internal-wave signal above, that a 1D column cannot reproduce. And it is partly space: a buoy measures one point, while Simstrat represents a horizontally averaged column for the whole lake.
 
 ### 5.5 A simple operational recipe
 
@@ -188,7 +190,7 @@ The same comparison restricted to the **top 10 m**:
 | hallwil | 0.93 | 0.47 | 0.45 | −49.2 % | −51.3 % | 19/19 | 19/19 |
 | murten | 0.72 | 0.47 | 0.47 | −34.2 % | −34.2 % | 18/18 | 18/18 |
 
-Pooled hourly over the year, for each depths, RMSE in °C:
+Pooled hourly over the year, for each depth, RMSE in °C:
 
 <div align="center">
   <img src="images/10_rmse_by_depth.png" alt="RMSE against depth, free run vs analysis, all seven lakes" width="880">
@@ -196,7 +198,7 @@ Pooled hourly over the year, for each depths, RMSE in °C:
 
 Free run in grey, analysis in colour, green fill is the gain.
 
-**Every lake improves by at least 25%**. On five of seven lakes *every single model level* improves. The exceptions are Greifensee (around 7 m and between 11 and 13.5 m) and, more mildly, Ägeri (between 11 and 13 m). **Every lake's error peaks at the thermocline or at the surface, and the analysis lowers that peak without moving it.** The filter does not relocate the difficulty. Gains are often largest at the surface, and on some lakes the two curves converge in the deeper layers. Geneva's and Halwill's spikes are data gaps.
+**Every lake improves by at least 25%**. On five of seven lakes *every single model level* improves. The exceptions are Greifensee (around 7 m and between 11 and 13.5 m) and, more mildly, Ägeri (between 11 and 13 m). **Every lake's error peaks at the thermocline or at the surface, and the analysis lowers that peak without moving it.** The filter does not relocate the difficulty. Gains are often largest at the surface, and on some lakes the two curves converge in the deeper layers. Geneva's and Hallwil's spikes are data gaps.
 
 ### 6.3 In time and depth
 
@@ -215,7 +217,7 @@ In winter the model errors are smaller, so corrections and gains are smaller too
   <img src="images/12_filtering_effect.png" alt="Upper Lugano: assimilation on unfiltered vs filtered observations" width="800">
 </div>
 
-All results above are on filtered observations. Both panels here are Upper Lugano, scored (pooled RMSE °C over the year) against the same raw hourly data and the comparison is for data assimilation in 2025. Without filtering (left) almost nothing is achieved at the thermocline, and the red fill around 13 and 17 m says it was made slightly worse: the filter is chasing a signal it cannot represent and fails to inject it into the simulation. With filtering (right) we get an improvement everywhere. The data becomes more meaningful, and more digestible, for the filter and we get the hoped improvement at intermediate depths.
+All results above are on filtered observations. Both panels here are Upper Lugano, scored (pooled RMSE °C over the year) against the same raw hourly data and the comparison is for data assimilation in 2025. Without filtering (left) almost nothing is achieved at the thermocline, and the red fill around 13 and 17 m says it was made slightly worse: the filter is chasing a signal it cannot represent and fails to inject it into the simulation. With filtering (right) we get an improvement everywhere. The data becomes more meaningful, and more digestible, for the filter and we get the hoped-for improvement at intermediate depths.
 
 ---
 
@@ -273,7 +275,7 @@ Both lakes improve at the assimilated depth of 1 m, but very unequally. **Lower 
   <img src="images/17_surface_vs_profile_ctd.png" alt="Surface-only vs profile assimilation, scored against CTD casts" width="800">
 </div>
 
-Left, Lower Lugano with surface-only assimilation. Right, Upper Lugano assimilating the full profile. Both scored against CTD casts, a sub-optimal reference: casts are instantaneous and very exposed to the variability problem of §5.1, while our assimilation works on filtered daily values, and the two panels are different lake sections. Surface-only gains at the top and, weakly, in the deep in lower Lugano. Similar results are obtained when assimilating the upper Lake Lugano section with surface mesurments only (note: deep results change). **Between them it loses badly: the RMSE degrades by up to 0.65 °C between roughly 10 and 35 m, more than the 0.4 °C it gains at the surface.**
+Left, Lower Lugano with surface-only assimilation. Right, Upper Lugano assimilating the full profile. Both scored against CTD casts, a sub-optimal reference: casts are instantaneous and very exposed to the variability problem of §5.1, while our assimilation works on filtered daily values, and the two panels are different lake sections. Surface-only gains at the top and, weakly, in the deep in lower Lugano. Similar results are obtained when assimilating the upper Lake Lugano section with surface measurements only (note: deep results change). **Between them it loses badly: the RMSE degrades by up to 0.65 °C between roughly 10 and 35 m, more than the 0.4 °C it gains at the surface.**
 
 **Profile assimilation gains almost everywhere** down to 60 m, up to 0.7 °C at the surface, and below that does essentially nothing, within 0.02 °C of the free run all the way to 280 m.
 
@@ -359,7 +361,7 @@ The 23 CTD casts of 2025 rule that out on this lake:
 
 The casts confirm the buoy result: adaptive σ wins at 98 of the 121 CTD levels in the top 60 m, mostly between 7 and 60 m. It is slightly worse in the top 6.5 m and in a thin band around 18–22 m, and makes no difference below the deepest sensor.
 
-The adaptive σ still hides the under-dispersion but problem better. It also has lag: after a quiet fortnight a sudden error could get over-trusted until the window catches up.
+The adaptive σ still hides the under-dispersion problem, only more effectively. It also has lag: after a quiet fortnight a sudden error could get over-trusted until the window catches up.
 
 **Across seven lakes the method does not hold up.**
 
@@ -426,7 +428,7 @@ What it does mechanically: corrections from far-away cells shrink, less spread i
 
 On Greifensee in August for example, localization brings the pooled error from 1.32 to 0.93 °C instead of 0.97 °C, and trims the worst analysis error at 7.1 m from 1.76 to 1.57 °C. But the band between about 6 and 14 m is still worse than the free run in both cases. **The improvements, when present, remain small.**
 
-For now we provide it as an optional element rather than part of the operational configuration. **Long-range spurious correlations don't seem to be a central problem in our lakes in the current set up**. The scheme is measured per lake and ready for for test and to be integrated where that stops being true.
+For now we provide it as an optional element rather than part of the operational configuration. **Long-range spurious correlations don't seem to be a central problem in our lakes in the current set up**. The scheme is measured per lake and ready to be tested and integrated where that stops being true.
 
 ---
 
