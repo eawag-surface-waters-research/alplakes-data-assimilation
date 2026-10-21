@@ -672,6 +672,25 @@ The intended consequence is that nothing far below the deepest observation gets 
 - **Observations:** causally filtered below 4 m with a per-lake seiche-derived window, thinned to a per-lake target vertical grid, retained at the assimilation hour.
 - **Scoring:** RMSE against hourly observations unless stated otherwise; §8.2 and the CTD table in §9.3 are scored against CTD casts.
 
+### Where the code is
+
+`master` holds the operational module. The experiments live on their own branches, each named after what it adds and can be used to find the necessary components needed for the experiments:
+
+| Section | Branch | What it adds |
+|---|---|---|
+| §3, App. B: forcing perturbation | `master` | `notebooks/generate_perturbation.py`, `src/assimilator/perturbate.py` |
+| §4, §5.1–5.3: assimilation hour, seiche filtering, thinning | `feat/da-combi` | `notebooks/calibrate_filter.py`, `filter_observations.py`, `generate_assimilation_series.py` |
+| §5.5, §9.4: seasonal σ | `master` | `notebooks/generate_sigma.py`; the free run it needs comes from `notebooks/make_ref.py` on `feat/da-combi` |
+| §6, §7: filter comparison and diagnostics | `master` | `args/run_enkf.json`, `run_pf.json`, `run_openda.json` |
+| §8: surface-only assimilation, σ from observations | `feat/multi-station-obs` | Lower Lugano and Lower Zürich setups, `notebooks/sigma_rep_from_obs.py` |
+| §9.1–9.2: depth-resolved and rescaled σ | `feat/da-combi` | `src/assimilator/sigma_rep.py`, `notebooks/fit_sigma_gap.py`, `fit_scale_by_depth.py` |
+| §9.3: adaptive σ | `adaptive_sigma` | the `adaptive_sigma` config block, native engine and OpenDA restart chain |
+| §9.3: OpenDA run as a chain of restart cycles | `operational_openda-restart` | `src/assimilator/openda/restart.py`, the `openda_restart` config block |
+| §10, App. C: vertical localization | `feat/da-combi` | `src/assimilator/localization.py`, `notebooks/localization.py` |
+| §12.2–12.6: parameter spread, joint estimation, deep mixing, 3D | not in the repository | exploratory scripts, kept locally |
+
+`feat/da-combi` combines many of the experimental features of the other branches.
+
 ## Appendix E: Potential FAQ
 
 **Why only 20 members?** Cost, in the operational chain. Twenty is what we can afford daily across seven lakes. It is a real limitation, not a choice we would defend on statistical grounds.
