@@ -73,6 +73,10 @@ IC_EPS = 5.0e-10
 
 SNAPSHOT_FILENAME        = 'simulation-snapshot.dat'
 
+# Set by the adapter only when continuing from an OpenDA restart (copies of its values).
+RESTART_MARKER   = 'RESTART_EXPECTED'
+RESTART_SENTINEL = -999.0
+
 # ---------------------------------------------------------------------------
 # Helper functions (unchanged from simstrat_wrapper.py)
 # ---------------------------------------------------------------------------
@@ -161,6 +165,12 @@ if __name__ == '__main__':
     logger.info("[RESTART] snapshot: %s  exists=%s  size=%s",
                 snapshot_path, snap_exists,
                 os.path.getsize(snapshot_path) if snap_exists else 'N/A')
+
+    # Continuing from a restart: stop if this member's state was not restored.
+    if os.path.exists(RESTART_MARKER) and (
+            not snap_exists or any(abs(t - RESTART_SENTINEL) < 1e-6 for t in T_state)):
+        logger.error("[RESTART] member state not restored from the OpenDA restart - stopping")
+        sys.exit(3)
 
     settings['Simulation']['Start d'] = start_day
     settings['Simulation']['End d']   = end_day

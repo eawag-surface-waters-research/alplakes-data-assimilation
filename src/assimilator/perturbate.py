@@ -168,6 +168,13 @@ def perturbate(args: dict, params: dict = None) -> None:
     start = pd.Timestamp(args["start_date"]).tz_convert("UTC")
     end   = pd.Timestamp(args["end_date"]).tz_convert("UTC")
     mask  = (std["time"] >= start) & (std["time"] <= end)
+    if args.get("openda_restart"):
+        # Restart cycle: also keep the rows just before start and just after end, so Simstrat
+        # has forcing on both sides when a cycle boundary falls between two rows.
+        t = std["time"]
+        lo = t[t <= start].max() if (t <= start).any() else t.min()
+        hi = t[t >= end].min() if (t >= end).any() else t.max()
+        mask = (t >= lo) & (t <= hi)
     df    = std[mask].reset_index(drop=True)
     steps = steps_all[mask.values]
     if df.empty:
@@ -191,6 +198,7 @@ def perturbate(args: dict, params: dict = None) -> None:
     # their cross-correlation is ignored. Intended.
     perturbed = {}
     end_state = {}
+    row_state = {}
     for name, (std_col, clip_zero) in PERTURB_VARS.items():
         p        = variables[name]
         phi, sig = p["phi"], p["sigma"] * sigma_scale
@@ -210,6 +218,7 @@ def perturbate(args: dict, params: dict = None) -> None:
         for t in range(1, n):
             pert[t] = phi * pert[t - 1] + _row_noise(rng_seed, name, steps[t], n_members) * sig
         end_state[name] = pert[-1].tolist()            # raw chain value (pre night-clip)
+        row_state[name] = pert.copy()
         if clip_zero:
             pert[night] = 0.0
         ensemble = df[std_col].values[:, None] + pert
@@ -221,6 +230,10 @@ def perturbate(args: dict, params: dict = None) -> None:
         perturbed[name] = ensemble
 
     states[int(steps[-1])] = end_state
+    if args.get("openda_restart"):
+        # Store every row, so the next cycle resumes exactly on its first row.
+        for t in range(n):
+            states[int(steps[t])] = {name: row_state[name][t].tolist() for name in row_state}
     _save_state(state_path, params_echo, states)
     resume_str = "cold start" if resume_step is None else f"resumed from step {resume_step}"
     logger.info(f"{lake}: AR(1) chain {resume_str}; state saved at step {int(steps[-1])} "
