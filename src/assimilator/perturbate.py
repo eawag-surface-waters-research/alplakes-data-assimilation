@@ -220,6 +220,25 @@ def perturbate(args: dict, params: dict = None) -> None:
             ensemble = np.clip(ensemble, 0.0, None)
         perturbed[name] = ensemble
 
+    if args.get("center_perturbations"):
+        # Opt-in. The additive U/V noise is zero-mean per component, but wind SPEED is not
+        # linear in it, so the members' mean speed is far above the control's (aegeri: +63 %),
+        # i.e. every member mixes harder than the control. Rescale each row so the ensemble-mean
+        # wind speed (and mean GLOB, which the night/zero clip biases upward) equals the control's.
+        # The chain state above is untouched, so continuations still reproduce.
+        speed = np.hypot(perturbed["U"], perturbed["V"])
+        ctrl  = np.hypot(df["U_std"].values, df["V_std"].values)
+        mean  = speed.mean(axis=1)
+        k     = np.where((mean > 0) & (ctrl > 0), ctrl / np.where(mean > 0, mean, 1.0), 1.0)
+        perturbed["U"] = perturbed["U"] * k[:, None]
+        perturbed["V"] = perturbed["V"] * k[:, None]
+        gmean = perturbed["GLOB"].mean(axis=1)
+        kg    = np.where((gmean > 0) & (df["GLOB_std"].values > 0),
+                         df["GLOB_std"].values / np.where(gmean > 0, gmean, 1.0), 1.0)
+        perturbed["GLOB"] = perturbed["GLOB"] * kg[:, None]
+        logger.info(f"{lake}: center_perturbations — mean wind speed {ctrl.mean():.3f} (control) vs "
+                    f"{np.hypot(perturbed['U'], perturbed['V']).mean():.3f} (ensemble, was {speed.mean():.3f})")
+
     states[int(steps[-1])] = end_state
     _save_state(state_path, params_echo, states)
     resume_str = "cold start" if resume_step is None else f"resumed from step {resume_step}"
