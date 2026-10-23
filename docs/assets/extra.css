@@ -23,3 +23,9 @@
   --md-primary-fg-color--light: #6fcfbe;
   --md-primary-fg-color--dark: #339e8c;
 }
+
+/* ── Centred figures: ![alt](images/x.png){ width="800" .center } ── */
+.md-typeset img.center {
+  display: block;
+  margin: 0 auto;
+}
