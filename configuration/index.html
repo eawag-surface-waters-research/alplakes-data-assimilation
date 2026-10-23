@@ -1,0 +1,1126 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://eawag-surface-waters-research.github.io/alplakes-data-assimilation/configuration/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Run configuration - Alplakes Data Assimilation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#run-configuration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Alplakes Data Assimilation" class="md-header__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Alplakes Data Assimilation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Run configuration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../project-proposal/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Proposal
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../literature-review/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Literature Review
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../onboarding/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Onboarding
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../workblog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Workblog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Alplakes Data Assimilation" class="md-nav__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../assets/logo.png" alt="logo">
+
+    </a>
+    Alplakes Data Assimilation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../project-proposal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Proposal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../literature-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Literature Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Onboarding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workblog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workblog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#engine-and-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engine and method
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-window-and-ensemble" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run window and ensemble
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observations-and-observation-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observations and observation error
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#forcing-perturbation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forcing perturbation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-and-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output and runtime
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#openda-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenDA only
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lake-identity-perturbation-fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lake identity (perturbation fit)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model runtime
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-line-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command-line options
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="run-configuration">Run configuration<a class="headerlink" href="#run-configuration" title="Permanent link">&para;</a></h1>
+<p>Every run is described by one JSON file in <code>args/</code> (<code>run_enkf.json</code>, <code>run_pf.json</code>, <code>run_openda.json</code>) and started with</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>src/assimilate.py<span class="w"> </span>args/run_enkf.json<span class="w"> </span>--lake<span class="w"> </span>upperlugano
+</code></pre></div>
+<p>The file has two levels:</p>
+<ul>
+<li><strong>Top-level keys</strong> set the engine, the method and the run window. They apply to every lake.</li>
+<li><strong><code>lakes</code></strong> holds one block per lake: its observations, its observation error and its identity for the perturbation fit.</li>
+</ul>
+<p>At run time the selected lake block is laid over the top level, so a key in the lake block wins over the same key at the top. The lake is chosen with <code>--lake</code>; it can be omitted only when the file has a single block. Keys starting with <code>_</code> (e.g. <code>_lakes_note</code>) are comments and are ignored.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nt">"engine"</span><span class="p">:</span><span class="w"> </span><span class="s2">"python"</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">"algorithm"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EnKF"</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">"results_dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Results_EnKF"</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">"par_file"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Settings_EnKF.par"</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">"inflation"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">"n_members"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">"start_date"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2025-01-01"</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nt">"end_date"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2025-12-31"</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">"lakes"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">        </span><span class="nt">"upperlugano"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">            </span><span class="nt">"obs_file"</span><span class="p">:</span><span class="w"> </span><span class="s2">"observations/upperlugano/temperature_filtered_h06_1d.csv"</span><span class="p">,</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">            </span><span class="nt">"sigma_obs"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"mixed"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.299</span><span class="p">,</span><span class="w"> </span><span class="nt">"stratified"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.586</span><span class="p">},</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">            </span><span class="nt">"reanalysis_lake"</span><span class="p">:</span><span class="w"> </span><span class="s2">"lugano"</span><span class="p">,</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">            </span><span class="nt">"lake_bbox"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mf">45.89</span><span class="p">,</span><span class="w"> </span><span class="mf">8.85</span><span class="p">,</span><span class="w"> </span><span class="mf">46.03</span><span class="p">,</span><span class="w"> </span><span class="mf">9.13</span><span class="p">],</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">            </span><span class="nt">"lake_key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"lugano"</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">        </span><span class="p">}</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="p">}</span>
+</code></pre></div>
+<p>Relative paths resolve against the repository root, except <code>ensemble_base</code> and <code>model_inputs_path</code>, which resolve against <code>src/</code>.</p>
+<h2 id="engine-and-method">Engine and method<a class="headerlink" href="#engine-and-method" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Used by</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>engine</code></td>
+<td><code>"python"</code></td>
+<td>all</td>
+<td><code>"python"</code> (native engine) or <code>"openda"</code>.</td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td><code>"simstrat"</code></td>
+<td>all</td>
+<td>Forward model. The CLI flag <code>-m</code> overrides it.</td>
+</tr>
+<tr>
+<td><code>algorithm</code></td>
+<td>required (native), <code>"EnKF"</code> (OpenDA)</td>
+<td>all</td>
+<td>Native: <code>"EnKF"</code> or <code>"PF"</code>. OpenDA: <code>"EnKF"</code>, <code>"DEnKF"</code>, <code>"EnSR"</code> or <code>"PF"</code>. The native <code>"PF"</code> is best-member selection, not a Bayesian particle filter (<a href="../workblog/">Workblog</a> App. A.3).</td>
+</tr>
+<tr>
+<td><code>inflation</code></td>
+<td>required (native EnKF)</td>
+<td>native EnKF</td>
+<td>Multiplies the ensemble anomalies before the update. <code>1.0</code> = off. Ignored by OpenDA.</td>
+</tr>
+<tr>
+<td><code>window_mode</code></td>
+<td><code>"obs"</code></td>
+<td>native</td>
+<td><code>"obs"</code>: one forecast and analysis per observation time, the same rule as OpenDA. <code>"daily"</code>: legacy fixed noon-to-noon windows.</td>
+</tr>
+<tr>
+<td><code>obs_selector</code></td>
+<td><code>"window_end"</code></td>
+<td>native EnKF, <code>window_mode: "daily"</code> only</td>
+<td><code>"window_end"</code>: the reading nearest the end of the window. <code>"mean"</code>: the daily mean per depth.</td>
+</tr>
+<tr>
+<td><code>obs_operator</code></td>
+<td><code>"linear"</code></td>
+<td>native EnKF</td>
+<td>How an observation is mapped onto the model grid. <code>"linear"</code> interpolates between the two neighbouring cells; <code>"nearest"</code> snaps to the closest cell and exists only to reproduce older runs.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="run-window-and-ensemble">Run window and ensemble<a class="headerlink" href="#run-window-and-ensemble" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Used by</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n_members</code></td>
+<td>required</td>
+<td>all</td>
+<td>Ensemble size. The members are <code>ensemble1..N</code>. <code>ensemble0</code> is an unperturbed copy of the model inputs that the engines do not run right now for speed purposes.</td>
+</tr>
+<tr>
+<td><code>start_date</code>, <code>end_date</code></td>
+<td>required</td>
+<td>all</td>
+<td>Assimilation window, ISO dates, read as UTC.</td>
+</tr>
+<tr>
+<td><code>rng_seed</code></td>
+<td><code>42</code></td>
+<td>all</td>
+<td>Seeds the forcing noise and the EnKF observation perturbations. Draws are keyed by absolute time, so a run continued in slices reproduces a continuous run.</td>
+</tr>
+<tr>
+<td><code>reset</code></td>
+<td>off</td>
+<td>all</td>
+<td>Starts from scratch: clears the AR(1) perturbation state (<code>perturbation_state.json</code>) and, in the native engines, the live snapshots, member outputs, mean trajectory and diagnostics. Leave it off for an operational continuation.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="observations-and-observation-error">Observations and observation error<a class="headerlink" href="#observations-and-observation-error" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Where</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>obs_file</code></td>
+<td><code>observations/&lt;lake&gt;/temperature.csv</code></td>
+<td>lake block</td>
+<td>Observation CSV with <code>time</code>, <code>depth</code>, <code>value</code> columns. The CLI flag <code>--obs-file</code> overrides it.</td>
+</tr>
+<tr>
+<td><code>sigma_obs</code></td>
+<td><code>sigma_default</code></td>
+<td>lake block</td>
+<td>Observation error in °C: a number, or <code>{"mixed": .., "stratified": ..}</code> with stratified = May to October. Fitted with <code>notebooks/generate_sigma.py</code> and pasted in by hand; it is only valid for the <code>obs_file</code> it was fitted on (<a href="../workblog/">Workblog</a> §5.4 to §5.5).</td>
+</tr>
+<tr>
+<td><code>sigma_default</code></td>
+<td><code>0.5</code></td>
+<td>top level</td>
+<td>Fallback for a lake block without <code>sigma_obs</code>. The log says when it is used.</td>
+</tr>
+<tr>
+<td><code>obs_target_hour</code></td>
+<td><code>12</code></td>
+<td>OpenDA</td>
+<td>Hour (UTC) at which OpenDA picks the daily observation. When it is not set and the file already holds at most one reading per depth and day, each reading is assimilated at its own time instead.</td>
+</tr>
+<tr>
+<td><code>obs_min_days</code></td>
+<td><code>1</code></td>
+<td>OpenDA</td>
+<td>Drops depths with fewer days of data than this.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="forcing-perturbation">Forcing perturbation<a class="headerlink" href="#forcing-perturbation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>perturbations_file</code></td>
+<td><code>perturbations/&lt;lake&gt;.json</code></td>
+<td>AR(1) calibration for the lake, made with <code>notebooks/generate_perturbation.py</code> (<a href="../workblog/">Workblog</a> §3 and App. B). The CLI flag <code>--perturbations-file</code> overrides it.</td>
+</tr>
+<tr>
+<td><code>perturbations_dir</code></td>
+<td><code>perturbations/</code></td>
+<td>Folder searched for <code>&lt;lake&gt;.json</code> when <code>perturbations_file</code> is not set.</td>
+</tr>
+<tr>
+<td><code>sigma_scale</code></td>
+<td><code>1.0</code></td>
+<td>Multiplies the AR(1) noise σ of every channel, to widen or narrow the spread. Changing it cold-starts the perturbation chain.</td>
+</tr>
+<tr>
+<td><code>ref_year</code></td>
+<td>from <code>static/general.json</code></td>
+<td>Simstrat reference year of the forcing time axis.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="output-and-runtime">Output and runtime<a class="headerlink" href="#output-and-runtime" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Used by</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>results_dir</code></td>
+<td>required (native), <code>"Results"</code> (OpenDA)</td>
+<td>all</td>
+<td>Simstrat output folder inside each member.</td>
+</tr>
+<tr>
+<td><code>par_file</code></td>
+<td>required</td>
+<td>native</td>
+<td>Name of the per-member copy of <code>Settings.par</code> the engine runs. It is created once from <code>Settings.par</code> and not rewritten afterwards, so delete it from the members after changing <code>results_dir</code>.</td>
+</tr>
+<tr>
+<td><code>run_root</code></td>
+<td><code>&lt;repo&gt;/run</code></td>
+<td>all</td>
+<td>Base folder for all run output. Also settable with <code>$ALPLAKES_RUN_ROOT</code> or <code>--run-root</code> (CLI wins). On WSL, a native ext4 path is much faster than <code>/mnt/c</code>.</td>
+</tr>
+<tr>
+<td><code>ensemble_base</code></td>
+<td><code>&lt;run_root&gt;/&lt;lake&gt;</code></td>
+<td>all</td>
+<td>Folder holding <code>ensemble0..N</code> for this lake.</td>
+</tr>
+<tr>
+<td><code>model_inputs_path</code></td>
+<td><code>inputs/&lt;lake&gt;</code></td>
+<td>all</td>
+<td>Simstrat setup copied into every member.</td>
+</tr>
+<tr>
+<td><code>copy_skip</code></td>
+<td><code>["Results", "ref"]</code></td>
+<td>all</td>
+<td>Folders of the model inputs not copied into the members.</td>
+</tr>
+<tr>
+<td><code>max_workers</code></td>
+<td>all members at once</td>
+<td>all</td>
+<td>Cap on members run in parallel. The CLI flag <code>--max-workers</code> overrides it.</td>
+</tr>
+<tr>
+<td><code>progress</code></td>
+<td>on when run in a terminal</td>
+<td>all</td>
+<td>Progress bar. The CLI flag <code>--no-progress</code> turns it off.</td>
+</tr>
+<tr>
+<td><code>docker_dir</code>, <code>repo_dir</code></td>
+<td>not set</td>
+<td>all</td>
+<td>When both are set, Docker mount paths under <code>repo_dir</code> are rewritten to <code>docker_dir</code>, for setups where Docker sees the repository under another path.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="openda-only">OpenDA only<a class="headerlink" href="#openda-only" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>openda_bin</code></td>
+<td>not set</td>
+<td>The <code>bin/</code> folder of OpenDA 3.4.0. The engine builds the OpenDA environment from it, so nothing needs sourcing. Without it, an environment already set up in the shell is used.</td>
+</tr>
+<tr>
+<td><code>openda_native</code></td>
+<td><code>"linux64_gnu"</code></td>
+<td>OpenDA native-library folder under <code>openda_bin</code>.</td>
+</tr>
+<tr>
+<td><code>openda_dir</code></td>
+<td><code>&lt;run_root&gt;/openda_&lt;model&gt;_&lt;lake&gt;_&lt;algorithm&gt;</code></td>
+<td>OpenDA working folder for this run.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="lake-identity-perturbation-fit">Lake identity (perturbation fit)<a class="headerlink" href="#lake-identity-perturbation-fit" title="Permanent link">&para;</a></h2>
+<p>These keys sit in the lake block. Only <code>notebooks/generate_perturbation.py</code> reads them, to cut the lake area out of the ICON reanalysis.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lake_bbox</code></td>
+<td>required</td>
+<td>Bounding box <code>[lat_min, lon_min, lat_max, lon_max]</code>.</td>
+</tr>
+<tr>
+<td><code>lake_key</code></td>
+<td>not set</td>
+<td>Lake key in <code>static/lakes.geojson</code>, used for the lake outline.</td>
+</tr>
+<tr>
+<td><code>lake_contour</code></td>
+<td>not set</td>
+<td>Path to a local GeoJSON outline, as an alternative to <code>lake_key</code>.</td>
+</tr>
+<tr>
+<td><code>reanalysis_lake</code></td>
+<td>the lake name</td>
+<td>Lake name used by the reanalysis.</td>
+</tr>
+<tr>
+<td><code>contours_geojson</code></td>
+<td><code>static/lakes.geojson</code></td>
+<td>GeoJSON searched for <code>lake_key</code>.</td>
+</tr>
+<tr>
+<td><code>fit_start</code>, <code>fit_end</code></td>
+<td>the previous full calendar year</td>
+<td>Period the perturbation is fitted on.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="model-runtime">Model runtime<a class="headerlink" href="#model-runtime" title="Permanent link">&para;</a></h2>
+<p>Filled in from the model's defaults. Override them only to run a different Simstrat build.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>simstrat_version</code></td>
+<td><code>"3.0.4"</code></td>
+<td>Tag of the <code>eawag/simstrat</code> Docker image.</td>
+</tr>
+<tr>
+<td><code>simstrat_binary</code></td>
+<td><code>/simstrat/build/simstrat</code></td>
+<td>Simstrat executable inside the container.</td>
+</tr>
+<tr>
+<td><code>simstrat_workdir</code></td>
+<td><code>/simstrat/run</code></td>
+<td>Where <code>ensemble_base</code> is mounted inside the container.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="command-line-options">Command-line options<a class="headerlink" href="#command-line-options" title="Permanent link">&para;</a></h2>
+<p><code>python src/assimilate.py &lt;config&gt; [options]</code></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--lake &lt;name&gt;</code></td>
+<td>Lake block to run. Required when the config has more than one.</td>
+</tr>
+<tr>
+<td><code>-m</code>, <code>--model &lt;name&gt;</code></td>
+<td>Forward model, overriding <code>model</code>.</td>
+</tr>
+<tr>
+<td><code>--obs-file &lt;path&gt;</code></td>
+<td>Overrides <code>obs_file</code>.</td>
+</tr>
+<tr>
+<td><code>--perturbations-file &lt;path&gt;</code></td>
+<td>Overrides <code>perturbations_file</code>.</td>
+</tr>
+<tr>
+<td><code>--max-workers &lt;n&gt;</code></td>
+<td>Overrides <code>max_workers</code>.</td>
+</tr>
+<tr>
+<td><code>--run-root &lt;dir&gt;</code></td>
+<td>Overrides <code>run_root</code> and <code>$ALPLAKES_RUN_ROOT</code>.</td>
+</tr>
+<tr>
+<td><code>--no-progress</code></td>
+<td>Turns the progress bar off.</td>
+</tr>
+<tr>
+<td><code>--force-copy</code></td>
+<td>Copies the model inputs into the members again, even if they exist.</td>
+</tr>
+<tr>
+<td><code>--skip-oda</code></td>
+<td>OpenDA only: prepares the run but does not start OpenDA.</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
