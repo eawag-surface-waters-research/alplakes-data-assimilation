@@ -28,10 +28,16 @@ theme:
 nav:
   - Home: index.md
   - Project Proposal: project-proposal.md
+  - Tutorial: tutorial.md
+  - Documentation:
+      - Overview: workblog/overview.md
+      - Method: workblog/method.md
+      - Results: workblog/results.md
+      - Experiments: workblog/experiments.md
+      - Open problems: workblog/open-problems.md
+      - Reference: workblog/reference.md
+  - Configuration: configuration.md
   - Literature Review: literature-review.md
-  - Onboarding: onboarding.md
-  - Getting Started: getting-started.md
-  - Workblog: workblog.md
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -40,6 +46,7 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - attr_list
+  - pymdownx.blocks.caption
   - toc:
       permalink: true
 

@@ -43,7 +43,7 @@ Relative paths resolve against the repository root, except `ensemble_base` and `
 |---|---|---|---|
 | `engine` | `"python"` | all | `"python"` (native engine) or `"openda"`. |
 | `model` | `"simstrat"` | all | Forward model. The CLI flag `-m` overrides it. |
-| `algorithm` | required (native), `"EnKF"` (OpenDA) | all | Native: `"EnKF"` or `"PF"`. OpenDA: `"EnKF"`, `"DEnKF"`, `"EnSR"` or `"PF"`. The native `"PF"` is best-member selection, not a Bayesian particle filter ([Workblog](workblog.md) App. A.3). |
+| `algorithm` | required (native), `"EnKF"` (OpenDA) | all | Native: `"EnKF"` or `"PF"`. OpenDA: `"EnKF"`, `"DEnKF"`, `"EnSR"` or `"PF"`. The native `"PF"` is best-member selection, not a Bayesian particle filter ([Workblog](workblog/method.md#selection)). |
 | `inflation` | required (native EnKF) | native EnKF | Multiplies the ensemble anomalies before the update. `1.0` = off. Ignored by OpenDA. |
 | `window_mode` | `"obs"` | native | `"obs"`: one forecast and analysis per observation time, the same rule as OpenDA. `"daily"`: legacy fixed noon-to-noon windows. |
 | `obs_selector` | `"window_end"` | native EnKF, `window_mode: "daily"` only | `"window_end"`: the reading nearest the end of the window. `"mean"`: the daily mean per depth. |
@@ -63,7 +63,7 @@ Relative paths resolve against the repository root, except `ensemble_base` and `
 | Key | Default | Where | Description |
 |---|---|---|---|
 | `obs_file` | `observations/<lake>/temperature.csv` | lake block | Observation CSV with `time`, `depth`, `value` columns. The CLI flag `--obs-file` overrides it. |
-| `sigma_obs` | `sigma_default` | lake block | Observation error in °C: a number, or `{"mixed": .., "stratified": ..}` with stratified = May to October. Fitted with `notebooks/generate_sigma.py` and pasted in by hand; it is only valid for the `obs_file` it was fitted on ([Workblog](workblog.md) §5.4 to §5.5). |
+| `sigma_obs` | `sigma_default` | lake block | Observation error in °C: a number, or `{"mixed": .., "stratified": ..}` with stratified = May to October. Fitted with `notebooks/generate_sigma.py` and pasted in by hand; it is only valid for the `obs_file` it was fitted on ([Workblog](workblog/method.md#sigma)). |
 | `sigma_default` | `0.5` | top level | Fallback for a lake block without `sigma_obs`. The log says when it is used. |
 | `obs_target_hour` | `12` | OpenDA | Hour (UTC) at which OpenDA picks the daily observation. When it is not set and the file already holds at most one reading per depth and day, each reading is assimilated at its own time instead. |
 | `obs_min_days` | `1` | OpenDA | Drops depths with fewer days of data than this. |
@@ -72,7 +72,7 @@ Relative paths resolve against the repository root, except `ensemble_base` and `
 
 | Key | Default | Description |
 |---|---|---|
-| `perturbations_file` | `perturbations/<lake>.json` | AR(1) calibration for the lake, made with `notebooks/generate_perturbation.py` ([Workblog](workblog.md) §3 and App. B). The CLI flag `--perturbations-file` overrides it. |
+| `perturbations_file` | `perturbations/<lake>.json` | AR(1) calibration for the lake, made with `notebooks/generate_perturbation.py` ([Workblog](workblog/method.md#spread)). The CLI flag `--perturbations-file` overrides it. |
 | `perturbations_dir` | `perturbations/` | Folder searched for `<lake>.json` when `perturbations_file` is not set. |
 | `sigma_scale` | `1.0` | Multiplies the AR(1) noise σ of every channel, to widen or narrow the spread. Changing it cold-starts the perturbation chain. |
 | `ref_year` | from `static/general.json` | Simstrat reference year of the forcing time axis. |

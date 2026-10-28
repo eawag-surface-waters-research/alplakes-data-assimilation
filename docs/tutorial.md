@@ -62,11 +62,11 @@ The operational files are made from the full sub-daily record in three steps. Ro
 2. **Choose the assimilation hour.** Using the free run, split the surface error at each hour of the day into its mean over days (bias the model repeats every day) and its day-to-day scatter (error the analysis can correct). Among hours the lake samples on at least 30 days, keep those whose bias is at most 0.2 times their scatter, then take the one with the largest scatter. Candidates are limited to 23 to 06 UTC, so the analysis lands before the day it forecasts and every lake is corrected at a comparable point of its daily cycle.
 3. **Thin to one profile per day.** Each day, take the instant nearest the chosen hour and keep every depth at that instant. Drop the day if that instant is more than 1.5 h from the hour. For dense sensor chains, keep only the depths nearest a target grid (within 0.5 m): about 1 m spacing through the thermocline, opening to 5 m below it.
 
-The reasons behind each step, and their effect on the results, are in the [Workblog](workblog.md), §4 and §5.
+The reasons behind each step, and their effect on the results, are in the Workblog: [Method](workblog/method.md#timing) and [Experiments](workblog/experiments.md#observations).
 
 ### 2.4 Observation error: `sigma_obs`
 
-The observation error σ in °C, one value or one per season (`{"mixed": .., "stratified": ..}`, stratified = May to October). It stands for what the 1D model cannot represent, not for instrument error ([Workblog](workblog.md) §5.4 and §5.5). To fit it:
+The observation error σ in °C, one value or one per season (`{"mixed": .., "stratified": ..}`, stratified = May to October). It stands for what the 1D model cannot represent, not for instrument error ([Workblog](workblog/method.md#sigma)). To fit it:
 
 1. take the free run minus the observations at the assimilated times;
 2. per depth and season, take the standard deviation about that season's own mean;
@@ -76,7 +76,7 @@ The observation error σ in °C, one value or one per season (`{"mixed": .., "st
 
 ### 2.5 Forcing-perturbation calibration: `perturbations/<lake>.json`
 
-The AR(1) noise added to the forcing ([Workblog](workblog.md) §3 and App. B). The repository includes it for the seven study lakes. For a new lake, create it with
+The AR(1) noise added to the forcing ([Workblog](workblog/method.md#spread)). The repository includes it for the seven study lakes. For a new lake, create it with
 
 ```bash
 python notebooks/generate_perturbation.py args/run_enkf.json --lake <lake> --icon
