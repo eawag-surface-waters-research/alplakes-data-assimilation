@@ -105,3 +105,17 @@ def test_tail_reprocessing_matches_a_full_reprocess():
         assert (tail["depth"].values == exp["depth"].values).all()
         # the box filter uses running sums, so float rounding depends on the chunk start
         np.testing.assert_allclose(tail["value"].values, exp["value"].values, rtol=0, atol=1e-9)
+
+
+def test_fit_sigma_seasonal_and_annual():
+    from assimilator.fitting.sigma import fit_sigma
+    t = pd.date_range("2025-01-01 06:00", "2025-12-31 06:00", freq="1D", tz="UTC")
+    rng = np.random.default_rng(1)
+    free = pd.DataFrame({1.0: 10 + rng.normal(0, 0.2, len(t)) * np.where(t.month.isin(range(5, 11)), 3, 1),
+                         5.0: 9 + rng.normal(0, 0.2, len(t))}, index=t)
+    obs = pd.DataFrame([(ti, d, 10.0 if d == 1.0 else 9.0) for ti in t for d in (1.0, 5.0)],
+                       columns=["time", "depth", "value"])
+    seasonal = fit_sigma(obs, free)["sigma_obs"]
+    assert set(seasonal) == {"mixed", "stratified"}
+    annual = fit_sigma(obs, free, seasonal=False)["sigma_obs"]
+    assert isinstance(annual, float) and 0 < annual < 1

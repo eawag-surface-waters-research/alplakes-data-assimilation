@@ -150,7 +150,7 @@ def cmd_fit(cli):
     elif cli.what == "sigma":
         from assimilator.fitting.sigma import fit_sigma
         result = fit_sigma(_read_csv_obs(cli.obs), fitting.read_free_run(cli.free_run, cli.model),
-                           year=cli.year, max_depth=cli.max_depth)
+                           year=cli.year, max_depth=cli.max_depth, seasonal=not cli.annual)
     else:   # perturbation persistence (upper bound) from the control forcing alone
         import pandas as pd
         from assimilator.models import get_model
@@ -238,6 +238,7 @@ def main(argv=None):
     f.add_argument("--criterion", default="balanced", choices=["balanced", "min-bias", "annual"])
     f.add_argument("--year", type=int, help="sigma: restrict to one year")
     f.add_argument("--max-depth", type=float, help="sigma: ignore obs below this depth")
+    f.add_argument("--annual", action="store_true", help="sigma: one annual value, no season split")
     f.add_argument("--sim-dir", help="perturbation: setup folder with the control forcing")
     f.add_argument("--fit-start", default=f"{datetime.now().year - 1}-01-01")
     f.add_argument("--fit-end", default=f"{datetime.now().year - 1}-12-31")

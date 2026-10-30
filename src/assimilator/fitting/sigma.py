@@ -71,13 +71,33 @@ def scalars(by_depth):
     return {s: round(float(np.median(by_depth[s].to_numpy(dtype=float))), 3) for s in SEASONS}
 
 
-def fit_sigma(obs, free_run, year=None, max_depth=None):
+def sigma_by_depth_annual(gap):
+    """STEP 2 without the season split: per depth, the std of the gap about its own mean over the
+    whole record. For a lake whose seasonal pair does not behave (aegeri)."""
+    return gap.std(ddof=0).where(gap.count() >= MIN_HOURS).round(4).dropna()
+
+
+def fit_sigma(obs, free_run, year=None, max_depth=None, seasonal=True):
     """sigma_obs for the assimilated series `obs` (time, depth, value) against `free_run`.
     Returns the value a run config carries plus its provenance:
 
         {"sigma_obs": {"mixed": .., "stratified": ..}, "fitted_on": "YYYY-MM-DD",
-         "n_depths": n, "by_depth": {"<depth>": {"mixed": .., "stratified": ..}}}"""
+         "n_depths": n, "by_depth": {"<depth>": {"mixed": .., "stratified": ..}}}
+
+    `seasonal=False` fits one annual value instead ("sigma_obs" is then a number)."""
     gap, _ = gap_frame(obs, free_run, year, max_depth)
+    if not seasonal:
+        by_depth = sigma_by_depth_annual(gap)
+        if by_depth.empty:
+            raise ValueError(f"no depth has {MIN_HOURS}+ hours")
+        return {
+            "sigma_obs": round(float(np.median(by_depth.to_numpy(dtype=float))), 3),
+            "fitted_on": date.today().isoformat(),
+            "estimator": "std(free_run - obs) about its own mean, ddof=0, per depth; median over "
+                         "depths. An upper bound (includes model error).",
+            "n_depths": int(len(by_depth)),
+            "by_depth": {f"{float(d):g}": float(v) for d, v in by_depth.items()},
+        }
     by_depth = sigma_by_depth(gap)
     if by_depth.empty:
         raise ValueError(f"no depth has {MIN_HOURS}+ hours in both seasons")
