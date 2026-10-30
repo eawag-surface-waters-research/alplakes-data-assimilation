@@ -107,7 +107,10 @@ def monthly_two_layer(piv, depths, L, d_mean, dt_min=60):
         sel = piv.index.month == m
         if sel.sum() * dt_min / 60 / 24 < MIN_MONTH_DAYS:
             continue
-        z_tc = float(np.nanmedian(grad[sel].idxmax(axis=1).values))
+        g = grad[sel].dropna(how="all")      # an all-NaN hour has no thermocline to locate
+        if g.empty:
+            continue
+        z_tc = float(np.nanmedian(g.idxmax(axis=1).values))
         if not np.isfinite(z_tc):
             continue
         profile = piv[sel].mean()
