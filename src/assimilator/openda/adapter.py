@@ -58,14 +58,15 @@ sys.path.insert(0, SRC_DIR)
 import time
 import subprocess
 
-from assimilator.functions import (verify_args, resolve_src, resolve_root, resolve_obs_path,
-                                   merge_lake_args, make_progress, log_run_header, log_run_footer,
-                                   resolve_max_workers, resolve_run_root, display_path,
+from assimilator.functions import (verify_args, resolve_obs_path,
+                                   make_progress, log_run_header, log_run_footer,
+                                   resolve_max_workers, display_path,
                                    start_persistent_container, stop_persistent_container,
                                    sigma_obs_spec, should_season_split,
                                    sigma_obs_for_series, season_of)
 from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
 from assimilator.summarize import report_summary
+from assimilator.models import get_model
 from .config import (FILTERS, render as render_oda, series_specs,
                      is_season_keyed as is_season_keyed_series)
 
@@ -184,7 +185,7 @@ def _build_observations(raw, openda_dir, model_inputs):
     obs_csv   = resolve_obs_path(raw)
     if not os.path.isfile(obs_csv):
         raise FileNotFoundError(
-            f"observation source not found: {obs_csv} (set 'obs_file' or add observations/{lake}/temperature.csv)")
+            f"observation source not found: {obs_csv} (set 'obs_file')")
 
     ref_date     = date(SIMSTRAT_REF_YEAR, 1, 1)
     start = date.fromisoformat(raw["start_date"][:10]) if raw.get("start_date") else None
@@ -246,7 +247,7 @@ def _build_observations(raw, openda_dir, model_inputs):
     season_split = bool(raw.get("_season_series"))
     window = f"{start or 'start'}..{end or 'end'}"
     when   = "at their own times (already thinned)" if thinned else f"hour {target_hour:02d}Z"
-    logger.info(f"[adapter] observations: {os.path.relpath(obs_csv, ROOT)} -> "
+    logger.info(f"[adapter] observations: {display_path(obs_csv)} -> "
                 f"stochObserver/T_*_real.csv  ({len(depths)} depths {[f'{d:g}' for d in depths]}, "
                 f"window {window}, {when}"
                 f"{', season-split' if season_split else ''})")
@@ -271,7 +272,7 @@ def _build_observations(raw, openda_dir, model_inputs):
                     f.write(f"{_simstrat_day_at(day_str, ref_date, minutes / 60.0):.6f},"
                             f"{s / c:.6f}\n")
             series_keys.append((depth, season))
-    logger.info(f"  wrote {len(series_keys)} series files -> {os.path.relpath(stoch_dir, ROOT)}")
+    logger.info(f"  wrote {len(series_keys)} series files -> {display_path(stoch_dir)}")
 
     # Distinct analysis (noon-obs) times across the kept depths = how many forecast/analysis
     # steps OpenDA will run. Drives the progress-bar total so the bar tracks the real step count
@@ -287,13 +288,9 @@ def adapt(raw):
 
     lake          = raw["lake"]
     n_members     = raw["n_members"]
-    ensemble_base = resolve_src(raw["ensemble_base"])
-    model_inputs = raw.get("model_inputs_path")
-    model_inputs = resolve_src(model_inputs) if model_inputs \
-        else os.path.join(ROOT, "inputs", lake)
-
-    openda_dir   = resolve_src(raw["openda_dir"]) if raw.get("openda_dir") \
-        else os.path.join(ROOT, "run", "openda_simstrat")
+    ensemble_base = raw["ensemble_base"]
+    model_inputs  = raw["model_inputs_path"]
+    openda_dir    = raw["openda_dir"]
     forcings_dir = os.path.join(openda_dir, "forcings")
     template_dir = os.path.join(openda_dir, "stochModel", "template")
 
@@ -340,7 +337,7 @@ def adapt(raw):
             raise FileNotFoundError(
                 f"{src} missing — run main.py (copy + perturbate steps) first")
         _copy(src, os.path.join(forcings_dir, f"Forcing_{i}.dat"))
-    logger.info(f"  copied {n_members + 1} forcing files -> {os.path.relpath(forcings_dir, ROOT)}")
+    logger.info(f"  copied {n_members + 1} forcing files -> {display_path(forcings_dir)}")
 
     # ------------------------------------------------------------------
     # 3. Warmup snapshot -> template/Results/simulation-snapshot.dat
@@ -351,7 +348,7 @@ def adapt(raw):
     dated = sorted(glob.glob(os.path.join(model_inputs, "simulation-snapshot_*.dat")))
     if not dated:
         logger.warning(f"[adapter] no simulation-snapshot_*.dat in "
-                       f"{os.path.relpath(model_inputs, ROOT)} — skipping warmup sync")
+                       f"{display_path(model_inputs)} — skipping warmup sync")
     else:
         snap_src = dated[-1]
         target   = os.path.join(template_dir, "Results", "simulation-snapshot.dat")
@@ -503,6 +500,13 @@ def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled
     return proc.returncode
 
 
+def openda_member_files(openda_dir, n_members):
+    """Members 1..N's T_out.dat inside an OpenDA working dir (Results/work<i>/Results/)."""
+    work_base = os.path.join(openda_dir, "Results")
+    return [os.path.join(work_base, f"work{i}", "Results", "T_out.dat")
+            for i in range(1, n_members + 1)]
+
+
 def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
                model_cfg=None, model_name="simstrat"):
     """OpenDA engine driver: sync inputs/forcings/warmup + build observations (adapt),
@@ -526,9 +530,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     if filter_type not in FILTERS:
         raise ValueError(f"unknown algorithm '{filter_type}'; choose from {sorted(FILTERS)}")
     log_run_header(cfg)
-    default_dir = os.path.join(resolve_run_root(cfg),
-                               f"openda_{model_name}_{ensemble_raw['lake']}_{filter_type.lower()}")
-    openda_dir  = resolve_root(cfg.get("openda_dir") or default_dir)
+    openda_dir  = cfg["openda_dir"]   # set by assimilator.config.build_config
 
     # --- 4. adapter (always): sync inputs/forcings/warmup + build observations,
     #         returning the auto-detected obs depth list for the render below ----
@@ -622,14 +624,14 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
 
     if skip_oda:
         logger.info(f"      --skip-oda: run manually: "
-                    f"cd {os.path.relpath(openda_dir, ROOT)} && {oda_exe} {oda_file}")
+                    f"cd {openda_dir} && {oda_exe} {oda_file}")
         return
     # Results/ holds both the per-member work dirs (Results/work0..N) and the PythonResultWriter
     # output; create it up front so OpenDA's result writer has somewhere to write.
     os.makedirs(os.path.join(openda_dir, "Results"), exist_ok=True)
     start_persistent_container(cfg, container, openda_dir, mount_base, image)
     logger.info(f"      started 1 persistent Simstrat container ({container})")
-    logger.info(f"      {oda_exe} {oda_file}  (cwd={os.path.relpath(openda_dir, ROOT)})")
+    logger.info(f"      {oda_exe} {oda_file}  (cwd={display_path(openda_dir)})")
     # Progress bar driven by tailing the logfile (see _launch_oda_with_progress). Same on/off flag
     # as the native engines (cfg["progress"], resolved in main.py). total = number of analysis
     # (noon-obs) times from the adapter, so the bar tracks the real step count for any cadence; the
@@ -656,12 +658,10 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
         log_dir = os.path.join(openda_dir, "log")
         os.makedirs(log_dir, exist_ok=True)
         shutil.move(log_src, os.path.join(log_dir, "openda_logfile.txt"))
-        logger.info(f"      moved openda_logfile.txt -> {os.path.relpath(os.path.join(log_dir, 'openda_logfile.txt'), ROOT)}")
+        logger.info(f"      moved openda_logfile.txt -> {display_path(os.path.join(log_dir, 'openda_logfile.txt'))}")
 
     # Per-member work dirs live inside this run's dir at Results/work0..N.
-    work_base = os.path.join(openda_dir, "Results")
-    member_files = [os.path.join(work_base, f"work{i}", "Results", "T_out.dat")
-                    for i in range(1, n_members + 1)]
+    member_files = openda_member_files(openda_dir, n_members)
 
     results_dir = cfg.get("results_dir", "Results")
     for i, member_file in enumerate(member_files, start=1):
@@ -675,28 +675,20 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
                 f"+ {os.path.basename(mean_path)}")
 
     obs_csv = resolve_obs_path(ensemble_raw)
-    out_csv, skill = report_summary("openda", filter_type, member_files, ensemble_raw["lake"], obs_csv, openda_dir)
+    out_csv, skill = report_summary("openda", filter_type, member_files, ensemble_raw["lake"], obs_csv,
+                                    openda_dir, get_model(model_name))
     # updates=None: OpenDA has no separate update count distinct from its analysis steps.
     log_run_footer(cfg, skill, n_analysis, None, elapsed, out_csv)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Export framework forcings + warmup into openda_simstrat/")
-    parser.add_argument("arg_file", help="Path to JSON args file (e.g. args/run_openda.json)")
-    parser.add_argument("--lake", default=None, help="Lake to adapt from the config's \"lakes\" block")
+    parser = argparse.ArgumentParser(description="Export framework forcings + warmup into an OpenDA working dir")
+    parser.add_argument("arg_file", help="Run config JSON (engine \"openda\", see docs/configuration.md)")
     cli = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s | %(levelname)-8s | %(name)-16s | %(message)s",
                         datefmt="%H:%M:%S")
-
-    arg_file = cli.arg_file
-    if not os.path.isfile(arg_file):
-        arg_file = os.path.join(ROOT, arg_file)
-    if not os.path.isfile(arg_file):
-        raise ValueError(f"Args file not found: {cli.arg_file}")
-
-    with open(arg_file) as f:
-        raw_args = merge_lake_args(json.load(f), lake=cli.lake)
-
-    adapt(raw_args)
+    from assimilator.config import build_config
+    with open(cli.arg_file) as f:
+        adapt(build_config(json.load(f)))

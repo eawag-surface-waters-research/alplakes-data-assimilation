@@ -40,10 +40,9 @@ def load_traj(path, ref_date):
     return df
 
 
-def load_e0(ensemble_base, results_dir, ref_date):
-    # inputs/<lake>/ref/T_out.dat is the full-year free-run reference (manually provided)
-    candidates = [
-        os.path.join(ROOT, "inputs", os.path.basename(ensemble_base), "ref", "T_out.dat"),
+def load_e0(ensemble_base, results_dir, ref_date, free_run=None):
+    # the free-run reference: --free-run if given, else the unperturbed control member
+    candidates = [p for p in [free_run] if p] + [
         os.path.join(ensemble_base, "ensemble0", results_dir, "T_out.dat"),
         os.path.join(ensemble_base, "ensemble0", "Results", "T_out.dat"),
     ]
@@ -246,7 +245,7 @@ def visualize(args, save=False):
     model_obj  = get_model(model)
     oda_dir    = lambda filt: os.path.join(run_dir, f"openda_{model}_{args['lake']}_{filt}")
 
-    e0_traj = load_e0(ensemble_base, results_dir, ref_date)
+    e0_traj = load_e0(ensemble_base, results_dir, ref_date, args.get("free_run"))
 
     # Python EnKF: posterior mean + spread from the per-member full trajectories
     enkf_members = load_enkf_members(ensemble_base, ref_date)
@@ -324,39 +323,21 @@ def visualize(args, save=False):
 
 
 if __name__ == "__main__":
-    from assimilator.functions import discover_n_members, resolve_src, merge_lake_args
+    from assimilator.config import build_config
 
     parser = argparse.ArgumentParser(description="Visualize assimilation results")
-    parser.add_argument("arg_file", help="Path to JSON arguments file")
-    parser.add_argument("--lake", default=None, help="Lake to plot from the config's \"lakes\" block")
+    parser.add_argument("arg_file", help="The run's config JSON (see docs/configuration.md)")
+    parser.add_argument("--free-run", default=None, help="Free-run trajectory to plot as the reference "
+                                                         "(default: the run's unperturbed ensemble0)")
     parser.add_argument("--year", type=int, default=None, help="Filter to a specific year")
-    parser.add_argument("--save", action="store_true", help="Save plots to run/{lake}/ instead of displaying")
-    parser.add_argument("--run-root", default=None,
-                        help="Base dir where the run output lives (ensemble + OpenDA work dirs); must match "
-                             "what the run used. Overrides config 'run_root' and $ALPLAKES_RUN_ROOT. "
-                             "Default: in-repo ./run. Point at the WSL ext4 base, e.g. ~/alplakes-data-assimilation_res/run.")
+    parser.add_argument("--save", action="store_true", help="Save plots into ensemble_base instead of displaying")
     cli = parser.parse_args()
 
-    arg_file = cli.arg_file
-    if not os.path.isfile(arg_file):
-        arg_file = os.path.join(ROOT, arg_file)
-    if not os.path.isfile(arg_file):
-        raise ValueError(f"Args file not found: {cli.arg_file}")
-
-    with open(arg_file) as f:
-        loaded = json.load(f)
-    # CLI --run-root wins over the config 'run_root' key and $ALPLAKES_RUN_ROOT; inject it before the
-    # merge so ensemble_base (and thus the openda_<...> dir lookup) resolve under the same base the run used.
-    if cli.run_root:
-        loaded["run_root"] = cli.run_root
-    raw = merge_lake_args(loaded, lake=cli.lake)   # pick the --lake block, flatten
-
-    raw.setdefault("ensemble_base", os.path.join(ROOT, "run", raw["lake"]))
-    # ensemble_base may be a relative path ('../run/<lake>') resolved against src/ —
-    # normalise it so loads/saves don't depend on the shell's working directory.
-    raw["ensemble_base"] = resolve_src(raw["ensemble_base"])
-    raw.setdefault("obs_path",      os.path.join(ROOT, "observations", raw["lake"], "temperature.csv"))
-    raw["ref_date"]       = get_model(raw.get("model", "simstrat")).read_ref_date(raw["ensemble_base"])
+    with open(cli.arg_file) as f:
+        raw = build_config(json.load(f))
+    raw["obs_path"] = raw["obs_file"]
+    raw["free_run"] = cli.free_run
+    raw["ref_date"] = get_model(raw["model"]).read_ref_date(raw["ensemble_base"])
     if cli.year:
         raw["year"] = cli.year
 

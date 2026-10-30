@@ -31,6 +31,8 @@ nav:
   - Literature Review: literature-review.md
   - Onboarding: onboarding.md
   - Getting Started: getting-started.md
+  - Tutorial: tutorial.md
+  - Configuration: configuration.md
   - Workblog: workblog.md
 
 markdown_extensions:

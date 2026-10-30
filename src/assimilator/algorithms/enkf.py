@@ -176,10 +176,7 @@ def run_enkf_loop(args, model):
     kgain_path  = args["kgain_depth_path"]
 
     if args.get("reset"):
-        for i in member_ids:
-            live = os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "simulation-snapshot.dat")
-            if os.path.exists(live):
-                os.remove(live)
+        model.clear_member_state(args["ensemble_base"], member_ids, args["results_dir"])
         model.clear_member_outputs(args["ensemble_base"], member_ids, args["results_dir"])
         for p in [args["mean_traj_path"], diag_path, innov_path, kgain_path]:
             if os.path.exists(p):
@@ -365,9 +362,9 @@ def run_enkf_loop(args, model):
             current = window_end
 
         bar.close()
-        member_files = [os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "T_out.dat")
+        member_files = [model.member_output_file(args["ensemble_base"], i, args["results_dir"])
                         for i in member_ids]
-        model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from full T_out.dat
+        model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from the full member outputs
         logger.info(f"Done. {windows_run} windows run, {windows_updated} EnKF updates applied.")
         return windows_run, windows_updated
 
@@ -391,7 +388,8 @@ def run_enkf(run_raw, ensemble_raw, ensemble_base, n_members, model):
     t0 = time.perf_counter()
     windows_run, windows_updated = run_enkf_loop(args, model)
 
-    member_files = [os.path.join(ensemble_base, f"ensemble{i}", args["results_dir"], "T_out.dat")
+    member_files = [model.member_output_file(ensemble_base, i, args["results_dir"])
                     for i in args["member_ids"]]
-    out_csv, skill = report_summary("python", "EnKF", member_files, args["lake"], args["obs_path"], ensemble_base)
+    out_csv, skill = report_summary("python", "EnKF", member_files, args["lake"], args["obs_path"],
+                                   ensemble_base, model)
     log_run_footer(ensemble_raw, skill, windows_run, windows_updated, time.perf_counter() - t0, out_csv)

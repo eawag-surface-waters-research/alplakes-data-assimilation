@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import logging
 import subprocess
 from datetime import datetime, timezone, date, timedelta
@@ -11,69 +10,24 @@ from datetime import datetime, timezone, date, timedelta
 
 logger = logging.getLogger(__name__)
 
-# Repo paths, from this file at src/assimilator/functions.py
-SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # …/src
-ROOT    = os.path.dirname(SRC_DIR)                                      # …/alplakes-data-assimilation
+# This package is a library: it resolves no paths against its own checkout and reads no config
+# of its own. Every path in a run config is used as given (assimilator.config makes them absolute
+# against the caller's working directory), so the package behaves the same whether it is run from
+# its own CLI or embedded in a host repository.
 
-# General config — see static/general.json. Loaded at import (the file is committed). Exposes the
-# ICON acquisition settings (forcing fit); the model-specific values (Simstrat epoch, forcing-file
-# header) are read from GENERAL by assimilator.models.simstrat, not surfaced here.
-with open(os.path.join(ROOT, "static", "general.json"), encoding="utf-8") as _f:
-    GENERAL = json.load(_f)
-API_BASE  = GENERAL["icon_api_base"]
-VARIABLES = GENERAL["icon_variables"]
-
-# Model-specific behaviour (Docker run, Settings.par editing, snapshot I/O, z_out/T_out formats,
-# the day-since-reference-year epoch, the forcing-file format, input layout) lives in
-# assimilator.models.<model>; this module keeps only generic, model-agnostic helpers.
+# Model-specific behaviour (Docker run, Settings.par editing, snapshot I/O, output formats, the
+# time epoch, the forcing-file format, input layout) lives in assimilator.models.<model>; this
+# module keeps only generic, model-agnostic helpers.
 
 # ---------------------------------------------------------------------------
 # Path / config helpers
 # ---------------------------------------------------------------------------
 
-def resolve_src(path):
-    """Resolve a possibly-relative ensemble_base ('../run/<lake>') against src/."""
-    return path if os.path.isabs(path) else os.path.normpath(os.path.join(SRC_DIR, path))
-
-
-def resolve_root(path):
-    """Resolve a possibly-relative repo path ('openda_simstrat', 'args/x.json') against ROOT."""
-    return path if os.path.isabs(path) else os.path.normpath(os.path.join(ROOT, path))
-
-
-def resolve_run_root(cfg):
-    """Base directory for all run OUTPUT — the per-lake ensemble instances (ensemble_base) and the
-    OpenDA work dirs (openda_dir) both default under it. Model INPUTS stay in-repo (ROOT/inputs).
-
-    Defaults to the in-repo ROOT/run, so a fresh checkout is self-contained — nothing to configure
-    when running on a remote Linux server. Override to relocate ALL run output (e.g. point local
-    tests at a fast native-ext4 path while the /mnt/c source tree stays put) via the 'run_root'
-    config key or the ALPLAKES_RUN_ROOT env var (config key wins). '~' and $ENV are expanded; a
-    relative value resolves against ROOT. Explicit 'ensemble_base'/'openda_dir' still override per-dir."""
-    raw = cfg.get("run_root") or os.environ.get("ALPLAKES_RUN_ROOT")
-    if not raw:
-        return os.path.join(ROOT, "run")
-    return resolve_root(os.path.expanduser(os.path.expandvars(raw)))
-
-
 def display_path(path):
-    """Pretty path for logs: relative to ROOT when inside the repo, else the absolute path with
-    $HOME collapsed to '~'. Keeps in-repo logs terse while a rerouted run_root (e.g. on ext4) reads
-    as '~/alplakes-data-assimilation_res/run/...' instead of '../../../../home/...'."""
-    rel = os.path.relpath(path, ROOT)
-    if not rel.startswith(".."):
-        return rel
+    """Pretty path for logs: the absolute path with $HOME collapsed to '~'."""
+    path = os.path.abspath(path)
     home = os.path.expanduser("~")
-    return "~" + path[len(home):] if path.startswith(home) else path
-
-
-def load_json(path):
-    """Load a config JSON, trying the path as given then under ROOT."""
-    p = path if os.path.isfile(path) else resolve_root(path)
-    if not os.path.isfile(p):
-        raise FileNotFoundError(f"args file not found: {path}")
-    with open(p) as f:
-        return json.load(f)
+    return "~" + path[len(home):] if home != "/" and path.startswith(home + os.sep) else path
 
 
 # ---------------------------------------------------------------------------
@@ -159,12 +113,12 @@ def log_obs_summary(obs, obs_path, label="Obs"):
     Setup-time narrative shared by the native engines, so the log shows exactly what will be
     assimilated — the counterpart to the OpenDA adapter's '[adapter] observations: ...' line."""
     if obs.empty:
-        logger.warning(f"{label}: no observations after filtering <- {os.path.relpath(obs_path, ROOT)}")
+        logger.warning(f"{label}: no observations after filtering <- {display_path(obs_path)}")
         return
     depths = sorted(obs["depth"].unique())
     logger.info(f"{label}: {len(obs)} readings, {len(depths)} depths {[f'{d:g}' for d in depths]}, "
                 f"{obs['time'].min().date()}..{obs['time'].max().date()} "
-                f"<- {os.path.relpath(obs_path, ROOT)}")
+                f"<- {display_path(obs_path)}")
 
 
 # A run-config-echo header and a result footer, in ONE layout shared by both engines, so two runs'
@@ -182,7 +136,7 @@ def log_run_header(cfg):
     prints whichever knobs apply (inflation is native-EnKF-only)."""
     engine = cfg.get("engine", "python")
     logger.info(f"=== RUN | engine={engine} {_run_selector(cfg)} "
-                f"model={cfg.get('model', 'simstrat')} lake={cfg.get('lake')} ===")
+                f"model={cfg.get('model')} lake={cfg.get('lake')} ===")
     logger.info(f"      window={cfg.get('start_date')}..{cfg.get('end_date')}  "
                 f"n_members={cfg.get('n_members')}")
     knobs = [f"sigma_obs={cfg.get('sigma_obs')}"]
@@ -192,7 +146,7 @@ def log_run_header(cfg):
         knobs.append(f"window_mode={cfg.get('window_mode', 'obs')}")
     knobs += [f"sigma_scale={cfg.get('sigma_scale', 1.0)}", f"rng_seed={cfg.get('rng_seed', 42)}"]
     logger.info("      " + "  ".join(knobs))
-    logger.info(f"      obs={os.path.relpath(resolve_obs_path(cfg), ROOT)}")
+    logger.info(f"      obs={display_path(resolve_obs_path(cfg))}")
 
 
 def log_run_footer(cfg, skill, steps, updates, elapsed_s, out_path=None):
@@ -208,30 +162,7 @@ def log_run_footer(cfg, skill, steps, updates, elapsed_s, out_path=None):
     if skill:
         logger.info(f"      rmse={skill['rmse']}  bias={skill['bias']}  n_obs={skill['n']}  (analysis fit)")
     if out_path:
-        logger.info(f"      output={os.path.relpath(out_path, ROOT)}")
-
-
-def merge_lake_args(cfg, lake=None):
-    """Flatten a run config that carries per-lake blocks under "lakes": pick the selected lake's
-    block and overlay it on the top-level engine knobs. The lake is the explicit `lake` arg, else
-    cfg['lake'], else — when there is exactly one block — that one. Add a lake = add a block.
-    Sets 'lake' and defaults ensemble_base to ../run/<lake>. A config without "lakes" (already
-    flat) is returned unchanged."""
-    lakes = cfg.get("lakes")
-    if not lakes:
-        return cfg
-    lake = lake or cfg.get("lake")
-    if lake is None:
-        if len(lakes) != 1:
-            raise ValueError(f"no lake selected — pass --lake (choices: {sorted(lakes)})")
-        lake = next(iter(lakes))
-    if lake not in lakes:
-        raise ValueError(f"lake '{lake}' not in this config's \"lakes\"; choices: {sorted(lakes)}")
-    merged = {k: v for k, v in cfg.items() if k != "lakes"}
-    merged.update(lakes[lake])
-    merged["lake"] = lake
-    merged.setdefault("ensemble_base", os.path.join(resolve_run_root(merged), lake))
-    return merged
+        logger.info(f"      output={display_path(out_path)}")
 
 
 # ---------------------------------------------------------------------------
@@ -266,17 +197,20 @@ def discover_n_members(ensemble_base):
 # obs with Simstrat's instantaneous hourly output, so the noon assimilation pairs the noon obs
 # with the noon state. Labels stay on the hour, so the PF's obs<->T_out time intersection
 # (rmse_in_window) is unaffected.
-def load_obs(obs_path):
+def bin_hourly(obs):
+    """A (time, depth, value) frame -> hourly, centred: one mean value per (depth, hour)."""
     import pandas as pd
-    # format="ISO8601", and no parse_dates: the filtered/thinned CSVs mix whole-second and
-    # fractional-second stamps, and pandas 2.x locks onto row 0's format and rejects every row
-    # that differs (aegeri dies on "...17:00:21+00:00" at row 2098). Which lakes this bites
-    # depends on the CSV, not the code, so it is unconditional.
-    obs = pd.read_csv(obs_path)
+    obs = obs.copy()
+    # format="ISO8601": the filtered/thinned CSVs mix whole-second and fractional-second stamps,
+    # and pandas 2.x locks onto row 0's format and rejects every row that differs.
     obs["time"] = pd.to_datetime(obs["time"], utc=True, format="ISO8601")
     obs["time"] = (obs["time"] + pd.Timedelta(minutes=30)).dt.floor("1h")
-    obs = obs.groupby(["depth", "time"])["value"].mean().reset_index()
-    return obs
+    return obs.groupby(["depth", "time"])["value"].mean().reset_index()
+
+
+def load_obs(obs_path):
+    import pandas as pd
+    return bin_hourly(pd.read_csv(obs_path))
 
 
 def filter_obs_to_model_depths(obs_df, model_depths):
@@ -288,16 +222,17 @@ def filter_obs_to_model_depths(obs_df, model_depths):
     matched = {d for d in obs_depths if any(abs(d - m) <= 1e-6 for m in model_depths)}
     dropped = [d for d in obs_depths if d not in matched]
     if dropped:
-        logger.warning(f"[obs] dropping obs depths with no matching model output depth (z_out.dat): "
+        logger.warning(f"[obs] dropping obs depths with no matching model output depth: "
                        f"{[f'{d:g}' for d in dropped]} m")
     return obs_df[obs_df["depth"].isin(matched)]
 
 
 def resolve_obs_path(cfg):
-    """Observation CSV for the run: the 'obs_file' override (path relative to the repo root, or
-    absolute) if given, else observations/<lake>/temperature.csv."""
-    override = cfg.get("obs_file")
-    return resolve_root(override) if override else os.path.join(ROOT, "observations", cfg["lake"], "temperature.csv")
+    """Observation CSV for the run: the config's 'obs_file' (required; made absolute by
+    assimilator.config.build_config)."""
+    if not cfg.get("obs_file"):
+        raise ValueError("run config has no 'obs_file' (the observation CSV to assimilate)")
+    return cfg["obs_file"]
 
 
 def obs_window_boundaries(obs_df, start_date, end_date):
@@ -420,9 +355,8 @@ def has_season_keyed_sigma_obs(cfg):
     return _is_season_keyed(sigma_obs_spec(cfg))
 
 
-# The fallback when a lake's block names no sigma_obs of its own. A separate key, not a top-level
-# "sigma_obs": merge_lake_args overlays the top level onto the lake block, so a top-level sigma_obs
-# is indistinguishable from a value typed for that lake -- every lake would look explicitly set.
+# The fallback when a run names no sigma_obs of its own. A separate key rather than a default for
+# "sigma_obs", so the log can say when the fallback (and not a fitted value) is in use.
 SIGMA_DEFAULT_KEY = "sigma_default"
 SIGMA_DEFAULT     = 0.5
 
@@ -430,10 +364,9 @@ SIGMA_DEFAULT     = 0.5
 def sigma_obs_spec(cfg):
     """What sigma_obs this run uses: the config's own value if it names one, else sigma_default.
 
-    The fitted pair reaches a run by being PASTED into its lake block from
-    observations/<lake>/sigma_obs.json -- nothing reads that file at run time, by design. It is
-    provenance, and the paste is deliberate: a sigma is only valid for the observation series it
-    was fitted on, so adopting one should be an edit somebody made, not a file appearing on disk."""
+    A sigma is only valid for the observation series it was fitted on (assimilator.fitting.sigma),
+    so the host stores the fitted value next to the observation-processing settings it belongs to
+    and passes it in the run config."""
     spec = cfg.get("sigma_obs")
     return cfg.get(SIGMA_DEFAULT_KEY, SIGMA_DEFAULT) if spec is None else spec
 

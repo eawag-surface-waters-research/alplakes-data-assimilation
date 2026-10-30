@@ -1,5 +1,4 @@
 import os
-import shutil
 import time
 import concurrent.futures
 import numpy as np
@@ -79,14 +78,8 @@ def rmse_in_window(sim_df, obs_df, window_start, window_end, depth_weights, mode
 
 
 # "resample" step -- clones best member's snapshot onto all others. Intentional.
-def copy_best_to_all(best_id, member_ids, args):
-    src = os.path.join(args["ensemble_base"], f"ensemble{best_id}", args["results_dir"], "simulation-snapshot.dat")
-    targets = [
-        os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "simulation-snapshot.dat")
-        for i in member_ids if i != best_id
-    ]
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        pool.map(lambda dst: shutil.copy2(src, dst), targets)
+def copy_best_to_all(best_id, member_ids, args, model):
+    model.copy_member_state(best_id, member_ids, args)
 
 
 def run_pf_loop(args, model):
@@ -94,10 +87,7 @@ def run_pf_loop(args, model):
     max_workers = args.get("max_workers")
 
     if args.get("reset"):
-        for i in member_ids:
-            live = os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "simulation-snapshot.dat")
-            if os.path.exists(live):
-                os.remove(live)
+        model.clear_member_state(args["ensemble_base"], member_ids, args["results_dir"])
         model.clear_member_outputs(args["ensemble_base"], member_ids, args["results_dir"])
         if os.path.exists(args["mean_traj_path"]):
             os.remove(args["mean_traj_path"])
@@ -197,7 +187,7 @@ def run_pf_loop(args, model):
             if valid:
                 best_id   = min(valid, key=lambda x: x[1])[0]
                 best_rmse = min(r for _, r in valid)
-                copy_best_to_all(best_id, member_ids, args)
+                copy_best_to_all(best_id, member_ids, args, model)
                 windows_copied += 1
                 status = f"failed={failed}" if failed else "ok"
                 # Per-window detail always to the log file (file_only keeps it off the console —
@@ -221,9 +211,9 @@ def run_pf_loop(args, model):
             current = window_end
 
         bar.close()
-        member_files = [os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"], "T_out.dat")
+        member_files = [model.member_output_file(args["ensemble_base"], i, args["results_dir"])
                         for i in member_ids]
-        model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from full T_out.dat
+        model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from the full member outputs
         logger.info(f"Done. {windows_run} windows run, {windows_copied} best-copy steps applied.")
         return windows_run, windows_copied
 
@@ -246,7 +236,8 @@ def run_pf(run_raw, ensemble_raw, ensemble_base, n_members, model):
     t0 = time.perf_counter()
     windows_run, windows_copied = run_pf_loop(args, model)
 
-    member_files = [os.path.join(ensemble_base, f"ensemble{i}", args["results_dir"], "T_out.dat")
+    member_files = [model.member_output_file(ensemble_base, i, args["results_dir"])
                     for i in args["member_ids"]]
-    out_csv, skill = report_summary("python", "PF", member_files, args["lake"], args["obs_path"], ensemble_base)
+    out_csv, skill = report_summary("python", "PF", member_files, args["lake"], args["obs_path"],
+                                   ensemble_base, model)
     log_run_footer(ensemble_raw, skill, windows_run, windows_copied, time.perf_counter() - t0, out_csv)

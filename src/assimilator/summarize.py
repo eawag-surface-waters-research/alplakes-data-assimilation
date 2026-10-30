@@ -1,18 +1,18 @@
 """Unified post-run summary of the assimilated temperature field + skill report.
 
-Both engines — the native EnKF/PF (`assimilate.py`) and the OpenDA black-box
-(`openda_assimilation.py`) — write per-member Simstrat output in the same
-`T_out.dat` format ("Datetime" = Simstrat day, then one column per depth).
+Both engines -- the native EnKF/PF and the OpenDA black-box -- leave one output trajectory per
+member, read through the model's `read_output` (time in days since `output_epoch`, then one
+column per model column coordinate).
 
 For each run this reads ensemble members 1..N (the control, member 0, is
-excluded) and writes two files into the run's own folder (`out_dir`, under run/ — the
-native engines use run/<lake>/, OpenDA its run/openda_<model>_<lake>_<filter>/ dir):
+excluded) and writes two files into the run's own folder (`out_dir`: the native engines use
+ensemble_base, OpenDA its openda_dir):
 
   <lake>_<engine>_<label>.csv   posterior ensemble mean + std per (time, depth):
                                 time,depth,T_mean,T_std  (hourly, full column)
 
   <lake>_<engine>_<label>.json  skill/bias report, scoring the posterior mean
-                                against the observations in observations/<lake>/temperature.csv
+                                against the run's observation file (obs_file)
                                 at the model-output depths (obs below the grid bed are
                                 dropped — the same set the engines assimilate; model
                                 interpolated in depth to each obs depth, matched to the
@@ -25,41 +25,26 @@ native engines use run/<lake>/, OpenDA its run/openda_<model>_<lake>_<filter>/ d
 """
 
 import os
-import sys
 import json
 import logging
 import numpy as np
 import pandas as pd
-from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # put src/ on the path
-from assimilator.functions import (
-    ROOT, load_obs, filter_obs_to_model_depths,
-    load_json, merge_lake_args, resolve_src, resolve_root, resolve_obs_path,
-)
-from assimilator.models.simstrat import SIMSTRAT_REF_YEAR
+from .functions import load_obs, filter_obs_to_model_depths, display_path
 
 logger = logging.getLogger(__name__)
 
 
-def _read_t_out(path):
-    df = pd.read_csv(path)
-    times  = df.iloc[:, 0].to_numpy(dtype=float)
-    depths = np.array([float(c) for c in df.columns[1:]])
-    temps  = df.iloc[:, 1:].to_numpy(dtype=float)   # [time, depth]
-    return times, depths, temps
-
-
-def _load_members(member_files):
+def _load_members(member_files, model):
     """Stack members 1..N -> posterior mean/std per (time, depth)."""
     if not member_files:
-        raise ValueError("no member T_out.dat files given")
+        raise ValueError("no member output files given")
     missing = [f for f in member_files if not os.path.isfile(f)]
     if missing:
         raise FileNotFoundError(f"missing {len(missing)} member output(s), e.g. {missing[0]}")
 
-    times, depths, first = _read_t_out(member_files[0])
-    members = [first] + [_read_t_out(f)[2] for f in member_files[1:]]
+    times, depths, first = model.read_output(member_files[0])
+    members = [first] + [model.read_output(f)[2] for f in member_files[1:]]
     n = min(m.shape[0] for m in members)            # share cadence; truncate defensively
     arr = np.stack([m[:n] for m in members])        # [member, time, depth]
     return times[:n], depths, arr.mean(axis=0), arr.std(axis=0, ddof=1)
@@ -99,7 +84,7 @@ def _agg(err, spread):
     }
 
 
-def _score(times, depths, mean, std, obs_csv):
+def _score(times, depths, mean, std, obs_csv, model):
     """Score posterior mean vs the obs at model-output depths; returns (overall, by_depth) or None."""
     # Score against the SAME obs the engines assimilate (and visualize plots): the centered
     # hourly mean (load_obs), not the raw samples — so the JSON skill numbers line up with the
@@ -109,13 +94,13 @@ def _score(times, depths, mean, std, obs_csv):
         return None
 
     # Same depth set the engines assimilate: drop obs with no model-output depth (e.g. deeper than
-    # the grid bed). z_out.dat carries the obs-depth superset (main.py step 2b), so every in-grid
-    # obs depth lands on an exact model column.
+    # the grid bed). The members output the obs-depth superset (pipeline step 2b), so every
+    # in-grid obs depth lands on an exact model column.
     obs = filter_obs_to_model_depths(obs, [abs(float(d)) for d in depths])
     if obs.empty:
         return None
 
-    ref   = datetime(SIMSTRAT_REF_YEAR, 1, 1, tzinfo=timezone.utc)
+    ref   = model.output_epoch()
     o_day = (pd.to_datetime(obs["time"], utc=True) - ref).dt.total_seconds().to_numpy() / 86400.0
     o_d   = obs["depth"].to_numpy(dtype=float)
     o_v   = obs["value"].to_numpy(dtype=float)
@@ -135,7 +120,7 @@ def _score(times, depths, mean, std, obs_csv):
     m_std  = np.empty(len(o_d))
     for d in np.unique(o_d):
         sel = o_d == d
-        j0, j1, w = _depth_interp(depths, -d)        # obs depth d -> model coord -d
+        j0, j1, w = _depth_interp(depths, model.obs_to_sim_col(d))   # obs depth -> model coord
         m_mean[sel] = mean[ti[sel], j0] * (1 - w) + mean[ti[sel], j1] * w
         m_std[sel]  = std[ti[sel], j0] * (1 - w) + std[ti[sel], j1] * w
 
@@ -145,7 +130,7 @@ def _score(times, depths, mean, std, obs_csv):
     return overall, by_depth
 
 
-def summarize_run(final_dir, lake, engine, label, member_files, obs_csv=None):
+def summarize_run(final_dir, lake, engine, label, member_files, model, obs_csv=None):
     """Write <final_dir>/<lake>_<engine>_<label>.{csv,json} from members 1..N.
 
     The CSV is always written; the JSON skill report is written when `obs_csv`
@@ -153,14 +138,14 @@ def summarize_run(final_dir, lake, engine, label, member_files, obs_csv=None):
     where overall_skill is the scored dict (rmse/bias/n/...) or None."""
     os.makedirs(final_dir, exist_ok=True)
     base = f"{lake}_{engine}_{label}"
-    times, depths, mean, std = _load_members(member_files)
+    times, depths, mean, std = _load_members(member_files, model)
 
     out_csv = os.path.join(final_dir, base + ".csv")
     _write_csv(times, depths, mean, std, out_csv)
 
     overall = None
     if obs_csv and os.path.isfile(obs_csv):
-        scored = _score(times, depths, mean, std, obs_csv)
+        scored = _score(times, depths, mean, std, obs_csv, model)
         if scored is not None:
             overall, by_depth = scored
             report = {
@@ -180,60 +165,32 @@ def summarize_run(final_dir, lake, engine, label, member_files, obs_csv=None):
     return out_csv, len(member_files), mean.shape[0], mean.shape[1], overall
 
 
-def report_summary(engine, label, member_files, lake, obs_csv, out_dir):
-    """Write the posterior summary + skill report into `out_dir` (the run's own folder under run/)
-    and print a one-line recap. Shared tail for both native (run_enkf/run_pf) and OpenDA
-    (run_openda) runs. Returns (csv_path, overall_skill) for the caller's run footer."""
-    out_csv, n_mem, T, D, overall = summarize_run(out_dir, lake, engine, label, member_files, obs_csv=obs_csv)
-    logger.info(f"[summary] {n_mem} members, {T} steps x {D} depths "
-                f"-> {os.path.relpath(out_dir, ROOT)}/{lake}_{engine}_{label}.csv")
+def report_summary(engine, label, member_files, lake, obs_csv, out_dir, model):
+    """Write the posterior summary + skill report into `out_dir` (the run's own folder) and log a
+    one-line recap. Shared tail for both native (run_enkf/run_pf) and OpenDA (run_openda) runs.
+    Returns (csv_path, overall_skill) for the caller's run footer."""
+    out_csv, n_mem, T, D, overall = summarize_run(out_dir, lake, engine, label, member_files, model,
+                                                  obs_csv=obs_csv)
+    logger.info(f"[summary] {n_mem} members, {T} steps x {D} depths -> {display_path(out_csv)}")
     return out_csv, overall
 
 
-# ---------------------------------------------------------------------------
-# CLI — regenerate the summary (.csv + .json) from existing member T_out.dat,
-# without rerunning the assimilation. Same path resolution as the engines.
-# ---------------------------------------------------------------------------
-
-def summarize_from_config(cfg, model_name="simstrat"):
-    """Rebuild the summary for the run described by `cfg` (a flattened run config) by reading the
-    member T_out.dat already on disk. Mirrors the member_files / out_dir each engine uses."""
-    engine    = cfg.get("engine", "python")
+def summarize_from_config(cfg):
+    """Rebuild the summary for the run described by `cfg` (a run config, see assimilator.config)
+    from the member outputs already on disk, without rerunning the assimilation."""
+    from .config import build_config
+    from .models import get_model
+    cfg       = build_config(cfg)
+    model     = get_model(cfg["model"])
     lake      = cfg["lake"]
     n_members = cfg["n_members"]
-    obs_csv   = resolve_obs_path(cfg)
-
-    if engine == "python":
-        ensemble_base = resolve_src(cfg["ensemble_base"])
-        results_dir   = cfg["results_dir"]
-        label         = cfg["algorithm"]                       # "EnKF" / "PF"
-        member_files  = [os.path.join(ensemble_base, f"ensemble{i}", results_dir, "T_out.dat")
+    obs_csv   = cfg["obs_file"]
+    label     = cfg["algorithm"]
+    if cfg["engine"] == "python":
+        ensemble_base = cfg["ensemble_base"]
+        member_files  = [model.member_output_file(ensemble_base, i, cfg["results_dir"])
                          for i in range(1, n_members + 1)]
-        report_summary("python", label, member_files, lake, obs_csv, ensemble_base)
-    elif engine == "openda":
-        filter_type = cfg.get("algorithm", "EnKF")
-        default_dir = f"run/openda_{model_name}_{lake}_{filter_type.lower()}"
-        openda_dir  = resolve_root(cfg.get("openda_dir") or default_dir)
-        work_base   = os.path.join(openda_dir, "Results")
-        member_files = [os.path.join(work_base, f"work{i}", "Results", "T_out.dat")
-                        for i in range(1, n_members + 1)]
-        report_summary("openda", filter_type, member_files, lake, obs_csv, openda_dir)
-    else:
-        raise ValueError(f"unknown engine '{engine}'; choose 'python' or 'openda'")
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Regenerate the run summary (.csv + .json) from existing member T_out.dat")
-    parser.add_argument("arg_file", help="Run config JSON (e.g. args/run_enkf.json)")
-    parser.add_argument("--lake", default=None, help="Lake to summarize from the config's \"lakes\" block")
-    parser.add_argument("-m", "--model", default=None, help="Forward model (default: arg file's \"model\", else simstrat)")
-    cli = parser.parse_args()
-
-    logging.basicConfig(level=logging.INFO, format="%(levelname)-8s | %(message)s")
-
-    cfg   = merge_lake_args(load_json(cli.arg_file), lake=cli.lake)
-    model = cli.model or cfg.get("model") or "simstrat"
-    summarize_from_config(cfg, model_name=model)
+        return report_summary("python", label, member_files, lake, obs_csv, ensemble_base, model)
+    from .openda.adapter import openda_member_files
+    member_files = openda_member_files(cfg["openda_dir"], n_members)
+    return report_summary("openda", label, member_files, lake, obs_csv, cfg["openda_dir"], model)

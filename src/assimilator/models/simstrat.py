@@ -7,21 +7,10 @@ formats (`z_out.dat` / `T_out.dat`), the input layout, and the binary snapshot I
 (`read_snapshot`/`write_snapshot`, at the bottom of this module) — and exposes it
 through the `Simstrat` class.
 
-The engines (`algorithms/enkf.py`, `algorithms/pf.py`) and the orchestrator
-(`main.py`) call models only through the methods of this class — selecting one via
-`get_model()` in `models/__init__.py` — so the contract is whatever those methods are:
-
-    run_config                       runtime knobs merged into the engine's run args
-    model_inputs_ready / warmup_snapshot / instances_ready / copy_model_inputs   input readiness & setup
-    start_containers / stop_containers / run_window            per-window run machinery
-    read_ref_date / model_output_depths / set_output_depths    state / output IO
-    obs_to_sim_col / load_T / clear_member_outputs
-    accumulate_mean / mean_traj_path
-    read_snapshot_T / write_snapshot_T
-
-Adding another model means writing a sibling class with the same surface and
-registering it in `models/__init__.py`; the engines don't change. Once a second model
-exists, extract the shared subset into an ABC — for now it's just Simstrat.
+The engines, the forcing perturbation, the run summary and the pipeline call models only
+through the `ForwardModel` interface (`models/base.py`), selecting one via `get_model()` in
+`models/__init__.py`. This module is the ONLY place in the package (besides the
+Simstrat-specific `openda/` engine) that knows Simstrat's files.
 
 The functions below keep their original signatures (taking the pipeline's `args`/`raw`
 dicts) and are bound onto `Simstrat` as static methods at the bottom.
@@ -46,15 +35,18 @@ import numpy as np
 # The OpenDA wrapper imports read_snapshot/write_snapshot from this module 21×/step and those use
 # only numpy; a top-level `import pandas` cost ~2.6s per process launch for nothing. (numpy ~0.7s.)
 
-from ..functions import (ROOT, GENERAL, resolve_src, verify_args,
-                         start_persistent_container, stop_persistent_container)
+from ..functions import (verify_args, start_persistent_container, stop_persistent_container)
+from .base import ForwardModel
 
 logger = logging.getLogger(__name__)
 
-# Simstrat owns these (read from static/general.json): the day-since-reference-year epoch and the
-# Forcing.dat header line. Model-specific, so they live here rather than in the generic functions.py.
-SIMSTRAT_REF_YEAR = GENERAL["simstrat_ref_year"]
-FORCING_HEADER    = GENERAL["forcing_header"]
+# Simstrat owns these: the day-since-reference-year epoch of Forcing.dat / T_out.dat and the
+# Forcing.dat header line.
+SIMSTRAT_REF_YEAR = 1981
+FORCING_HEADER    = ("Time [d]    u [m/s]    v [m/s]  Tair [°C] sol [W/m2] vap [mbar]  "
+                     "cloud [-] rain [m/hr]")
+# Forcing.dat columns, named by the channels the perturbation reads (U, V, GLOB) and passes through.
+FORCING_COLUMNS   = ["time_days", "U", "V", "T", "GLOB", "vap", "cloud", "rain"]
 
 
 # ---------------------------------------------------------------------------
@@ -107,14 +99,12 @@ def copy_model_inputs(raw):
     1..N = members whose Forcing.dat perturbate overwrites later). Skips the heavy
     Results/ dir — each member regenerates it and seeds the warmup from the dated
     simulation-snapshot_*.dat that IS copied."""
-    verify_args(raw, ["lake", "n_members", "ensemble_base"])
+    verify_args(raw, ["lake", "n_members", "ensemble_base", "model_inputs_path"])
 
     lake          = raw["lake"]
     n_members     = raw["n_members"]
-    ensemble_base = resolve_src(raw["ensemble_base"])
-    model_inputs = raw.get("model_inputs_path")
-    model_inputs = resolve_src(model_inputs) if model_inputs \
-        else os.path.join(ROOT, "inputs", lake)
+    ensemble_base = raw["ensemble_base"]
+    model_inputs  = raw["model_inputs_path"]
     skip = set(raw.get("copy_skip", COPY_DEFAULT_SKIP))
 
     if not os.path.isdir(model_inputs):
@@ -131,8 +121,65 @@ def copy_model_inputs(raw):
 
 
 # ---------------------------------------------------------------------------
+# Forcing.dat (read for the AR(1) perturbation, written per member)
+# ---------------------------------------------------------------------------
+
+def read_forcing(model_inputs, ref_year=None):
+    """The control Forcing.dat as a frame: FORCING_COLUMNS, plus 'time' (UTC, rounded to the hour)
+    and 'step' (int64 seconds since the Simstrat epoch -- the row's absolute key for the
+    time-keyed perturbation noise and its persisted chain state).
+
+    Forcing.dat time_days is 0-based (day 0 = ref_year Jan 1), the SAME axis as the par's "Start d"
+    and T_out's "Datetime"."""
+    import pandas as pd
+    ref_year = SIMSTRAT_REF_YEAR if ref_year is None else ref_year
+    t0  = pd.Timestamp(f"{ref_year}-01-01")
+    df  = pd.read_csv(os.path.join(model_inputs, "Forcing.dat"), sep=r"\s+",
+                      names=FORCING_COLUMNS, skiprows=1)
+    df["time"] = (t0 + pd.to_timedelta(df["time_days"], unit="D")).dt.round("h").dt.tz_localize("UTC")
+    df["step"] = np.rint(df["time_days"].values * 86400).astype(np.int64)
+    return df
+
+
+def write_forcing(member_dir, df):
+    """Write a frame shaped like read_forcing's into <member_dir>/Forcing.dat."""
+    rows = np.column_stack([
+        df["time_days"].values,
+        df["U"].values,
+        df["V"].values,
+        df["T"].values,
+        df["GLOB"].values,
+        df["vap"].fillna(0).values,
+        df["cloud"].fillna(0).values,
+        df["rain"].fillna(0).values,
+    ])
+    np.savetxt(os.path.join(member_dir, "Forcing.dat"),
+               rows, fmt="%10.4f", header=FORCING_HEADER, comments="")
+
+
+# ---------------------------------------------------------------------------
 # Output formats (z_out.dat / T_out.dat)
 # ---------------------------------------------------------------------------
+
+def output_epoch():
+    """Origin of T_out.dat's "Datetime" axis."""
+    return datetime(SIMSTRAT_REF_YEAR, 1, 1, tzinfo=timezone.utc)
+
+
+def member_output_file(ensemble_base, member_id, results_dir):
+    """A member's accumulated T_out.dat."""
+    return os.path.join(ensemble_base, f"ensemble{member_id}", results_dir, "T_out.dat")
+
+
+def read_output(path):
+    """T_out.dat -> (times in days since output_epoch, column heights, temps[time, depth])."""
+    import pandas as pd
+    df = pd.read_csv(path)
+    times  = df.iloc[:, 0].to_numpy(dtype=float)
+    depths = np.array([float(c) for c in df.columns[1:]])
+    temps  = df.iloc[:, 1:].to_numpy(dtype=float)   # [time, depth]
+    return times, depths, temps
+
 
 def _read_z_out(path):
     """Positive-metre depths from a z_out.dat (skips the 'Depths [m]' header). [] if absent."""
@@ -164,26 +211,39 @@ def model_output_depths(ensemble_base):
     return _read_z_out(os.path.join(ensemble_base, "ensemble1", "z_out.dat"))
 
 
+def _extend_depths(existing, obs):
+    """`existing` output depths plus the observation depths inside the grid (<= its bed)."""
+    deepest = max(existing)
+    return set(existing) | {o for o in obs if o <= deepest}
+
+
 def set_output_depths(model_inputs, ensemble_base, n_members, obs_depths):
-    """Overwrite z_out.dat — in model_inputs and every member (ensemble0..N) — with the superset
-    of its current output depths and the observation depths, so no observation is dropped just for
-    lack of a matching model-output depth (depths are matched at 0.01 m). Observations deeper than
-    the existing grid's bed are left out (outside the simulated water column). No-op where
-    z_out.dat is absent. Returns the number of files rewritten."""
+    """Overwrite z_out.dat in every member (ensemble0..N) with the superset of its current output
+    depths and the observation depths, so no observation is dropped just for lack of a matching
+    model-output depth (depths are matched at 0.01 m). Observations deeper than the existing grid's
+    bed are left out (outside the simulated water column). No-op where z_out.dat is absent.
+
+    `model_inputs` is only READ: the extended grid is also written to <ensemble_base>/z_out.dat, and
+    its path returned, so a host that wants its own deterministic runs to output the observation
+    depths can copy it explicitly. Returns (n_member_files_rewritten, extended_z_out_path or None)."""
     obs = {round(abs(d), 2) for d in obs_depths}
-    targets = [model_inputs] + [os.path.join(ensemble_base, f"ensemble{i}") for i in range(n_members + 1)]
     rewritten = 0
-    for d in targets:
-        path = os.path.join(d, "z_out.dat")
+    for i in range(n_members + 1):
+        path = os.path.join(ensemble_base, f"ensemble{i}", "z_out.dat")
         existing = _read_z_out(path)
         if not existing:
             continue                      # absent/empty: leave Simstrat's default output grid
-        deepest = max(existing)
-        union   = set(existing) | {o for o in obs if o <= deepest}
+        union = _extend_depths(existing, obs)
         if union != set(existing):
             _write_z_out(path, union)
             rewritten += 1
-    return rewritten
+    source = _read_z_out(os.path.join(model_inputs, "z_out.dat"))
+    if not source:
+        return rewritten, None
+    extended = os.path.join(ensemble_base, "z_out.dat")
+    os.makedirs(ensemble_base, exist_ok=True)
+    _write_z_out(extended, _extend_depths(source, obs))
+    return rewritten, extended
 
 
 def obs_to_sim_col(depth):
@@ -191,6 +251,11 @@ def obs_to_sim_col(depth):
     column coordinate (height -X; negative = below surface). The engines build H / score obs
     against these coordinates, so the convention is the model's."""
     return -depth
+
+
+def sim_col_to_depth(col):
+    """Inverse of obs_to_sim_col: Simstrat height (negative below surface) -> positive depth."""
+    return -col
 
 
 def clear_member_outputs(ensemble_base, member_ids, results_dir):
@@ -495,11 +560,55 @@ def write_snapshot_T(member_id, T_new, args):
     write_snapshot_T_at(snap_path, par_path, T_new)
 
 
+def clear_member_state(ensemble_base, member_ids, results_dir):
+    """Delete each member's live snapshot, so its next window restarts from the dated warm start."""
+    for i in member_ids:
+        live = os.path.join(ensemble_base, f"ensemble{i}", results_dir, "simulation-snapshot.dat")
+        if os.path.exists(live):
+            os.remove(live)
+
+
+def copy_member_state(src_id, member_ids, args):
+    """Copy member `src_id`'s live snapshot over every other member's (PF best-member resampling)."""
+    def _snap(i):
+        return os.path.join(args["ensemble_base"], f"ensemble{i}", args["results_dir"],
+                            "simulation-snapshot.dat")
+    src     = _snap(src_id)
+    targets = [_snap(i) for i in member_ids if i != src_id]
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        pool.map(lambda dst: shutil.copy2(src, dst), targets)
+
+
+def _analysis_member_paths(member_id, cfg):
+    """Member analysis snapshot + par file, resolving the engine's layout: native members live at
+    ensemble{i}/<results_dir>/, OpenDA members at <openda_dir>/Results/work{i}/."""
+    if cfg.get("engine") == "openda":
+        work = os.path.join(cfg["openda_dir"], "Results", f"work{member_id}")
+        return (os.path.join(work, "Results", "simulation-snapshot.dat"),
+                os.path.join(work, "Settings.par"))
+    return _member_snapshot_paths(member_id, cfg)
+
+
+def write_mean_state(cfg, out_path):
+    """The deterministic warm start for a forecast: the ensemble-mean analysis. Average the
+    temperature column over members 1..N (the assimilated members) and inject it into a copy of
+    member 1's analysis snapshot, written to `out_path`."""
+    cols = []
+    for i in range(1, cfg["n_members"] + 1):
+        snap, par = _analysis_member_paths(i, cfg)
+        cols.append(read_snapshot_T_at(snap, par)[0])
+    mean_T = np.mean(np.vstack(cols), axis=0)
+
+    member_snap, member_par = _analysis_member_paths(1, cfg)
+    shutil.copy(member_snap, out_path)
+    write_snapshot_T_at(out_path, member_par, mean_T)
+
+
 # ---------------------------------------------------------------------------
 # The model: binds the functions above onto the Simstrat class.
 # ---------------------------------------------------------------------------
 
-class Simstrat:
+class Simstrat(ForwardModel):
     """The Simstrat 1D lake model, run in Docker (eawag/simstrat:<version>)."""
 
     name              = "simstrat"
@@ -522,10 +631,13 @@ class Simstrat:
         }
 
     # input readiness / setup
-    model_inputs_ready = staticmethod(model_inputs_ready)
+    model_inputs_ready    = staticmethod(model_inputs_ready)
     warmup_snapshot       = staticmethod(warmup_snapshot)
     instances_ready       = staticmethod(instances_ready)
-    copy_model_inputs  = staticmethod(copy_model_inputs)
+    copy_model_inputs     = staticmethod(copy_model_inputs)
+    # forcing
+    read_forcing          = staticmethod(read_forcing)
+    write_forcing         = staticmethod(write_forcing)
     # per-window run machinery
     start_containers      = staticmethod(start_containers)
     stop_containers       = staticmethod(stop_containers)
@@ -535,6 +647,7 @@ class Simstrat:
     model_output_depths   = staticmethod(model_output_depths)
     set_output_depths     = staticmethod(set_output_depths)
     obs_to_sim_col        = staticmethod(obs_to_sim_col)
+    sim_col_to_depth      = staticmethod(sim_col_to_depth)
     load_T                = staticmethod(load_T)
     load_T_window         = staticmethod(load_T_window)
     clear_member_outputs  = staticmethod(clear_member_outputs)
@@ -542,6 +655,13 @@ class Simstrat:
     mean_traj_path        = staticmethod(mean_traj_path)
     read_snapshot_T       = staticmethod(read_snapshot_T)
     write_snapshot_T      = staticmethod(write_snapshot_T)
+    clear_member_state    = staticmethod(clear_member_state)
+    copy_member_state     = staticmethod(copy_member_state)
+    write_mean_state      = staticmethod(write_mean_state)
+    # output tables
+    output_epoch          = staticmethod(output_epoch)
+    member_output_file    = staticmethod(member_output_file)
+    read_output           = staticmethod(read_output)
 
 
 # ===========================================================================

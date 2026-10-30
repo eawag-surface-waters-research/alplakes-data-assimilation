@@ -1,194 +1,254 @@
-"""End-to-end data-assimilation orchestrator. One front door for both engines:
+"""Standalone command line for the assimilator package. A host repository (e.g. operational-simstrat)
+calls the same functions directly; this CLI is for running on plain folders and files.
 
-  1. require model_inputs (provided manually)  -> inputs/<lake>/
-  2. copy_model_inputs -> ensemble0..N   3. perturbate -> Forcing.dat in 1..N
-  4-5. run + summarize:  python -> run_enkf / run_pf   |   openda -> run_openda
+  run         assimilate observations into a model setup folder
+  summarize   rebuild a finished run's summary (.csv + skill .json) from its member outputs
+  preprocess  raw sub-daily observations -> the series a run assimilates (filter, grid, thin)
+  fit         offline fits: filter window, analysis hour, observation error, perturbation persistence
 
-Step 2 is skipped when already done (override: --force-copy); step 3 (perturbate)
-requires a committed perturbations/<lake>.json and errors if it is missing.
-Each run config is one JSON: engine/model selection + engine knobs + the run window
-(n_members, dates, sigma_obs, ...) at top level, plus a "lakes" map of lake-identity
-blocks. --lake picks one block (the only one by default) and merges it on top:
+Examples:
 
-  {"engine": "python|openda", "model": "simstrat",
-   "algorithm": "EnKF|PF",           # python: + par_file / results_dir / inflation
-                                     # openda: EnKF|DEnKF|EnSR|PF, + openda_bin
-   "n_members": ..., "start_date": ..., "end_date": ..., "sigma_obs": ...,
-   "lakes": {"<lake>": {"reanalysis_lake": ..., "lake_bbox": ..., "lake_key": ...}}}
-
-    python src/main.py args/run_enkf.json   [--lake <name>] [-m simstrat] [--force-*]
-    python src/main.py args/run_openda.json [--lake <name>] [--skip-oda]  # openda: WSL + Docker
-
-The forward model is selected with -m/--model (default: simstrat; see models.MODELS).
+    python src/assimilate.py run --sim-dir /data/upperlugano/inputs --obs obs.csv \\
+        --perturbations upperlugano.json --start 2025-01-01 --end 2025-12-31 --out /data/da_run
+    python src/assimilate.py run examples/enkf.json                     # same, from a config file
+    python src/assimilate.py preprocess raw.csv -o obs.csv --w-seiche 27.3 --hour 6
+    python src/assimilate.py fit sigma --free-run T_out.dat --obs obs.csv
 """
 
 import os
 import sys
+import json
 import logging
 import argparse
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # put src/ on the path
 
-from assimilator.perturbate      import perturbator, load_perturbations
-from assimilator.models          import get_model
-from assimilator.functions       import ROOT, resolve_src, load_json, load_obs, resolve_obs_path, merge_lake_args, resolve_progress, display_path
-from assimilator.algorithms.enkf import run_enkf
-from assimilator.algorithms.pf   import run_pf
-from assimilator.openda.adapter import run_openda
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("assimilate")
 
 
-def run(cfg, model="simstrat", skip_oda=False, force=None):
-    """Run the pipeline: require model_inputs, then copy -> perturbate -> engine run.
-    Step 2 skips when already done (unless --force-copy); step 3 perturbates and
-    errors if perturbations/<lake>.json is missing (fit it offline beforehand).
-    `model` selects the forward model (see models.MODELS); its runtime config is
-    merged into the Python engine's run args."""
-    force  = force or {}
-    model_obj = get_model(model)   # instance of the selected forward model (validates -m/--model)
-    engine = cfg.get("engine", "python")
-    if engine not in ("python", "openda"):
-        raise ValueError(f"unknown engine '{engine}'; choose 'python' or 'openda'")
+def _setup_logging(log_file=None, verbose=False):
+    # Per-window lines are logged with extra={"file_only": True}: always in the log file, never on
+    # the console (which shows the progress bar, or just the milestones when it is off).
+    console = logging.StreamHandler()
+    console.addFilter(lambda r: not getattr(r, "file_only", False))
+    handlers = [console]
+    if log_file:
+        os.makedirs(os.path.dirname(os.path.abspath(log_file)), exist_ok=True)
+        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
+                        format="%(asctime)s | %(levelname)-8s | %(name)-16s | %(message)s",
+                        datefmt="%H:%M:%S", handlers=handlers)
+    if log_file:
+        logger.info(f"log file -> {log_file}")
 
-    ensemble_raw = cfg   # one flat config: ensemble facts + engine knobs in the same JSON
 
-    lake          = ensemble_raw["lake"]
-    n_members     = ensemble_raw["n_members"]
-    ensemble_base = resolve_src(ensemble_raw["ensemble_base"])
-    model_inputs = resolve_src(ensemble_raw["model_inputs_path"]) if ensemble_raw.get("model_inputs_path") \
-        else os.path.join(ROOT, "inputs", lake)
+def _read_csv_obs(path):
+    import pandas as pd
+    df = pd.read_csv(path)
+    df["time"] = pd.to_datetime(df["time"], utc=True, format="ISO8601")
+    return df
 
-    # Pin every step to the same absolute ensemble_base (avoids cwd-dependent
-    # resolution differences between the sub-scripts).
-    ensemble_raw["ensemble_base"] = ensemble_base
 
-    logger.info(f"=== DA pipeline - lake={lake}  base={display_path(ensemble_base)}"
-                f"  model={model}  engine={engine} ===")
+def _load_json(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
-    # --- 1. model inputs (provided manually) ---------------------------
-    if not model_obj.model_inputs_ready(model_inputs):
-        raise FileNotFoundError(
-            f"model_inputs not ready at {os.path.relpath(model_inputs, ROOT)}: "
-            f"provide it manually — a dated simulation-snapshot_*.dat, Forcing.dat, "
-            f"Settings.par and the remaining Simstrat inputs.")
-    logger.info(f"[1/5] model inputs present -> {os.path.relpath(model_inputs, ROOT)}")
-    warmup = model_obj.warmup_snapshot(model_inputs)
-    if warmup:
-        logger.info(f"      warm-start snapshot: {os.path.basename(warmup)}")
 
-    # --- 2. copy into instances -------------------------------------------
-    if force.get("copy") or not model_obj.instances_ready(ensemble_base, n_members):
-        why = "forced" if force.get("copy") else "missing instances"
-        logger.info(f"[2/5] copy model inputs -> ensemble0..{n_members} ({why})")
-        model_obj.copy_model_inputs(ensemble_raw)
-    else:
-        logger.info(f"[2/5] ensemble0..{n_members} present - skip")
+# ---------------------------------------------------------------------------------------- run --
 
-    # --- 2b. align model output depths to the observations ----------------
-    #   Overwrite z_out.dat (inputs + every member) with the superset of its depths and the
-    #   observation depths, so no observation is dropped just for falling between the default
-    #   outputs. Runs whether or not step 2 copied, so a skipped copy still gets the update.
-    obs_path = resolve_obs_path(ensemble_raw)
-    if os.path.isfile(obs_path):
-        obs_depths = sorted(load_obs(obs_path)["depth"].unique())
-        n = model_obj.set_output_depths(model_inputs, ensemble_base, n_members, obs_depths)
-        if n:
-            logger.info(f"      z_out.dat <- model + obs depth superset ({len(obs_depths)} obs depths; {n} files updated)")
+RUN_FLAGS = {   # CLI flag dest -> config key
+    "sim_dir": "model_inputs_path", "obs": "obs_file", "out": "ensemble_base",
+    "start": "start_date", "end": "end_date", "lake": "lake", "engine": "engine",
+    "algorithm": "algorithm", "n_members": "n_members", "model": "model",
+    "max_workers": "max_workers", "rng_seed": "rng_seed", "openda_bin": "openda_bin",
+}
 
-    # --- 3. perturbate forcings (always) ----------------------------------
-    #   Source the AR(1) calibration from perturbations/<lake>.json. It must already
-    #   exist (committed); fit it once with notebooks/generate_perturbation.py.
-    #   Noise is keyed by absolute time and the chain state persists in
-    #   ensemble_base/perturbation_state.json, so operational continuations reproduce
-    #   a continuous run exactly (cold start on reset / fresh run dir).
-    logger.info(f"[3/5] perturbate Forcing.dat in ensemble1..{n_members}")
-    params = load_perturbations(ensemble_raw)   # fail fast: errors if missing or malformed
-    perturbator(ensemble_raw, params=params)
 
-    # --- 4-5. engine-specific run + summary --------------------------------
-    if engine == "python":
-        run_raw = ensemble_raw   # same flat config; build_python_run_args reads the run-side keys
-        for k, v in model_obj.run_config().items():   # model's Docker/runtime defaults (e.g. simstrat_version)
-            run_raw.setdefault(k, v)
-        algo    = run_raw.get("algorithm")
-        if algo == "EnKF":
-            run_enkf(run_raw, ensemble_raw, ensemble_base, n_members, model_obj)
-        elif algo == "PF":
-            run_pf(run_raw, ensemble_raw, ensemble_base, n_members, model_obj)
+def cmd_run(cli):
+    from assimilator.pipeline import run
+    from assimilator.config import build_config
+    cfg = _load_json(cli.config) if cli.config else {}
+    for dest, key in RUN_FLAGS.items():
+        value = getattr(cli, dest)
+        if value is not None:
+            cfg[key] = value
+    if cli.perturbations:
+        cfg.pop("perturbations", None)
+        cfg["perturbations_file"] = cli.perturbations
+    if not cli.config:   # flags only: sensible defaults for a quick standalone run
+        cfg.setdefault("algorithm", "EnKF")
+        cfg.setdefault("n_members", 20)
+        if cfg.get("model_inputs_path"):
+            cfg.setdefault("lake", os.path.basename(os.path.normpath(cfg["model_inputs_path"])))
+    if cli.reset:
+        cfg["reset"] = True
+    cfg["progress"] = (False if cli.no_progress
+                       else cfg.get("progress", sys.stderr.isatty()))
+    cfg = build_config(cfg)
+
+    log_file = cli.log_file or os.path.join(cfg["ensemble_base"], "logs",
+                                            f"pipeline_{datetime.now():%Y%m%d_%H%M%S}.log")
+    _setup_logging(log_file, cli.verbose)
+    result = run(cfg, force_copy=cli.force_copy, skip_oda=cli.skip_oda)
+    logger.info(f"mean trajectory -> {result['mean_trajectory']}")
+    if result["output_grid"]:
+        logger.info(f"output grid incl. observation depths -> {result['output_grid']}")
+
+
+def cmd_summarize(cli):
+    from assimilator.summarize import summarize_from_config
+    _setup_logging(verbose=cli.verbose)
+    summarize_from_config(_load_json(cli.config))
+
+
+# --------------------------------------------------------------------------------- preprocess --
+
+def _floats(s):
+    return [float(x) for x in s.split(",")] if s else None
+
+
+def _window(s):
+    if s in (None, "all", "any"):
+        return None
+    lo, hi = (int(x) for x in s.split("-"))
+    return [lo, hi]
+
+
+def cmd_preprocess(cli):
+    from assimilator.observations import preprocess
+    _setup_logging(verbose=cli.verbose)
+    cfg = _load_json(cli.config) if cli.config else {}
+    if cli.w_seiche is not None:
+        cfg["filter"] = {"w_seiche_h": cli.w_seiche, "thermo_depth_min": cli.thermo_depth_min}
+    if cli.no_filter:
+        cfg.pop("filter", None)
+    if cli.hour is not None or cli.hour_window:
+        cfg["schedule"] = ({"hour_window": _window(cli.hour_window)} if cli.hour_window
+                           else {"hour": cli.hour, "max_offset_h": cli.max_offset})
+    if cli.depths:
+        cfg["depths"] = _floats(cli.depths)
+    out = preprocess(_read_csv_obs(cli.raw), cfg)
+    out.to_csv(cli.output, index=False)
+    logger.info(f"{len(out)} rows, {out['time'].nunique()} instants, {out['depth'].nunique()} depths "
+                f"-> {cli.output}")
+
+
+# ---------------------------------------------------------------------------------------- fit --
+
+def cmd_fit(cli):
+    from assimilator import fitting
+    _setup_logging(verbose=cli.verbose)
+    if cli.what == "filter":
+        from assimilator.fitting.filter import derive_filter
+        result = derive_filter(_read_csv_obs(cli.raw), cli.length_km, cli.mean_depth)
+    elif cli.what == "hour":
+        from assimilator.fitting.hour import select_hour
+        result = select_hour(_read_csv_obs(cli.raw),
+                             fitting.read_free_run(cli.free_run, cli.model),
+                             window=_window(cli.window), criterion=cli.criterion)
+    elif cli.what == "sigma":
+        from assimilator.fitting.sigma import fit_sigma
+        result = fit_sigma(_read_csv_obs(cli.obs), fitting.read_free_run(cli.free_run, cli.model),
+                           year=cli.year, max_depth=cli.max_depth)
+    else:   # perturbation persistence (upper bound) from the control forcing alone
+        import pandas as pd
+        from assimilator.models import get_model
+        from assimilator.fitting import perturbation as P
+        base = P.migrate(_load_json(cli.existing)) if cli.existing else None
+        start = pd.Timestamp(cli.fit_start, tz="UTC")
+        end   = pd.Timestamp(cli.fit_end, tz="UTC") + pd.Timedelta(hours=23, minutes=59)
+        ctrl  = get_model(cli.model).read_forcing(cli.sim_dir)
+        ctrl  = ctrl[(ctrl["time"] >= start) & (ctrl["time"] <= end)].reset_index(drop=True)
+        upper = P.fit_upper(ctrl)
+        if base is None:
+            result = {"upper": upper,
+                      "_note": "amplitude needs the reanalysis residual (fit_amplitude); pass "
+                               "--existing <calibration.json> to combine with a stored one"}
         else:
-            raise ValueError(f"Unknown algorithm: '{algo}'. Use 'PF' or 'EnKF'.")
+            base["persistence"]["upper"] = upper
+            result = P.ordered(P.select(base, cli.bound))
+    text = json.dumps(result, indent=2)
+    if cli.output:
+        with open(cli.output, "w", encoding="utf-8") as f:
+            f.write(text + "\n")
+        logger.info(f"wrote {cli.output}")
     else:
-        run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda,
-                   model_cfg=model_obj.run_config(), model_name=model)
+        print(text)
 
-    logger.info("=== pipeline complete ===")
+
+# --------------------------------------------------------------------------------------- main --
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog=__doc__.split("Examples:")[1])
+    ap.add_argument("-v", "--verbose", action="store_true")
+    sub = ap.add_subparsers(dest="command", required=True)
+
+    r = sub.add_parser("run", help="assimilate observations into a model setup folder")
+    r.add_argument("config", nargs="?", help="run config JSON (flags below override its keys)")
+    r.add_argument("--sim-dir", help="model setup folder with a dated warm start (read only)")
+    r.add_argument("--obs", help="observation CSV (time, depth, value)")
+    r.add_argument("--perturbations", help="AR(1) calibration JSON ({variables: {U,V,GLOB}})")
+    r.add_argument("--start", help="first instant assimilated from, ISO date")
+    r.add_argument("--end", help="end of the run, ISO date")
+    r.add_argument("--out", help="output folder (members, outputs, state)")
+    r.add_argument("--lake", help="run label (default: the --sim-dir folder name)")
+    r.add_argument("--engine", choices=["python", "openda"])
+    r.add_argument("--algorithm", help="EnKF / PF (python); EnKF / DEnKF / EnSR / PF (openda)")
+    r.add_argument("--n-members", type=int)
+    r.add_argument("--model", help="forward model (default simstrat)")
+    r.add_argument("--rng-seed", type=int)
+    r.add_argument("--max-workers", type=int, help="cap on members run concurrently")
+    r.add_argument("--openda-bin", help="OpenDA 3.4.0 bin/ folder (engine openda)")
+    r.add_argument("--reset", action="store_true", help="start from scratch in --out")
+    r.add_argument("--force-copy", action="store_true", help="re-copy the setup into the members")
+    r.add_argument("--skip-oda", action="store_true", help="openda: prepare but do not run OpenDA")
+    r.add_argument("--no-progress", action="store_true")
+    r.add_argument("--log-file", help="default: <out>/logs/pipeline_<timestamp>.log")
+    r.set_defaults(func=cmd_run)
+
+    s = sub.add_parser("summarize", help="rebuild a run's summary from its member outputs")
+    s.add_argument("config", help="the run's config JSON")
+    s.set_defaults(func=cmd_summarize)
+
+    p = sub.add_parser("preprocess", help="raw observations -> assimilated series")
+    p.add_argument("raw", help="raw sub-daily CSV (time, depth, value)")
+    p.add_argument("-o", "--output", required=True)
+    p.add_argument("--config", help="JSON with an observation-processing block (filter/schedule/depths)")
+    p.add_argument("--w-seiche", type=float, help="filter window, hours (enables the filter)")
+    p.add_argument("--thermo-depth-min", type=float, default=4.0)
+    p.add_argument("--no-filter", action="store_true")
+    p.add_argument("--hour", type=int, help="thin to one profile per day nearest this UTC hour")
+    p.add_argument("--hour-window", help="LO-HI: thin to the first profile in [LO, HI) instead")
+    p.add_argument("--max-offset", type=float, default=1.5, help="hours, with --hour")
+    p.add_argument("--depths", help="target depth grid, comma separated (nearest within 0.5 m)")
+    p.set_defaults(func=cmd_preprocess)
+
+    f = sub.add_parser("fit", help="offline fits")
+    f.add_argument("what", choices=["filter", "hour", "sigma", "perturbation"])
+    f.add_argument("--raw", help="filter/hour: raw sub-daily CSV")
+    f.add_argument("--obs", help="sigma: the ASSIMILATED series CSV")
+    f.add_argument("--free-run", help="hour/sigma: free-run output trajectory (e.g. T_out.dat)")
+    f.add_argument("--model", default=None, help="forward model (default simstrat)")
+    f.add_argument("--length-km", type=float, help="filter: basin length")
+    f.add_argument("--mean-depth", type=float, help="filter: mean lake depth (m)")
+    f.add_argument("--window", default="0-6", help="hour: candidate hours LO-HI, or 'all'")
+    f.add_argument("--criterion", default="balanced", choices=["balanced", "min-bias", "annual"])
+    f.add_argument("--year", type=int, help="sigma: restrict to one year")
+    f.add_argument("--max-depth", type=float, help="sigma: ignore obs below this depth")
+    f.add_argument("--sim-dir", help="perturbation: setup folder with the control forcing")
+    f.add_argument("--fit-start", default=f"{datetime.now().year - 1}-01-01")
+    f.add_argument("--fit-end", default=f"{datetime.now().year - 1}-12-31")
+    f.add_argument("--existing", help="perturbation: stored calibration to add the upper bound to")
+    f.add_argument("--bound", default="envelope", choices=["lower", "upper", "envelope"])
+    f.add_argument("-o", "--output", help="write the JSON here (default: print)")
+    f.set_defaults(func=cmd_fit)
+
+    cli = ap.parse_args(argv)
+    cli.func(cli)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="End-to-end data-assimilation pipeline (Python or OpenDA)")
-    parser.add_argument("arg_file", help="Pipeline config JSON (e.g. args/run_enkf.json)")
-    parser.add_argument("--skip-oda", action="store_true", help="OpenDA only: run setup + adapter, but not OpenDA")
-    parser.add_argument("-m", "--model", default=None,
-                        help="Forward model to run; overrides the arg file's \"model\" field "
-                             "(default: simstrat; see models.MODELS)")
-    parser.add_argument("--lake", default=None,
-                        help="Lake to run from the config's \"lakes\" block "
-                             "(default: the only block, if there is just one)")
-    parser.add_argument("--obs-file", default=None,
-                        help="Observation CSV, overriding the config's \"obs_file\" "
-                             "(default: observations/<lake>/temperature.csv)")
-    parser.add_argument("--perturbations-file", default=None,
-                        help="AR(1) calibration JSON, overriding the config's \"perturbations_file\" "
-                             "(default: perturbations/<lake>.json)")
-    parser.add_argument("--force-copy",       action="store_true", help="Re-run step 2 even if present")
-    parser.add_argument("--no-progress", action="store_true",
-                        help="Disable the progress bar (auto-disabled when stderr is not a TTY). "
-                             "Per-step detail still goes to the log file either way")
-    parser.add_argument("--max-workers", type=int, default=None,
-                        help="Cap concurrent members (both engines). Default: full concurrency (all at once)")
-    parser.add_argument("--run-root", default=None,
-                        help="Base dir for run OUTPUT (ensemble instances + OpenDA work dir); overrides "
-                             "the config 'run_root' key and $ALPLAKES_RUN_ROOT. Default: in-repo ./run "
-                             "(self-contained). '~'/$VARS expand; relative resolves against the repo root.")
-    cli = parser.parse_args()
-
-    os.makedirs(os.path.join(ROOT, "logs"), exist_ok=True)
-    log_file = os.path.join(ROOT, "logs", f"pipeline_{datetime.now():%Y%m%d_%H%M%S}.log")
-    # Per-day assimilation lines are logged with extra={"file_only": True} so they always land in
-    # the log file but never clutter the console — the console shows the progress bar (or, when it's
-    # off, just the milestones). The filter on the console handler drops those file-only records.
-    console = logging.StreamHandler()
-    console.addFilter(lambda r: not getattr(r, "file_only", False))
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s | %(levelname)-8s | %(name)-16s | %(message)s",
-                        datefmt="%H:%M:%S",
-                        handlers=[console,
-                                  logging.FileHandler(log_file, encoding="utf-8")])
-    logger.info(f"log file -> {os.path.relpath(log_file, ROOT)}")
-
-    raw = load_json(cli.arg_file)
-    # CLI --run-root wins over the config 'run_root' key (and over $ALPLAKES_RUN_ROOT). Applied to the
-    # raw config BEFORE merge_lake_args, since that's where ensemble_base picks up its run_root default.
-    if cli.run_root:
-        raw["run_root"] = cli.run_root
-    cfg = merge_lake_args(raw, lake=cli.lake)   # pick the --lake block, flatten
-    # CLI file overrides win over the config keys (resolved downstream against the repo root).
-    if cli.obs_file:
-        cfg["obs_file"] = cli.obs_file
-    if cli.perturbations_file:
-        cfg["perturbations_file"] = cli.perturbations_file
-    # Progress bar on/off resolved once here (CLI --no-progress > config "progress" >
-    # TTY auto-detect) and carried in cfg so both engines read the same flag.
-    cfg["progress"] = resolve_progress(cfg, cli.no_progress)
-    # Parallelism cap: CLI --max-workers overrides the config key; both engines resolve the
-    # actual worker count (auto = min(cpu, members)) from cfg via functions.resolve_max_workers.
-    if cli.max_workers is not None:
-        cfg["max_workers"] = cli.max_workers
-    # Model selection: CLI -m wins, else the arg file's "model" field, else simstrat.
-    model = cli.model or cfg.get("model") or "simstrat"
-    run(cfg,
-        model=model,
-        skip_oda=cli.skip_oda,
-        force={"copy": cli.force_copy})
+    main()
