@@ -35,12 +35,12 @@ from assimilator.models          import get_model
 from assimilator.functions       import ROOT, resolve_src, load_json, load_obs, resolve_obs_path, merge_lake_args, resolve_progress, display_path
 from assimilator.algorithms.enkf import run_enkf
 from assimilator.algorithms.pf   import run_pf
-from assimilator.openda.adapter import run_openda
+from assimilator.openda.adapter import run_openda, plan_restart_cycles
 
 logger = logging.getLogger(__name__)
 
 
-def run(cfg, model="simstrat", skip_oda=False, force=None):
+def run(cfg, model="simstrat", skip_oda=False, force=None, max_cycles=None):
     """Run the pipeline: require model_inputs, then copy -> perturbate -> engine run.
     Step 2 skips when already done (unless --force-copy); step 3 perturbates and
     errors if perturbations/<lake>.json is missing (fit it offline beforehand).
@@ -97,6 +97,24 @@ def run(cfg, model="simstrat", skip_oda=False, force=None):
         if n:
             logger.info(f"      z_out.dat <- model + obs depth superset ({len(obs_depths)} obs depths; {n} files updated)")
 
+    # --- OpenDA restart chain: run every pending cycle (perturbate + OpenDA each) ---------
+    #   Each cycle continues from the last one saved; the same command resumes the chain.
+    if engine == "openda" and cfg.get("openda_restart"):
+        params = load_perturbations(ensemble_raw)
+        cycles = plan_restart_cycles(cfg, model_inputs, model, 1 if skip_oda else max_cycles)
+        if not cycles:
+            logger.info("=== nothing to do: no new observation time with forcing after the chain's end ===")
+            return
+        for i, (start, end) in enumerate(cycles, 1):
+            logger.info(f"=== OpenDA restart cycle {i}/{len(cycles)}: {start} -> {end} ===")
+            cycle_cfg = {**cfg, "start_date": start, "end_date": end}
+            logger.info(f"[3/5] perturbate Forcing.dat in ensemble1..{n_members}")
+            perturbator(cycle_cfg, params=params)
+            run_openda(cycle_cfg, cycle_cfg, ensemble_base, n_members, skip_oda,
+                       model_cfg=model_obj.run_config(), model_name=model)
+        logger.info("=== pipeline complete ===")
+        return
+
     # --- 3. perturbate forcings (always) ----------------------------------
     #   Source the AR(1) calibration from perturbations/<lake>.json. It must already
     #   exist (committed); fit it once with notebooks/generate_perturbation.py.
@@ -143,6 +161,8 @@ if __name__ == "__main__":
                         help="AR(1) calibration JSON, overriding the config's \"perturbations_file\" "
                              "(default: perturbations/<lake>.json)")
     parser.add_argument("--force-copy",       action="store_true", help="Re-run step 2 even if present")
+    parser.add_argument("--max-cycles", type=int, default=None,
+                        help="OpenDA restart chain only: run at most N pending cycles (default: all)")
     parser.add_argument("--no-progress", action="store_true",
                         help="Disable the progress bar (auto-disabled when stderr is not a TTY). "
                              "Per-step detail still goes to the log file either way")
@@ -191,4 +211,5 @@ if __name__ == "__main__":
     run(cfg,
         model=model,
         skip_oda=cli.skip_oda,
-        force={"copy": cli.force_copy})
+        force={"copy": cli.force_copy},
+        max_cycles=cli.max_cycles)
