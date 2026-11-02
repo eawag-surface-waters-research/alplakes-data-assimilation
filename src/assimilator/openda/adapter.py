@@ -75,11 +75,6 @@ REQUIRED = ["lake", "n_members", "ensemble_base"]
 # Black-box coupling files OpenDA owns — never overwrite these in the template.
 OPENDA_SPECIFIC = {"temperature_state.txt", "time_control.yaml", "timeSeriesFormatter.xml"}
 
-# An observation this soon after the run start is dropped: it becomes the end of OpenDA's very
-# first window, and too short a window leaves no model output rows to pair the observation
-# against. Two hours clears any plausible output interval.
-FIRST_WINDOW_MIN_MINUTES = 120
-
 # The only hand-maintained OpenDA pieces (everything else in openda_simstrat/ is
 # generated/synced). Copied into the working dir at adapt time so the working dir
 # stays fully reproducible from static/openda/.
@@ -148,16 +143,6 @@ def _build_observations(raw, openda_dir, model_inputs):
         obs = obs[obs["time"] > start]
     if end is not None:
         obs = obs[obs["time"] <= end]
-
-    # The run's very first window ends at its first observation; too short and OpenDA gets no
-    # model rows to pair against (see FIRST_WINDOW_MIN_MINUTES).
-    if start is not None:
-        too_early = obs["time"] < start + timedelta(minutes=FIRST_WINDOW_MIN_MINUTES)
-        if too_early.any():
-            logger.warning(f"[adapter] dropped {int(too_early.sum())} observation(s) taken less than "
-                           f"{FIRST_WINDOW_MIN_MINUTES / 60:g} h after the run start {start:%Y-%m-%d %H:%M} — "
-                           f"OpenDA's first window would be too short to produce model rows to pair against")
-            obs = obs[~too_early]
 
     min_days = raw.get("obs_min_days", 1)
     days     = obs.groupby("depth")["time"].agg(lambda t: t.dt.floor("D").nunique())
@@ -502,7 +487,8 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     model_json = os.path.join(openda_dir, "stochModel", "template", "model.json")
     with open(model_json, "w") as f:
         json.dump({"image": image, "container": container,
-                   "mount_base": mount_base, "binary": binary}, f)
+                   "mount_base": mount_base, "binary": binary,
+                   "obs_operator": cfg.get("obs_operator", "linear")}, f)
     logger.info(f"      wrote {os.path.relpath(model_json, openda_dir)} "
                 f"(image={image}, container={container})")
 

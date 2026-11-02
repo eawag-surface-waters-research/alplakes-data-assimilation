@@ -6,7 +6,9 @@
     propagates into the next model run)
 3. Injects the member's perturbed forcing (Forcing_N.dat)
 4. Runs Simstrat via Docker
-5. Extracts temperatures at the 15 observation depths from T_out.dat → writes T_1m.csv … T_40m.csv (the predictors OpenDA reads to compare against observations)
+5. Writes the model temperature at each observation depth at the END of the window, from the
+   end-of-window snapshot, with the native EnKF's observation operator -> T_<depth>m.csv (the
+   predictors OpenDA compares against the observation at that time). Any window length works.
 6. Writes back the updated full-grid temperature state to temperature_state.txt (so OpenDA can apply the next analysis correction)
 
 Differences from simstrat_wrapper.py:
@@ -48,8 +50,8 @@ _BIN_DIR    = os.path.dirname(os.path.abspath(__file__))
 _OPENDA_DIR = os.path.dirname(os.path.dirname(_BIN_DIR))
 _ROOT_DIR   = os.path.dirname(os.path.dirname(_OPENDA_DIR))   # run/openda_simstrat -> run -> repo root
 sys.path.insert(0, os.path.join(_ROOT_DIR, "src"))
-from assimilator.models.simstrat import (read_snapshot_T_at, write_snapshot_T_at,
-                                         read_t_out_tail, T_OUT_OFFSET_FILE)
+from assimilator.models.simstrat import read_snapshot_T_at, write_snapshot_T_at
+from assimilator.obs_operator import build_H, OBS_OPERATOR_DEFAULT
 
 # --- Shared persistent Simstrat container (PERF) ---------------------------
 # run_openda starts ONE long-lived sleeping container for the whole run (mounting openda_dir at
@@ -87,14 +89,6 @@ def read_time_control(yaml_file):
     return values[0], values[1], values[2]
 
 
-# read_t_out_tail + T_OUT_OFFSET_FILE now live in assimilator.models.simstrat (imported above),
-# shared with the native PF engine (load_T_window) so both engines read T_out.dat the same way.
-
-
-def find_depth_col(depths, target_depth):
-    return min(range(len(depths)), key=lambda i: abs(depths[i] - target_depth))
-
-
 def read_state_file(state_file):
     with open(state_file) as f:
         return [float(line.strip()) for line in f if line.strip()]
@@ -110,7 +104,7 @@ def write_timeseries_csv(filename, times, values):
     with open(filename, 'w') as f:
         f.write("time,value\n")
         for t, v in zip(times, values):
-            f.write("{:.4f},{:.6f}\n".format(t, v))
+            f.write("{:.8f},{:.6f}\n".format(t, v))   # the precision of the observation files
 
 
 # ---------------------------------------------------------------------------
@@ -235,43 +229,30 @@ if __name__ == '__main__':
     logger.info("Simstrat finished (exit %d)", result.returncode)
 
     # ------------------------------------------------------------------
-    # 6. Read T_out.dat and write predictor CSV files
+    # 6. Predictors: the model at each observation depth at the END of the window
     # ------------------------------------------------------------------
-    t_out_file = os.path.join(output_dir, 'T_out.dat')
-    # Tail read: only the rows Simstrat appended for THIS window are read (resuming from the byte
-    # offset stored next to T_out.dat), instead of re-parsing the whole growing file each step. The
-    # full cumulative T_out.dat is left intact for the summary/plots; only this per-step read and the
-    # predictor CSVs below see the current window. Window bounds passed as a safety net so a fallback
-    # full re-read (fresh run / reused instance dir) still yields just the current window. See step 1
-    # for start_day/end_day; the read is independent of the Simstrat output interval and window length.
-    _t_read = time.perf_counter()
-    offset_path = os.path.join(output_dir, T_OUT_OFFSET_FILE)
-    times, depths, T_rows = read_t_out_tail(t_out_file, offset_path,
-                                            window_start=start_day, window_end=end_day)
-    logger.info("[TAIL-READ] T_out.dat: %d new rows (window %.4f->%.4f), %.2f s",
-                len(times), start_day, end_day, time.perf_counter() - _t_read)
+    # OpenDA analyses at observation times and each window ends at one, so the model equivalent is
+    # the end-of-window state -- as in the native EnKF, with the same observation operator. Read
+    # from the snapshot, not T_out.dat: a window shorter than the output interval has no T_out row,
+    # but always has an end state.
+    T_end, z_vol, lake_level = read_snapshot_T_at(snapshot_path, args.config)
 
     # Depths to extract come from the generated obs_depths.json (single source of
-    # truth shared with the model config + formatters); fall back to the legacy set.
-    _depths_file = os.path.join(_OPENDA_DIR, "stochModel", "template", "obs_depths.json")
-    try:
-        with open(_depths_file) as f:
-            obs_depths = json.load(f)
-    except FileNotFoundError:
-        obs_depths = [1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0, 19.0, 21.0, 25.0, 30.0, 35.0, 40.0]
-    obs_specs = [(f"T_{d:g}m.csv", -d) for d in obs_depths]
-    for csv_name, target_depth in obs_specs:
-        col = find_depth_col(depths, target_depth)
-        values = [row[col] for row in T_rows]
-        write_timeseries_csv(csv_name, times, values)
-        logger.info("Written %s (%d timesteps, depth %.1f m)", csv_name, len(times), target_depth)
+    # truth shared with the model config + formatters).
+    with open(os.path.join(_OPENDA_DIR, "stochModel", "template", "obs_depths.json")) as f:
+        obs_depths = json.load(f)
+    operator = _model_cfg.get("obs_operator", OBS_OPERATOR_DEFAULT)
+    H = build_H(z_vol, lake_level, [-d for d in obs_depths], operator=operator)
+    for d, value in zip(obs_depths, H @ np.asarray(T_end, dtype=float)):
+        write_timeseries_csv(f"T_{d:g}m.csv", [end_day], [value])
+    logger.info("Wrote %d predictors at day %.8f (%s operator, end-of-window state)",
+                len(obs_depths), end_day, operator)
 
     # ------------------------------------------------------------------
     # 7. Update temperature state: full grid from snapshot (no interpolation)
     # ------------------------------------------------------------------
-    new_T = list(read_snapshot_T_at(snapshot_path, args.config)[0])
-    write_state_file(state_file, new_T)
-    logger.info("temperature_state.txt updated (%d cells) from snapshot", len(new_T))
+    write_state_file(state_file, list(T_end))
+    logger.info("temperature_state.txt updated (%d cells) from snapshot", len(T_end))
 
     elapsed = time.perf_counter() - _t0
     instance_label = os.path.basename(os.path.abspath(os.getcwd()))

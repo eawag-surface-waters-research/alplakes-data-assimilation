@@ -84,3 +84,25 @@ def test_run_reports_the_time_of_its_final_state(tmp_path):
     finally:
         MODELS.pop("toy", None)
     assert result["analysis_time"] == datetime(2024, 6, 3, tzinfo=UTC)
+
+
+def test_openda_keeps_an_observation_one_hour_after_the_start(tmp_path):
+    """No first-window guard: the wrapper takes the model value from the end-of-window state, so a
+    window shorter than the model's output interval still pairs (e.g. a 01 UTC lake whose run
+    starts at 00:00)."""
+    _write_obs(tmp_path / "obs.csv", [("2025-01-10 01:00", 1.0, 5.0)])
+    os.makedirs(tmp_path / "inputs")
+    raw = {"lake": "x", "obs_file": str(tmp_path / "obs.csv"), "start_date": "2025-01-10",
+           "end_date": "2025-01-11"}
+    _, n_analysis, _ = _build_observations(raw, str(tmp_path / "oda"), str(tmp_path / "inputs"))
+    assert n_analysis == 1
+
+
+def test_openda_wrapper_imports_stay_light():
+    """The OpenDA wrapper runs once per member per analysis: what it imports must not pull pandas."""
+    import subprocess
+    import sys
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+    code = ("import sys; sys.path.insert(0, %r); import assimilator.models.simstrat, assimilator.obs_operator; "
+            "print('pandas' in sys.modules)" % src)
+    assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout.strip() == "False"
