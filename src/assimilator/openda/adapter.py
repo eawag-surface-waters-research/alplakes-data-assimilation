@@ -19,9 +19,9 @@ Syncs:
       -> openda_simstrat/stochModel/template/Results/simulation-snapshot.dat   (the warmup OpenDA reads)
 
 Builds (formerly prepare_real_obs.py):
-  observations/<lake>/temperature.csv  (raw 10-min profile observations; override with "obs_file")
-      -> openda_simstrat/stochObserver/T_{depth}m_real.csv                     (one reading/day nearest noon UTC,
-                                                                                time in fractional Simstrat days)
+  the run's "obs_file" (time, depth, value)
+      -> openda_simstrat/stochObserver/T_{depth}m_real.csv                     (every observation at its own
+                                                                                hour, time in fractional Simstrat days)
 
 OpenDA-specific coupling files in the template are NEVER overwritten:
   temperature_state.txt, time_control.yaml, timeSeriesFormatter.xml.
@@ -40,15 +40,13 @@ Usage:  python src/assimilator/openda/adapter.py args/run_openda.json
 
 import os
 import sys
-import csv
 import glob
 import json
 import shutil
 import logging
 import re
 import argparse
-from collections import defaultdict
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timedelta
 
 # this file lives at src/assimilator/openda/adapter.py
 SRC_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # src/
@@ -58,7 +56,7 @@ sys.path.insert(0, SRC_DIR)
 import time
 import subprocess
 
-from assimilator.functions import (verify_args, resolve_obs_path,
+from assimilator.functions import (verify_args, resolve_obs_path, load_obs, to_utc, SEASONS,
                                    make_progress, log_run_header, log_run_footer,
                                    resolve_max_workers, display_path,
                                    start_persistent_container, stop_persistent_container,
@@ -67,7 +65,7 @@ from assimilator.functions import (verify_args, resolve_obs_path,
 from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
 from assimilator.summarize import report_summary
 from assimilator.models import get_model
-from .config import (FILTERS, render as render_oda, series_specs,
+from .config import (FILTERS, render as render_oda, series_specs, simstrat_time, format_day,
                      is_season_keyed as is_season_keyed_series)
 
 logger = logging.getLogger(__name__)
@@ -77,15 +75,9 @@ REQUIRED = ["lake", "n_members", "ensemble_base"]
 # Black-box coupling files OpenDA owns — never overwrite these in the template.
 OPENDA_SPECIFIC = {"temperature_state.txt", "time_control.yaml", "timeSeriesFormatter.xml"}
 
-# Observations: for a SUB-DAILY series, each day keeps the single reading nearest this UTC hour
-# (the noon snapshot). A series already thinned to one reading a day is used at its own times
-# instead -- see _is_thinned. Override the hour with "obs_target_hour" in the run config.
-OBS_TARGET_HOUR = 12
-
 # An observation this soon after the run start is dropped: it becomes the end of OpenDA's very
 # first window, and too short a window leaves no model output rows to pair the observation
-# against. Costs one analysis out of ~365 (first window); two hours clears any plausible output interval.
-# Only reachable since observations are stamped at their own time -- a fixed noon never was.
+# against. Two hours clears any plausible output interval.
 FIRST_WINDOW_MIN_MINUTES = 120
 
 # The only hand-maintained OpenDA pieces (everything else in openda_simstrat/ is
@@ -110,41 +102,6 @@ def _copy_path(src, dst):
         shutil.copy2(src, dst)
 
 
-def _simstrat_day_at(day_str, ref_date, hour=OBS_TARGET_HOUR):
-    """Fractional Simstrat day at `hour` UTC for a YYYY-MM-DD string (noon -> day + 0.5).
-
-    Kept EXACT, not rounded: the observation time becomes the window end Simstrat integrates to."""
-    return (date.fromisoformat(day_str) - ref_date).days + hour / 24.0
-
-
-def _utc_minutes_since_midnight(iso_str):
-    # Drop sub-second precision before parsing. Whole seconds is all this needs.
-    dt = datetime.fromisoformat(re.sub(r"\.\d+", "", iso_str))
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc)
-    return dt.hour * 60 + dt.minute + dt.second / 60.0
-
-
-def _is_thinned(obs_csv):
-    """True when the file already carries at most one reading per (depth, day).
-
-    That is the case where the target-hour bin has nothing to choose BETWEEN: every row is already
-    the day's single observation, so it is assimilated at ITS OWN timestamp rather than matched
-    against a fixed hour. This is what makes a series whose sampling hour drifts work, and a lake 
-    sampling 00-06Z would match a noon it never samples. It is also what the native engine does: 
-    load_obs keeps every reading at its own hour."""
-    seen = set()
-    with open(obs_csv, newline="") as f:
-        for row in csv.DictReader(f):
-            if not row.get("value"):
-                continue
-            key = (row["depth"], row["time"][:10])
-            if key in seen:
-                return False
-            seen.add(key)
-    return True
-
-
 def _model_output_depths(inputs_dir):
     """Depths (positive metres) the model outputs, read from <inputs_dir>/z_out.dat. Reads the
     canonical source (model_inputs) rather than the template copy. Returns [] if absent (no
@@ -162,73 +119,49 @@ def _model_output_depths(inputs_dir):
     return depths
 
 
+
 def _build_observations(raw, openda_dir, model_inputs):
-    """Build the OpenDA stochObserver obs files from the raw profile CSV.
+    """Build the OpenDA stochObserver obs files from the observation CSV.
+
+    Every observation is assimilated at its own time, binned to the hour exactly as the native
+    engines do (functions.load_obs), so the two engines see the same observations at the same
+    times, whatever the interval between them -- one a day, several a day, or irregular with gaps.
+    Only observations in (start_date, end_date] are kept, the native window rule
+    (functions.obs_window_boundaries): one at start_date was the previous run's last analysis.
 
     Writes stochObserver/T_{depth}m[_{season}]_real.csv, time in fractional Simstrat days since
-    1 Jan SIMSTRAT_REF_YEAR. WHEN an observation is taken depends on the series:
-
-      already one reading per (depth, day)  -> that reading, at ITS OWN time (_is_thinned)
-      sub-daily                             -> the mean of the centered target-hour bin, at that
-                                               hour ([11:30, 12:30) by default; "obs_target_hour")
-
-    Both mirror functions.load_obs's centered hourly bin, so OpenDA and the native engines
-    assimilate identical obs -- and OpenDA analyses at exactly these times, since its
-    analysisTimes is "fromObservationTimes", the same rule as the native window_mode="obs".
-
-    Depths are auto-detected from the CSV, dropped if they have fewer than `obs_min_days` days or
-    no matching model-output depth (model_inputs/z_out.dat), and returned sorted for the config
-    generator to wire everywhere.
+    1 Jan SIMSTRAT_REF_YEAR. OpenDA analyses at exactly these times (analysisTimes
+    "fromObservationTimes"). Depths are dropped if they have data on fewer than `obs_min_days`
+    days or no matching model-output depth (model_inputs/z_out.dat), and returned sorted for the
+    config generator to wire everywhere.
     """
-    lake      = raw["lake"]
     stoch_dir = os.path.join(openda_dir, "stochObserver")
     obs_csv   = resolve_obs_path(raw)
     if not os.path.isfile(obs_csv):
         raise FileNotFoundError(
             f"observation source not found: {obs_csv} (set 'obs_file')")
 
-    ref_date     = date(SIMSTRAT_REF_YEAR, 1, 1)
-    start = date.fromisoformat(raw["start_date"][:10]) if raw.get("start_date") else None
-    end   = date.fromisoformat(raw["end_date"][:10])   if raw.get("end_date")   else None
+    obs   = load_obs(obs_csv).dropna(subset=["value"])
+    start = to_utc(raw["start_date"]) if raw.get("start_date") else None
+    end   = to_utc(raw["end_date"])   if raw.get("end_date")   else None
+    if start is not None:
+        obs = obs[obs["time"] > start]
+    if end is not None:
+        obs = obs[obs["time"] <= end]
+
+    # The run's very first window ends at its first observation; too short and OpenDA gets no
+    # model rows to pair against (see FIRST_WINDOW_MIN_MINUTES).
+    if start is not None:
+        too_early = obs["time"] < start + timedelta(minutes=FIRST_WINDOW_MIN_MINUTES)
+        if too_early.any():
+            logger.warning(f"[adapter] dropped {int(too_early.sum())} observation(s) taken less than "
+                           f"{FIRST_WINDOW_MIN_MINUTES / 60:g} h after the run start {start:%Y-%m-%d %H:%M} — "
+                           f"OpenDA's first window would be too short to produce model rows to pair against")
+            obs = obs[~too_early]
+
     min_days = raw.get("obs_min_days", 1)
-    # An explicit "obs_target_hour" always wins: it is the escape hatch for a series the one-per-day test reads wrongly.
-    thinned        = raw.get("obs_target_hour") is None and _is_thinned(obs_csv)
-    target_hour    = int(raw.get("obs_target_hour", OBS_TARGET_HOUR))
-    target_minutes = target_hour * 60
-
-    # acc[depth][day_str] = [sum, count, minutes] — `minutes` is when the observation is assimilated
-    # (its own time when thinned, else the target hour). Mirrors functions.load_obs's centered
-    # hourly bin. (A day with no sample in that bin emits no obs, like load_obs's empty bin.)
-    acc = defaultdict(lambda: defaultdict(lambda: [0.0, 0, 0.0]))
-    too_early = 0
-    with open(obs_csv, newline="") as f:
-        for row in csv.DictReader(f):
-            if not row.get("value"):
-                continue
-            day_str = row["time"][:10]
-            day = date.fromisoformat(day_str)
-            if (start and day < start) or (end and day > end):
-                continue
-            minutes = _utc_minutes_since_midnight(row["time"])
-            if not thinned and not (target_minutes - 30 <= minutes < target_minutes + 30):
-                continue
-            # The run's very first window ends at this observation; too short and OpenDA gets no
-            # model rows to pair against (see FIRST_WINDOW_MIN_MINUTES).
-            if start and day == start and minutes < FIRST_WINDOW_MIN_MINUTES:
-                too_early += 1
-                continue
-            depth = float(row["depth"])
-            cell = acc[depth][day_str]
-            cell[0] += float(row["value"])
-            cell[1] += 1
-            cell[2] = minutes if thinned else target_minutes
-
-    if too_early:
-        logger.warning(f"[adapter] dropped {too_early} observation(s) on {start} taken less than "
-                       f"{FIRST_WINDOW_MIN_MINUTES / 60:g} h after the run start — OpenDA's first "
-                       f"window would be too short to produce model rows to pair against")
-
-    depths = sorted(d for d in acc if len(acc[d]) >= min_days)
+    days     = obs.groupby("depth")["time"].agg(lambda t: t.dt.floor("D").nunique())
+    depths   = sorted(float(d) for d, n in days.items() if n >= min_days)
 
     # Keep only depths the model actually outputs (z_out.dat): an obs depth with no
     # matching model output depth can't be assimilated, since there is no model prediction to compare it against.
@@ -240,47 +173,40 @@ def _build_observations(raw, openda_dir, model_inputs):
             logger.warning(f"[adapter] dropping obs depths with no matching model output depth (z_out.dat): "
                            f"{[f'{d:g}' for d in dropped]} m")
         depths = matched
+    obs = obs[obs["depth"].isin(depths)]
 
     # One file per SERIES, and the series set is decided by config.series_specs -- season-split
     # when sigma is season-keyed, else one per depth. The two must agree or OpenDA opens a
     # timeSeries file that does not exist and dies with no member output.
     season_split = bool(raw.get("_season_series"))
-    window = f"{start or 'start'}..{end or 'end'}"
-    when   = "at their own times (already thinned)" if thinned else f"hour {target_hour:02d}Z"
+    window = f"{raw.get('start_date') or 'start'}..{raw.get('end_date') or 'end'}"
     logger.info(f"[adapter] observations: {display_path(obs_csv)} -> "
                 f"stochObserver/T_*_real.csv  ({len(depths)} depths {[f'{d:g}' for d in depths]}, "
-                f"window {window}, {when}"
+                f"{obs['time'].nunique()} observation times in {window}, each at its own hour"
                 f"{', season-split' if season_split else ''})")
     os.makedirs(stoch_dir, exist_ok=True)
 
     series_keys = []            # [(depth, season)] when split, else [(depth, None)] -- what the
     for depth in depths:        # config declares, taken from what is actually on disk.
-        records = acc[depth]
-        # {season: [day_str]} -- one bucket unless split, and then the buckets partition the days,
-        # so no observation is dropped or written twice.
-        buckets = defaultdict(list)
-        for day_str in sorted(records):
-            buckets[season_of(date.fromisoformat(day_str).month) if season_split else None
-                    ].append(day_str)
-        for season, days in buckets.items():
-            suffix = f"_{season}" if season else ""
+        rows = obs[obs["depth"] == depth].sort_values("time")
+        season = rows["time"].dt.month.map(season_of) if season_split else None
+        # The seasons partition the observations, so none is dropped or written twice.
+        for s in (SEASONS if season_split else [None]):
+            part = rows[season == s] if season_split else rows
+            if part.empty:
+                continue
+            suffix   = f"_{s}" if s else ""
             out_path = os.path.join(stoch_dir, f"T_{depth:g}m{suffix}_real.csv")
             with open(out_path, "w", newline="") as f:
                 f.write("time,value\n")
-                for day_str in days:
-                    s, c, minutes = records[day_str]
-                    f.write(f"{_simstrat_day_at(day_str, ref_date, minutes / 60.0):.6f},"
-                            f"{s / c:.6f}\n")
-            series_keys.append((depth, season))
+                for t, v in zip(part["time"], part["value"]):
+                    f.write(f"{format_day(simstrat_time(t))},{v:.6f}\n")
+            series_keys.append((depth, s))
     logger.info(f"  wrote {len(series_keys)} series files -> {display_path(stoch_dir)}")
 
-    # Distinct analysis (noon-obs) times across the kept depths = how many forecast/analysis
-    # steps OpenDA will run. Drives the progress-bar total so the bar tracks the real step count
-    # for ANY cadence (daily, sub-daily, or sparse obs), not just calendar days.
-    analysis_days = set()
-    for d in depths:
-        analysis_days.update(acc[d])
-    return depths, len(analysis_days), series_keys
+    # Distinct analysis times = how many forecast/analysis steps OpenDA will run. Drives the
+    # progress-bar total, so the bar tracks the real step count for any cadence.
+    return depths, int(obs["time"].nunique()), series_keys
 
 
 def adapt(raw):
@@ -368,7 +294,7 @@ def adapt(raw):
 
     # ------------------------------------------------------------------
     # 4. Observations: observations/<lake>/temperature.csv -> stochObserver/T_{depth}m_real.csv
-    #    (noon-snapshot per depth; formerly prepare_real_obs.py).  Returns the
+    #    (every observation at its own hour, as the native engines).  Returns the
     #    auto-detected depth list for the config generator to wire everywhere.
     # ------------------------------------------------------------------
     obs_depths, n_analysis, series_keys = _build_observations(raw, openda_dir, model_inputs)
@@ -634,7 +560,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     logger.info(f"      {oda_exe} {oda_file}  (cwd={display_path(openda_dir)})")
     # Progress bar driven by tailing the logfile (see _launch_oda_with_progress). Same on/off flag
     # as the native engines (cfg["progress"], resolved in main.py). total = number of analysis
-    # (noon-obs) times from the adapter, so the bar tracks the real step count for any cadence; the
+    # times from the adapter, so the bar tracks the real step count for any cadence; the
     # ±1 spin-up/boundary forecast is absorbed by tqdm's overflow tolerance (never asserted exact).
     progress = cfg.get("progress", False)
     total    = max(1, n_analysis)

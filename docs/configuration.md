@@ -37,7 +37,7 @@ result = assimilator.run(cfg)          # cfg: the same keys as the JSON
 | `lake` | Run label: used in output file names and the Docker container name. |
 | `algorithm` | Native: `"EnKF"` or `"PF"`. OpenDA: `"EnKF"`, `"DEnKF"`, `"EnSR"` or `"PF"`. The native `"PF"` is best-member selection, not a Bayesian particle filter ([Workblog](workblog.md) App. A.3). |
 | `n_members` | Ensemble size, at least 2. The members are `ensemble1..N`. `ensemble0` is an unperturbed copy of the model inputs that the engines do not run. |
-| `start_date`, `end_date` | Run window, ISO dates, read as UTC. `start_date` must be the date of the warm-start snapshot. |
+| `start_date`, `end_date` | Run window, ISO instants read as UTC (a plain date is its 00:00). Both engines, native and OpenDA, assimilate the observations in (`start_date`, `end_date`], each at its own hour, and the members' final state is at `end_date`. `start_date` must be the time of the warm-start snapshot. |
 | `model_inputs_path` | The model setup with its dated warm start. **Only read**: everything the run writes goes under `ensemble_base`. |
 | `ensemble_base` | Output folder: the members `ensemble0..N`, the perturbation chain state, the mean trajectory, the summary and the logs. |
 | `obs_file` | Observation CSV with `time`, `depth`, `value` columns: the series to assimilate (see `assimilator.observations` for how to make it). |
@@ -67,7 +67,6 @@ result = assimilator.run(cfg)          # cfg: the same keys as the JSON
 |---|---|---|
 | `sigma_obs` | `sigma_default` | Observation error in °C: a number, or `{"mixed": .., "stratified": ..}` with stratified = May to October. Fitted with `assimilator.fitting.sigma` (`python src/assimilate.py fit sigma`); it is only valid for the `obs_file` it was fitted on ([Workblog](workblog.md) §5.4 to §5.5). |
 | `sigma_default` | `0.5` | Fallback when `sigma_obs` is not set. The log says when it is used. |
-| `obs_target_hour` | `12` | OpenDA only. Hour (UTC) at which OpenDA picks the daily observation. When it is not set and the file already holds at most one reading per depth and day, each reading is assimilated at its own time instead. |
 | `obs_min_days` | `1` | OpenDA only. Drops depths with fewer days of data than this. |
 
 ## Forcing perturbation

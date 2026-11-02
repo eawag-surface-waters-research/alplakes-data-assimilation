@@ -31,6 +31,8 @@ def run(cfg, force_copy=False, skip_oda=False):
         mean_trajectory   the ensemble-mean trajectory file
         output_grid       the model-inputs output grid extended by the observation depths, or
                           None (written under ensemble_base; copy it into your own setup if wanted)
+        analysis_time     the instant the members' final state is at (end_date, tz-aware UTC):
+                          observations in (start_date, end_date] were assimilated
         cfg               the resolved run config
     """
     cfg       = build_config(cfg)
@@ -97,7 +99,10 @@ def run(cfg, force_copy=False, skip_oda=False):
         mean_path = model.mean_traj_path(cfg["openda_dir"], cfg["algorithm"])
 
     logger.info("=== pipeline complete ===")
-    return {"ensemble_base": ensemble_base, "mean_trajectory": mean_path, "output_grid": output_grid, "cfg": cfg}
+    end = pd.Timestamp(cfg["end_date"])
+    analysis_time = (end.tz_localize("UTC") if end.tzinfo is None else end.tz_convert("UTC")).to_pydatetime()
+    return {"ensemble_base": ensemble_base, "mean_trajectory": mean_path, "output_grid": output_grid,
+            "analysis_time": analysis_time, "cfg": cfg}
 
 
 def analysis_mean_state(cfg, out_path):
