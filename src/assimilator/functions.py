@@ -39,16 +39,6 @@ def display_path(path):
 #   fall back to their per-step logger.info lines. One resolver keeps the on/off
 #   rule in one place (precedence: CLI --no-progress > config "progress" > isatty).
 
-def resolve_progress(cfg, no_progress_flag=False):
-    """Decide whether to show the progress bar. CLI --no-progress wins; else an
-    explicit "progress" config key; else auto-detect (on only with a real TTY)."""
-    if no_progress_flag:
-        return False
-    if "progress" in cfg:
-        return bool(cfg["progress"])
-    return sys.stderr.isatty()
-
-
 class _NullBar:
     def update(self, *a, **k): pass
     def set_postfix_str(self, *a, **k): pass
@@ -142,8 +132,6 @@ def log_run_header(cfg):
     knobs = [f"sigma_obs={cfg.get('sigma_obs')}"]
     if engine == "python" and cfg.get("inflation") is not None:
         knobs.append(f"inflation={cfg.get('inflation')}")
-    if engine == "python":
-        knobs.append(f"window_mode={cfg.get('window_mode', 'obs')}")
     knobs += [f"sigma_scale={cfg.get('sigma_scale', 1.0)}", f"rng_seed={cfg.get('rng_seed', 42)}"]
     logger.info("      " + "  ".join(knobs))
     logger.info(f"      obs={display_path(resolve_obs_path(cfg))}")
@@ -168,26 +156,6 @@ def log_run_footer(cfg, skill, steps, updates, elapsed_s, out_path=None):
 # ---------------------------------------------------------------------------
 # General helpers
 # ---------------------------------------------------------------------------
-def verify_args(args, required):
-    for key in required:
-        if key not in args:
-            raise ValueError(f"Required argument '{key}' missing from args file.")
-
-
-def verify_file(path):
-    if os.path.isfile(path):
-        return os.path.abspath(path)
-    raise ValueError(f"File not found: {os.path.abspath(path)}")
-
-
-def discover_n_members(ensemble_base):
-    return len([
-        d for d in os.listdir(ensemble_base)
-        if d.startswith("ensemble") and d != "ensemble0"
-        and os.path.isdir(os.path.join(ensemble_base, d))
-    ])
-
-
 # ---------------------------------------------------------------------------
 # Observations (model-agnostic: read the obs CSV, map depths, filter to model grid)
 # ---------------------------------------------------------------------------
@@ -236,7 +204,7 @@ def resolve_obs_path(cfg):
 
 
 def obs_window_boundaries(obs_df, start_date, end_date):
-    """Assimilation-window boundaries for obs-driven stepping (window_mode="obs"): every distinct
+    """Assimilation-window boundaries: every distinct
     observation time in (start_date, end_date], plus end_date as the final boundary so the model is
     always advanced to the end of the run window (the tail window has no obs, hence no update).
 
@@ -346,14 +314,6 @@ def season_of(month):
 def _is_season_keyed(spec):
     """True for {"mixed": .., "stratified": ..}, so a plain scalar config is recognised unchanged."""
     return isinstance(spec, dict) and bool(spec) and set(spec) <= set(SEASONS)
-
-
-def has_season_keyed_sigma_obs(cfg):
-    """Whether the sigma_obs this run resolves to carries a season axis.
-
-    Structural, NOT np.ndim: np.ndim({...}) is 0, so a dict takes the scalar branch and silently
-    reads as annual -- and np.full(n, dict) then builds an object array enkf_update cannot square."""
-    return _is_season_keyed(sigma_obs_spec(cfg))
 
 
 # The fallback when a run names no sigma_obs of its own. A separate key rather than a default for

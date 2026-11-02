@@ -110,7 +110,6 @@ example).
 | `inflation` | Variance inflation (native EnKF only); `1.0` = off |
 | `sigma_scale` | Scales forcing-perturbation strength to widen spread (`1.0` = none) |
 | `rng_seed` | Seed for reproducible runs (drives the forcing AND the EnKF obs perturbations) |
-| `window_mode` | Native engines: `obs` (default — one window per observation time, like OpenDA) or `daily` (legacy) |
 
 Every key: [docs/configuration.md](docs/configuration.md). Step by step: [docs/tutorial.md](docs/tutorial.md).
 
@@ -125,8 +124,8 @@ period:
   run, so a draw for a given instant is identical however the period is chunked.
 - The AR(1) forcing-perturbation chain persists its state per member/variable in
   `<ensemble_base>/perturbation_state.json` and resumes it on the next invocation.
-- With `window_mode: "obs"` the assimilation instants are the observation times themselves,
-  independent of how the period is split.
+- The assimilation instants are the observation times themselves, independent of how the
+  period is split.
 
 The chain cold-starts (first forcing row unperturbed) on a fresh run dir, on `"reset": true`,
 or when the perturbation parameters (`rng_seed`, `sigma_scale`, `n_members`, phi/sigma) change.

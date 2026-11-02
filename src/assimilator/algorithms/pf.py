@@ -1,37 +1,28 @@
+"""The native "particle filter": best-member selection over one window per observation time.
+
+Not a Bayesian particle filter: there are no weights or proportional resampling. After each window
+the lowest-RMSE member is copied onto all others, collapsing the spread, which the next window's
+forcing perturbation rebuilds. Kept as a simple, deliberate scheme.
+"""
 import os
 import time
+import logging
 import concurrent.futures
 import numpy as np
-from datetime import timedelta
-
-import logging
 
 from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
-                         verify_args, build_python_run_args, make_progress, log_obs_summary,
+                         build_python_run_args, make_progress, log_obs_summary,
                          log_run_header, log_run_footer)
 from ..summarize import report_summary
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_RUN = ["algorithm", "results_dir", "par_file"]
-
-# ---------------------------------------------------------------------------
-# The Python Particle Filter (a simple "best member, resample-to-all" scheme), run as a window
-# loop. Windows are bounded by the observation times by default (window_mode="obs", matching
-# the EnKF and OpenDA's fromObservationTimes); window_mode="daily" keeps the legacy fixed
-# noon-to-noon daily stepping.
-# ---------------------------------------------------------------------------
-# Note: this is NOT a real Bayesian particle filter. There are no importance weights, no
-# likelihood, and no resampling proportional to fit -- copy_best_to_all() just clones the single
-# lowest-RMSE member onto every other member each update day, collapsing ensemble spread to zero
-# (only the next day's per-member forcing perturbation re-diversifies). We call this
-# "PF", which oversells it because it is a "best-member selection". Intentional and might be changed.
 
 def compute_depth_weights(obs_df, model):
+    """Each observed depth weighted by the thickness of water it represents."""
     depths = np.sort(obs_df["depth"].unique()).astype(float)
-    n = len(depths)
-    w = np.empty(n)
-    if n == 1:
+    w = np.empty(len(depths))
+    if len(depths) == 1:
         w[0] = 1.0
     else:
         w[0]    = (depths[1]  - depths[0])  / 2
@@ -40,46 +31,29 @@ def compute_depth_weights(obs_df, model):
     return {model.obs_to_sim_col(d): float(wt) for d, wt in zip(depths, w)}
 
 
-def _obs_in_window(obs_df, window_start, window_end, closed):
-    """Obs inside one window. closed="right" -> (start, end]: used in window_mode="obs", where
-    the window's obs sits exactly on window_end (the assimilation instant), mirroring the EnKF's
-    window convention. closed="left" -> [start, end): the legacy daily-window convention."""
-    if closed == "right":
-        return obs_df[(obs_df["time"] > window_start) & (obs_df["time"] <= window_end)]
-    return obs_df[(obs_df["time"] >= window_start) & (obs_df["time"] < window_end)]
-
-
-def rmse_in_window(sim_df, obs_df, window_start, window_end, depth_weights, model, closed="left"):
-    obs_win = _obs_in_window(obs_df, window_start, window_end, closed)
-    n_obs_raw = len(obs_win)
+def rmse_in_window(sim_df, obs_df, window_start, window_end, depth_weights, model):
+    """Depth-weighted RMSE of one member against the observations in (window_start, window_end].
+    Returns (rmse, observations in the window, observations matched to an output row)."""
+    obs_win = obs_df[(obs_df["time"] > window_start) & (obs_df["time"] <= window_end)]
     if obs_win.empty:
         return np.nan, 0, 0
 
-    obs_win = obs_win.copy()
-    obs_win["sim_col"] = obs_win["depth"].map(model.obs_to_sim_col)
-
+    obs_win = obs_win.assign(sim_col=obs_win["depth"].map(model.obs_to_sim_col))
     obs_pivot    = obs_win.pivot_table(index="time", columns="sim_col", values="value", aggfunc="mean")
     common_times = sim_df.index.intersection(obs_pivot.index)
     if len(common_times) == 0:
-        return np.nan, n_obs_raw, 0
+        return np.nan, len(obs_win), 0
 
     common_cols = [c for c in obs_pivot.columns if c in sim_df.columns]
     sim_vals = sim_df.loc[common_times, common_cols].values
     obs_vals = obs_pivot.loc[common_times, common_cols].values
     mask     = ~np.isnan(obs_vals)
-
-    col_w   = np.array([depth_weights.get(c, 1.0) for c in common_cols])
-    w_mat   = np.where(mask, col_w[np.newaxis, :], 0.0)
-    sq_err  = np.where(mask, (sim_vals - obs_vals) ** 2, 0.0)
-    total_w = w_mat.sum()
-    rmse    = np.sqrt((sq_err * w_mat).sum() / total_w) if total_w > 0 else np.nan
-
-    return rmse, n_obs_raw, int(mask.sum())
-
-
-# "resample" step -- clones best member's snapshot onto all others. Intentional.
-def copy_best_to_all(best_id, member_ids, args, model):
-    model.copy_member_state(best_id, member_ids, args)
+    col_w    = np.array([depth_weights.get(c, 1.0) for c in common_cols])
+    w_mat    = np.where(mask, col_w[np.newaxis, :], 0.0)
+    sq_err   = np.where(mask, (sim_vals - obs_vals) ** 2, 0.0)
+    total_w  = w_mat.sum()
+    rmse     = np.sqrt((sq_err * w_mat).sum() / total_w) if total_w > 0 else np.nan
+    return rmse, len(obs_win), int(mask.sum())
 
 
 def run_pf_loop(args, model):
@@ -93,145 +67,75 @@ def run_pf_loop(args, model):
             os.remove(args["mean_traj_path"])
         logger.info(f"Reset: cleared {args['results_dir']}/ snapshots and trajectory files.")
 
-    obs           = load_obs(args["obs_path"])
-    obs           = filter_obs_to_model_depths(obs, model.model_output_depths(args["ensemble_base"]))
+    obs = load_obs(args["obs_path"])
+    obs = filter_obs_to_model_depths(obs, model.model_output_depths(args["ensemble_base"]))
     log_obs_summary(obs, args["obs_path"])
     depth_weights = compute_depth_weights(obs, model)
-    start_date    = args["start_date"]
-    end_date      = args["end_date"]
-
     logger.info(f"Depth weights: { {d: round(w, 2) for d, w in depth_weights.items()} }")
+    start_date, end_date = args["start_date"], args["end_date"]
 
-    window_mode = args.get("window_mode", "obs")
-    if window_mode not in ("obs", "daily"):
-        raise ValueError(f"unknown window_mode '{window_mode}'; choose 'obs' or 'daily'")
-
-    if window_mode == "obs":
-        # Windows bounded by the observation times (+ a tail window to end_date with no obs,
-        # hence no best-copy), like the EnKF and OpenDA's fromObservationTimes. Chunk-invariant:
-        # the window boundaries depend only on the observations, not on how the period is split
-        # across pipeline invocations. Scoring uses (start, end] so the boundary obs belongs to
-        # the window that ends on it.
-        current    = start_date
-        boundaries = obs_window_boundaries(obs, start_date, end_date)
-        closed     = "right"
-        logger.info(f"Obs-driven PF: {start_date.date()} → {end_date.date()} "
-                    f"({len(boundaries)} windows — one per obs time + tail, {len(member_ids)} members)")
-    else:
-        # Legacy fixed daily stepping. Noon-anchor the daily windows so PF scores noon-to-noon,
-        # matching the daily EnKF (whose default window_end lands on noon) instead of the
-        # midnight-to-midnight a plain-date start_date would give. start_date stays a plain date
-        # (shared with EnKF and the OpenDA renderer); the shift is applied locally here.
-        noon    = start_date.replace(hour=12, minute=0, second=0, microsecond=0)
-        current = noon if noon >= start_date else noon + timedelta(days=1)
-        logger.info(f"Noon-anchored windows: first window {current.isoformat()} → {(current + timedelta(days=1)).isoformat()}")
-        boundaries = []
-        b = current
-        while b < end_date:
-            b = min(b + timedelta(days=1), end_date)
-            boundaries.append(b)
-        closed = "left"
-        logger.info(f"Daily PF: {start_date.date()} → {end_date.date()} "
-                    f"({len(boundaries)} days, {len(member_ids)} members)")
+    boundaries = obs_window_boundaries(obs, start_date, end_date)
+    logger.info(f"PF: {start_date.date()} → {end_date.date()} ({len(boundaries)} windows, "
+                f"{len(member_ids)} members)")
 
     model.start_containers(args, max_workers=max_workers)
     try:
-        windows_run    = 0
         windows_copied = 0
-
-        # One progress bar per run instead of a log line per window (see enkf.py).
-        # Disabled for server runs via args["progress"]; when off the per-window
-        # logger.info lines below still fire.
         progress = args.get("progress", False)
         bar      = make_progress(max(1, len(boundaries)), progress, desc=f"PF {args['lake']}")
-
+        current  = start_date
         for window_end in boundaries:
-            t_day = time.perf_counter()
+            t0 = time.perf_counter()
+            failed = model.run_window(current, window_end, args, max_workers=max_workers)
 
-            t0          = time.perf_counter()
-            failed      = model.run_window(current, window_end, args, max_workers=max_workers)
-            windows_run += 1
-            t_docker    = time.perf_counter() - t0
-
-            def _load_and_score(i):
+            def score(i):
                 if i in failed:
                     return i, np.nan, 0, 0
                 try:
-                    # T_out.dat accumulates the whole run (Simstrat appends), so we tail-read only
-                    # the rows appended for THIS window (resuming from the per-member offset sidecar)
-                    # instead of re-parsing the ever-growing file every window — O(1) per window vs
-                    # the old load_T's O(n) (O(n^2) over the run). Shares read_t_out_tail with the
-                    # OpenDA wrapper. rmse_in_window scores the same window as before, so it's
-                    # correctness-neutral. The full T_out.dat stays intact for accumulate_mean.
                     sim = model.load_T_window(os.path.join(args["ensemble_base"], f"ensemble{i}"),
                                               args, current, window_end)
-                    rmse, n_raw, n_matched = rmse_in_window(sim, obs, current, window_end,
-                                                            depth_weights, model, closed=closed)
-                    return i, rmse, n_raw, n_matched
+                    return (i, *rmse_in_window(sim, obs, current, window_end, depth_weights, model))
                 except Exception:
                     return i, np.nan, 0, 0
 
-            t0 = time.perf_counter()
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                scores = {r[0]: r[1:] for r in pool.map(_load_and_score, member_ids)}
-            t_score = time.perf_counter() - t0
-
-            rmses     = [scores[i][0] for i in member_ids]
-            n_obs_raw = max((scores[i][1] for i in member_ids), default=0)
-            n_matched = max((scores[i][2] for i in member_ids), default=0)
-            valid     = [(i, r) for i, r in zip(member_ids, rmses) if not np.isnan(r)]
-
-            t_total = time.perf_counter() - t_day
-            timing  = f"docker={t_docker:.1f}s  score={t_score:.1f}s  total={t_total:.1f}s"
+                scores = {r[0]: r[1:] for r in pool.map(score, member_ids)}
+            n_obs     = max(s[1] for s in scores.values())
+            n_matched = max(s[2] for s in scores.values())
+            valid     = [(i, s[0]) for i, s in scores.items() if not np.isnan(s[0])]
+            status    = f"failed={failed}" if failed else "ok"
+            window    = f"{current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}"
 
             if valid:
-                best_id   = min(valid, key=lambda x: x[1])[0]
-                best_rmse = min(r for _, r in valid)
-                copy_best_to_all(best_id, member_ids, args, model)
+                best_id, best_rmse = min(valid, key=lambda x: x[1])
+                model.copy_member_state(best_id, member_ids, args)
                 windows_copied += 1
-                status = f"failed={failed}" if failed else "ok"
-                # Per-window detail always to the log file (file_only keeps it off the console —
-                # see main.py); the console shows the bar instead when progress is on.
-                logger.info(f"  {current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}  best=ensemble{best_id:02d}  "
-                            f"RMSE={best_rmse:.4f} °C  obs_raw={n_obs_raw}  matched={n_matched}  [{status}]  [{timing}]",
+                logger.info(f"  {window}  best=ensemble{best_id:02d}  RMSE={best_rmse:.4f} °C  "
+                            f"obs={n_obs}  matched={n_matched}  [{status}]  [{time.perf_counter() - t0:.1f}s]",
                             extra={"file_only": True})
-                if progress:
-                    bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  best=ens{best_id:02d}  RMSE={best_rmse:.3f}  [{status}]")
+                postfix = f"best=ens{best_id:02d}  RMSE={best_rmse:.3f}  [{status}]"
             else:
-                obs_win = _obs_in_window(obs, current, window_end, closed)
-                status  = f"  failed={failed}" if failed else ""
-                logger.info(f"  {current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}  no obs — snapshots unchanged  "
-                            f"obs_raw={len(obs_win)}  matched={n_matched}{status}  [{timing}]",
-                            extra={"file_only": True})
-                if progress:
-                    bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  no obs{status}")
+                logger.info(f"  {window}  no obs — snapshots unchanged  obs={n_obs}  matched={n_matched}  "
+                            f"[{status}]  [{time.perf_counter() - t0:.1f}s]", extra={"file_only": True})
+                postfix = f"no obs  [{status}]"
             if progress:
+                bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  {postfix}")
                 bar.update(1)
-
             current = window_end
 
         bar.close()
         member_files = [model.member_output_file(args["ensemble_base"], i, args["results_dir"])
                         for i in member_ids]
-        model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from the full member outputs
-        logger.info(f"Done. {windows_run} windows run, {windows_copied} best-copy steps applied.")
-        return windows_run, windows_copied
-
+        model.accumulate_mean(member_files, args["mean_traj_path"])
+        logger.info(f"Done. {len(boundaries)} windows run, {windows_copied} best-copy steps applied.")
+        return len(boundaries), windows_copied
     finally:
         model.stop_containers(args)
 
 
-# ---------------------------------------------------------------------------
-# End-to-end PF run (validate -> build args -> window loop -> summarise)
-# ---------------------------------------------------------------------------
-
 def run_pf(run_raw, ensemble_raw, ensemble_base, n_members, model):
-    """Native PF engine driver: validate run args, build the merged args, run the
-    PF window loop, then write the posterior summary + skill report to the run folder (run/<lake>/).
-    `model` is the selected forward model (see assimilator.models)."""
-    verify_args(run_raw, REQUIRED_RUN)
+    """Run the native PF and write its summary and skill report to ensemble_base."""
     args = build_python_run_args(run_raw, ensemble_raw, ensemble_base, n_members, model)
-
     log_run_header(ensemble_raw)
     t0 = time.perf_counter()
     windows_run, windows_copied = run_pf_loop(args, model)

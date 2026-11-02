@@ -24,8 +24,6 @@ DEFAULTS = {
     "rng_seed":      42,          # seeds forcing noise + EnKF obs perturbations (time-keyed)
     "sigma_scale":   1.0,         # multiplies every AR(1) noise sigma
     "sigma_default": 0.5,         # observation error (degC) when the run names no sigma_obs
-    "window_mode":   "obs",       # native: one window per observation time ("daily" = legacy)
-    "obs_operator":  "linear",    # native EnKF: "linear" depth interpolation or legacy "nearest"
     "reset":         False,       # True = start from scratch (clears state + perturbation chain)
     "progress":      False,       # progress bar
 }

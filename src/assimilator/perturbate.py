@@ -25,7 +25,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from .functions import verify_args, time_keyed_rng, display_path, to_utc
+from .functions import time_keyed_rng, display_path, to_utc
 
 logger = logging.getLogger(__name__)
 
@@ -236,13 +236,9 @@ def perturbate(args: dict, model, params: dict = None) -> None:
                 f"{display_path(ensemble_base)}")
 
 
-REQUIRED = ["lake", "n_members", "ensemble_base", "model_inputs_path", "start_date", "end_date"]
-
-
 def perturbator(cfg: dict, model, params: dict = None) -> None:
     """Perturb the forcing of members 1..N for a run config (assimilator.config.build_config).
     start_date/end_date are ISO strings, read as UTC."""
-    verify_args(cfg, REQUIRED)
     args = dict(cfg)
     args["start_date"] = to_utc(cfg["start_date"])
     args["end_date"]   = to_utc(cfg["end_date"])

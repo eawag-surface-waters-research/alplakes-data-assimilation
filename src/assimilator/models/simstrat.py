@@ -35,7 +35,7 @@ import numpy as np
 # The OpenDA wrapper imports read_snapshot/write_snapshot from this module 21×/step and those use
 # only numpy; a top-level `import pandas` cost ~2.6s per process launch for nothing. (numpy ~0.7s.)
 
-from ..functions import (verify_args, start_persistent_container, stop_persistent_container)
+from ..functions import start_persistent_container, stop_persistent_container
 from .base import ForwardModel
 
 logger = logging.getLogger(__name__)
@@ -99,7 +99,6 @@ def copy_model_inputs(raw):
     1..N = members whose Forcing.dat perturbate overwrites later). Skips the heavy
     Results/ dir — each member regenerates it and seeds the warmup from the dated
     simulation-snapshot_*.dat that IS copied."""
-    verify_args(raw, ["lake", "n_members", "ensemble_base", "model_inputs_path"])
 
     lake          = raw["lake"]
     n_members     = raw["n_members"]

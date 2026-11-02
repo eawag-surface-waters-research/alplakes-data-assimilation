@@ -5,7 +5,7 @@
       │  2. select_depths   (optional) keep the depths nearest a target grid
       │  3. thin_daily      one profile per day, at a fixed hour (or the first in a window)
       ▼
-    assimilated series = the analysis schedule (window_mode "obs": one analysis per obs time)
+    assimilated series = the analysis schedule (one analysis per observation time)
 
 Rows are SELECTED or averaged, never invented, and every function is a pure DataFrame -> DataFrame
 transform: no files, no config lookups. `preprocess` chains them from one config block, and with

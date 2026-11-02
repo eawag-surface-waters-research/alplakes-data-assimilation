@@ -35,7 +35,7 @@ sys.path.insert(0, SRC_DIR)
 import time
 import subprocess
 
-from assimilator.functions import (verify_args, resolve_obs_path, load_obs, to_utc, SEASONS,
+from assimilator.functions import (resolve_obs_path, load_obs, to_utc, SEASONS,
                                    make_progress, log_run_header, log_run_footer,
                                    resolve_max_workers, display_path,
                                    start_persistent_container, stop_persistent_container,
@@ -49,8 +49,6 @@ from .config import (FILTERS, render as render_oda, series_specs, format_day,
 from . import restart as restart_chain
 
 logger = logging.getLogger(__name__)
-
-REQUIRED = ["lake", "n_members", "ensemble_base"]
 
 # Restart chain (openda/restart.py), continuing from a saved ensemble: the marker file tells the
 # wrapper every member must have been restored, and the sentinel fills the template state so an
@@ -193,7 +191,6 @@ def _build_observations(raw, openda_dir, model_inputs, binding):
 
 
 def adapt(raw):
-    verify_args(raw, REQUIRED)
 
     lake          = raw["lake"]
     n_members     = raw["n_members"]
@@ -555,8 +552,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     model_json = os.path.join(openda_dir, "stochModel", "template", "model.json")
     with open(model_json, "w") as f:
         json.dump({"image": image, "container": container,
-                   "mount_base": mount_base, "binary": binary,
-                   "obs_operator": cfg.get("obs_operator", "linear")}, f)
+                   "mount_base": mount_base, "binary": binary}, f)
     logger.info(f"      wrote {os.path.relpath(model_json, openda_dir)} "
                 f"(image={image}, container={container})")
 

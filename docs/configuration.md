@@ -50,9 +50,6 @@ result = assimilator.run(cfg)          # cfg: the same keys as the JSON
 | `engine` | `"python"` | all | `"python"` (native engine) or `"openda"`. |
 | `model` | `"simstrat"` | all | Forward model, see `assimilator.models` and `register_model`. |
 | `inflation` | `1.0` | native EnKF | Multiplies the ensemble anomalies before the update. `1.0` = off. |
-| `window_mode` | `"obs"` | native | `"obs"`: one forecast and analysis per observation time, the same rule as OpenDA. `"daily"`: legacy fixed noon-to-noon windows. |
-| `obs_selector` | `"window_end"` | native EnKF, `window_mode: "daily"` only | `"window_end"`: the reading nearest the end of the window. `"mean"`: the daily mean per depth. |
-| `obs_operator` | `"linear"` | native EnKF | How an observation is mapped onto the model grid. `"linear"` interpolates between the two neighbouring cells; `"nearest"` snaps to the closest cell and exists only to reproduce older runs. |
 
 ## Run window and ensemble
 

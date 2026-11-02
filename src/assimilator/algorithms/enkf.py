@@ -1,64 +1,25 @@
+"""The native Ensemble Kalman Filter: one forecast and analysis window per observation time."""
 import os
 import time
 import logging
 import concurrent.futures
 import numpy as np
 import pandas as pd
-from datetime import timedelta
 
 from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
-                         verify_args, build_python_run_args, make_progress, log_obs_summary,
+                         build_python_run_args, make_progress, log_obs_summary,
                          log_run_header, log_run_footer, time_keyed_rng,
                          resolve_sigma_obs, log_sigma_summary)
+from ..obs_operator import build_H
 from ..summarize import report_summary
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_RUN  = ["algorithm", "results_dir", "par_file"]
-REQUIRED_ENKF = ["inflation"]               # run config; Python-EnKF-only knob
-# "sigma_obs" is NOT required: a lake block that names none falls back to the run config's
-# "sigma_default" (functions.sigma_obs_spec), and the resolved value is logged with its source.
-REQUIRED_ENKF_ENSEMBLE = []
 
-
-# ---------------------------------------------------------------------------
-# The Python Ensemble Kalman Filter, run as a window loop. Windows are bounded by the
-# observation times by default (window_mode="obs" — one forecast+analysis per obs time,
-# like OpenDA's fromObservationTimes); window_mode="daily" keeps the legacy fixed
-# noon-to-noon daily stepping.
-# ---------------------------------------------------------------------------
-
-# Note: this averages every depth's observations over the WHOLE daily window,
-# then assimilates the daily mean into the end-of-window (instantaneous) snapshot.
-# Representativeness mismatch (daily-mean obs vs instantaneous state) --> intended but suboptimal compromise.
-# Comparing against the model's daily-mean trajectory instead isn't as simple of option as for PF: the
-# EnKF needs the FULL grid state from the snapshot (~2x the output depths) to write the
-# analysis back as the next IC, and T_out.dat only holds the output depths. Future dev:
-# either output the full state from the model, or interpolate the snapshot state onto the
-# output depths for the comparison (compute-efficiency tradeoff).
-def window_obs_vector(obs_df, window_start, window_end, model):
-    obs_win = obs_df[(obs_df["time"] >= window_start) & (obs_df["time"] < window_end)]
-    if obs_win.empty:
-        return None, None, None
-    mean_per_depth = obs_win.groupby("depth")["value"].mean().dropna()
-    if mean_per_depth.empty:
-        return None, None, None
-    obs_depths = list(mean_per_depth.index)
-    sim_depths = [model.obs_to_sim_col(d) for d in obs_depths]
-    return mean_per_depth.values, sim_depths, obs_depths
-
-
-def window_obs_vector_consistent(obs_df, window_start, window_end, model):
-    """Pick, per depth, the single observation nearest the window END (vs window_obs_vector's
-    daily mean). The EnKF assimilates into the end-of-window snapshot, so the obs nearest that
-    instant is temporally consistent with the model state. In window_mode="obs" every window_end
-    IS an observation time, so this reduces to the boundary obs; in the legacy daily mode the
-    noon-to-noon anchoring puts window_end on noon, matching the OpenDA reference.
-
-    Window is (window_start, window_end]: the inclusive upper bound selects the bin labeled
-    exactly window_end (the centered noon bin from load_obs) — a half-open `<` would drop it and
-    pick the hour before; the exclusive lower bound keeps each boundary bin owned by a single
-    window, so it can't be assimilated on two consecutive days."""
+def window_observations(obs_df, window_start, window_end, model):
+    """Per depth, the observation in (window_start, window_end] nearest the window end, the
+    instant of the snapshot the update goes into. Returns (values, model columns, depths), or
+    Nones when the window holds none. The open start keeps a boundary observation in one window."""
     obs_win = obs_df[(obs_df["time"] > window_start) & (obs_df["time"] <= window_end)]
     if obs_win.empty:
         return None, None, None
@@ -66,18 +27,13 @@ def window_obs_vector_consistent(obs_df, window_start, window_end, model):
                       .sort_values("_d")
                       .groupby("depth", sort=False).first()
                       .sort_index())
-    if nearest.empty:
-        return None, None, None
     obs_depths = list(nearest.index)
-    sim_depths = [model.obs_to_sim_col(d) for d in obs_depths]
-    return nearest["value"].values, sim_depths, obs_depths
+    return nearest["value"].values, [model.obs_to_sim_col(d) for d in obs_depths], obs_depths
 
 
-from ..obs_operator import build_H, OBS_OPERATOR_DEFAULT, OBS_OPERATORS   # noqa: F401
-
-
-# wikipedia cross checked
 def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
+    """Stochastic EnKF analysis of the forecast ensemble X_f (cells x members) with perturbed
+    observations. Returns (X_a, diagnostics), diagnostics None when no observation is valid."""
     if rng is None:
         rng = np.random.default_rng()
 
@@ -98,20 +54,14 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
     HA   = H_v @ A
     PHT  = A @ HA.T / (N - 1)
     HPHT = HA @ HA.T / (N - 1)
-    # Numerical decision taken fully by Clude Code: Kalman gain K = PHT @ inv(HPHT+R), 
-    # via solve (not inv) for stability; transposes turn the right-inverse into solve's
-    # left-inverse (S symmetric, so S.T == S).
-    K    = np.linalg.solve((HPHT + R).T, PHT.T).T
-    # Minor note: perturbed-obs noise is not recentered
-    eps  = rng.multivariate_normal(np.zeros(len(y)), R, size=N).T
-    innov = (y[:, None] + eps) - H_v @ X_inf
-    X_a   = X_inf + K @ innov
+    K    = np.linalg.solve((HPHT + R).T, PHT.T).T            # PHT (HPHT + R)^-1, without inverting
+    eps  = rng.multivariate_normal(np.zeros(len(y)), R, size=N).T   # not recentred
+    X_a  = X_inf + K @ ((y[:, None] + eps) - H_v @ X_inf)
 
+    # NIS combines the inflated spread with the raw-mean innovation: not a measure to tune
+    # inflation with.
     d   = y - (H_v @ x_bar)[:, 0]
-    # Note: S uses the INFLATED anomalies (HPHT from A), but d uses the raw mean.
-    # don't use it directly to tune inflation.
-    S   = HPHT + R
-    NIS = float(d @ np.linalg.solve(S, d))
+    NIS = float(d @ np.linalg.solve(HPHT + R, d))
 
     diags = {
         "n_obs":       int(valid.sum()),
@@ -127,223 +77,135 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
     return X_a, diags
 
 
+def _append_row(path, row):
+    pd.DataFrame([row]).to_csv(path, mode="a", header=not os.path.exists(path), index=False)
+
+
+def _write_diagnostics(args, when, diags, y_obs, obs_depths, z_vol, lake_level):
+    valid_mask = diags.pop("_valid_mask")
+    innov_vec  = diags.pop("_innov_vec")
+    K          = diags.pop("_K")
+    stamp      = when.isoformat()
+    _append_row(args["diag_path"], {"date": stamp, **diags})
+
+    innov = np.full(len(y_obs), np.nan)
+    innov[np.array(valid_mask)] = innov_vec
+    _append_row(args["innov_depth_path"],
+                {"date": stamp, **{f"d_{d}": round(float(v), 6) for d, v in zip(obs_depths, innov)}})
+
+    depth  = lake_level - z_vol
+    order  = np.argsort(depth)
+    K_mean = np.interp(np.arange(0, int(lake_level) + 1), depth[order], K.mean(axis=1)[order])
+    _append_row(args["kgain_depth_path"],
+                {"date": stamp, **{f"K_{d}": round(float(v), 8) for d, v in enumerate(K_mean)}})
+
+
+def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when):
+    """Read the members' end-of-window states, update them with the window's observations and
+    write them back. Returns the number of members updated."""
+    def read(i):
+        try:
+            return i, *model.read_snapshot_T(i, args)
+        except Exception as e:
+            logger.warning(f"[ensemble{i:02d}] snapshot read failed: {e}")
+            return i, None, None, None
+
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        states = {r[0]: r[1:] for r in pool.map(read, members)}
+    readable = [i for i in members if states[i][0] is not None]
+    if len(readable) < 2:
+        return 0
+
+    X_f = np.column_stack([states[i][0] for i in readable])
+    # The members share one grid and lake level; the first member's stand for all.
+    z_vol, lake_level = states[readable[0]][1], states[readable[0]][2]
+    H = build_H(z_vol, lake_level, sim_depths)
+    # A vector, so that enkf_update never sees a season-keyed dict (np.ndim of a dict is 0).
+    sigma = resolve_sigma_obs(obs_depths, when, args)
+    # Keyed on the analysis instant: a run continued in slices draws as one continuous run.
+    rng = time_keyed_rng(args.get("rng_seed", 42), "enkf_obs", int(when.timestamp()))
+    X_a, diags = enkf_update(X_f, y_obs, H, sigma, inflation=args["inflation"], rng=rng)
+
+    def write(col_i):
+        col, i = col_i
+        try:
+            model.write_snapshot_T(i, X_a[:, col], args)
+        except Exception as e:
+            logger.warning(f"[ensemble{i:02d}] snapshot write failed: {e}")
+
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        pool.map(write, enumerate(readable))
+    if diags is not None:
+        _write_diagnostics(args, when, diags, y_obs, obs_depths, z_vol, lake_level)
+    return len(readable)
+
+
 def run_enkf_loop(args, model):
     member_ids  = args["member_ids"]
-    inflation   = args["inflation"]
     max_workers = args.get("max_workers")
-    diag_path   = args["diag_path"]
-    innov_path  = args["innov_depth_path"]
-    kgain_path  = args["kgain_depth_path"]
 
     if args.get("reset"):
         model.clear_member_state(args["ensemble_base"], member_ids, args["results_dir"])
         model.clear_member_outputs(args["ensemble_base"], member_ids, args["results_dir"])
-        for p in [args["mean_traj_path"], diag_path, innov_path, kgain_path]:
+        for p in [args["mean_traj_path"], args["diag_path"], args["innov_depth_path"], args["kgain_depth_path"]]:
             if os.path.exists(p):
                 os.remove(p)
         logger.info(f"Reset: cleared {args['results_dir']}/ snapshots and trajectory files.")
 
-    obs        = load_obs(args["obs_path"])
-    obs        = filter_obs_to_model_depths(obs, model.model_output_depths(args["ensemble_base"]))
+    obs = load_obs(args["obs_path"])
+    obs = filter_obs_to_model_depths(obs, model.model_output_depths(args["ensemble_base"]))
     log_obs_summary(obs, args["obs_path"])
-    start_date = args["start_date"]
-    end_date   = args["end_date"]
-    # Obs-perturbation rng: re-derived per analysis inside the loop, keyed by
-    # (rng_seed, analysis instant), so a run continued in slices draws the same
-    # perturbations as one continuous run (see functions.time_keyed_rng).
-    rng_seed   = args.get("rng_seed", 42)
+    start_date, end_date = args["start_date"], args["end_date"]
 
-    window_mode = args.get("window_mode", "obs")
-    if window_mode not in ("obs", "daily"):
-        raise ValueError(f"unknown window_mode '{window_mode}'; choose 'obs' or 'daily'")
-
-    obs_operator = args.get("obs_operator", OBS_OPERATOR_DEFAULT)
-    if obs_operator not in OBS_OPERATORS:
-        raise ValueError(f"unknown obs_operator '{obs_operator}'; choose from {list(OBS_OPERATORS)}")
-
-    if window_mode == "obs":
-        # Windows bounded by the observation times (+ a tail window to end_date with no update),
-        # like OpenDA's analysisTimes fromObservationTimes. Every window ends at an obs instant,
-        # so the end-of-window snapshot IS the analysis state and the per-window obs pick
-        # (window_obs_vector_consistent, (start, end]) reduces to the boundary obs. Chunk-
-        # invariant: the analysis instants depend only on the observations, not on how the
-        # period is split across pipeline invocations.
-        current    = start_date
-        boundaries = obs_window_boundaries(obs, start_date, end_date)
-        select_obs = window_obs_vector_consistent
-        logger.info(f"Obs-driven EnKF: {start_date.date()} → {end_date.date()} "
-                    f"({len(boundaries)} windows — one per obs time + tail, "
-                    f"{len(member_ids)} members, inflation={inflation})")
-        log_sigma_summary(args)
-    else:
-        # Legacy fixed daily stepping. Observation selector per daily window (run-arg
-        # "obs_selector", default "window_end"):
-        #   "window_end" -> window_obs_vector_consistent (single reading nearest window_end;
-        #                   instantaneous update at the snapshot instant, noon-anchored to match
-        #                   the OpenDA reference's instantaneous-noon assimilation.)
-        #   "mean"       -> window_obs_vector            (daily mean per depth; opt-in)
-        _OBS_SELECTORS = {"mean": window_obs_vector, "window_end": window_obs_vector_consistent}
-        obs_selector_name = args.get("obs_selector", "window_end")
-        if obs_selector_name not in _OBS_SELECTORS:
-            raise ValueError(f"unknown obs_selector '{obs_selector_name}'; choose from {sorted(_OBS_SELECTORS)}")
-        select_obs = _OBS_SELECTORS[obs_selector_name]
-
-        # Instantaneous-noon update (default obs_selector="window_end"): anchor the windows so
-        # each window_end lands on noon. Equivalent to a <start_date>T12:00 start, but done here
-        # so the shared start_date (also consumed by PF and the OpenDA config renderer) stays a
-        # plain date. The warmup snapshot becomes the IC at this first noon.
-        current = start_date
-        if obs_selector_name == "window_end":
-            noon    = start_date.replace(hour=12, minute=0, second=0, microsecond=0)
-            current = noon if noon >= start_date else noon + timedelta(days=1)
-            logger.info(f"Noon-anchored windows: first window {current.isoformat()} → {(current + timedelta(days=1)).isoformat()}")
-        boundaries = []
-        b = current
-        while b < end_date:
-            b = min(b + timedelta(days=1), end_date)
-            boundaries.append(b)
-        logger.info(f"Daily EnKF: {start_date.date()} → {end_date.date()} "
-                    f"({len(boundaries)} days, {len(member_ids)} members, "
-                    f"inflation={inflation}, obs_selector={obs_selector_name})")
-        log_sigma_summary(args)
+    # The windows end at the observation times, plus a last one to end_date without an update:
+    # they depend only on the observations, so a run split into slices steps as one run does.
+    boundaries = obs_window_boundaries(obs, start_date, end_date)
+    logger.info(f"EnKF: {start_date.date()} → {end_date.date()} ({len(boundaries)} windows, "
+                f"{len(member_ids)} members, inflation={args['inflation']})")
+    log_sigma_summary(args)
 
     model.start_containers(args, max_workers=max_workers)
     try:
-        windows_run     = 0
         windows_updated = 0
-
-        # One progress bar per run instead of a log line per window. Disabled for
-        # server runs (resolved upstream into args["progress"]); when off, the
-        # per-window logger.info below still fires.
         progress = args.get("progress", False)
         bar      = make_progress(max(1, len(boundaries)), progress, desc=f"EnKF {args['lake']}")
-
+        current  = start_date
         for window_end in boundaries:
-            t_day = time.perf_counter()
+            t0 = time.perf_counter()
+            failed = model.run_window(current, window_end, args, max_workers=max_workers)
+            t_model = time.perf_counter() - t0
 
-            t0          = time.perf_counter()
-            failed      = model.run_window(current, window_end, args, max_workers=max_workers)
-            windows_run += 1
-            t_docker    = time.perf_counter() - t0
-
-            y_obs, sim_depths, obs_depths = select_obs(obs, current, window_end, model)
-
-            t_enkf    = 0.0
+            y_obs, sim_depths, obs_depths = window_observations(obs, current, window_end, model)
             n_updated = 0
             if y_obs is not None:
-                good_ids = [i for i in member_ids if i not in failed]
-                if len(good_ids) >= 2:
-                    t0 = time.perf_counter()
+                good = [i for i in member_ids if i not in failed]
+                if len(good) >= 2:
+                    n_updated = _analyse(args, model, good, y_obs, sim_depths, obs_depths, window_end)
+                    windows_updated += n_updated > 0
 
-                    def _read_T(i):
-                        try:
-                            return i, *model.read_snapshot_T(i, args)
-                        except Exception as e:
-                            logger.warning(f"[ensemble{i:02d}] snapshot read failed: {e}")
-                            return i, None, None, None
-
-                    with concurrent.futures.ThreadPoolExecutor() as pool:
-                        snap_data = {r[0]: r[1:] for r in pool.map(_read_T, good_ids)}
-
-                    readable = [i for i in good_ids if snap_data[i][0] is not None]
-                    if len(readable) >= 2:
-                        X_f      = np.column_stack([snap_data[i][0] for i in readable])
-                        z_vol    = snap_data[readable[0]][1]
-                        lake_lev = snap_data[readable[0]][2]
-
-                        # Note: Assuming lake levels of different members the same, T column too. Intentional.
-                        H          = build_H(z_vol, lake_lev, sim_depths, obs_operator)
-                        # One sigma per observation, keyed on the analysis instant's season.
-                        # Resolved to a vector HERE, so enkf_update's scalar-vs-vector test only
-                        # ever sees a list -- np.ndim on a season dict is 0, which would take the
-                        # scalar branch and build an object array that cannot be squared.
-                        sigma_win  = resolve_sigma_obs(obs_depths, window_end, args)
-                        # Obs-perturbation draw keyed by the analysis instant: identical whether
-                        # the period is run in one go or continued operationally in slices.
-                        rng        = time_keyed_rng(rng_seed, "enkf_obs", int(window_end.timestamp()))
-                        X_a, diags = enkf_update(X_f, y_obs, H, sigma_win, inflation=inflation, rng=rng)
-
-                        def _write_T(col_i):
-                            col, i = col_i
-                            try:
-                                model.write_snapshot_T(i, X_a[:, col], args)
-                            except Exception as e:
-                                logger.warning(f"[ensemble{i:02d}] snapshot write failed: {e}")
-
-                        with concurrent.futures.ThreadPoolExecutor() as pool:
-                            pool.map(_write_T, enumerate(readable))
-
-                        n_updated       = len(readable)
-                        windows_updated += 1
-
-                        if diags is not None:
-                            valid_mask = diags.pop("_valid_mask")
-                            innov_vec  = diags.pop("_innov_vec")
-                            K_arr      = diags.pop("_K")
-
-                            # Diagnostics are stamped with the ANALYSIS instant (window_end) —
-                            # the time the obs was assimilated — not the window-start date.
-                            pd.DataFrame([{"date": window_end.isoformat(), **diags}]).to_csv(
-                                diag_path, mode="a",
-                                header=not os.path.exists(diag_path), index=False,
-                            )
-
-                            full_innov = np.full(len(y_obs), np.nan)
-                            full_innov[np.array(valid_mask)] = innov_vec
-                            pd.DataFrame([{
-                                "date": window_end.isoformat(),
-                                **{f"d_{d}": round(float(v), 6) for d, v in zip(obs_depths, full_innov)}
-                            }]).to_csv(innov_path, mode="a", header=not os.path.exists(innov_path), index=False)
-
-                            depth_fs   = lake_lev - z_vol
-                            K_mean     = K_arr.mean(axis=1)
-                            sort_idx   = np.argsort(depth_fs)
-                            std_depths = np.arange(0, int(lake_lev) + 1)
-                            K_interp   = np.interp(std_depths, depth_fs[sort_idx], K_mean[sort_idx])
-                            pd.DataFrame([{
-                                "date": window_end.isoformat(),
-                                **{f"K_{d}": round(float(v), 8) for d, v in enumerate(K_interp)}
-                            }]).to_csv(kgain_path, mode="a", header=not os.path.exists(kgain_path), index=False)
-
-                    t_enkf = time.perf_counter() - t0
-
-            t_total = time.perf_counter() - t_day
-            timing  = f"docker={t_docker:.1f}s  enkf={t_enkf:.1f}s  total={t_total:.1f}s"
             obs_str = f"n_obs={len(y_obs)}  n_updated={n_updated}" if y_obs is not None else "no obs"
             status  = f"failed={failed}" if failed else "ok"
-            # Per-window detail always goes to the log file (file_only keeps it off the console —
-            # see main.py); the console shows the bar instead when progress is on.
-            logger.info(f"  {current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}  {obs_str}  [{status}]  [{timing}]",
+            logger.info(f"  {current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}  {obs_str}  [{status}]  "
+                        f"[model={t_model:.1f}s  total={time.perf_counter() - t0:.1f}s]",
                         extra={"file_only": True})
             if progress:
                 bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  {obs_str}  [{status}]")
                 bar.update(1)
-
             current = window_end
 
         bar.close()
         member_files = [model.member_output_file(args["ensemble_base"], i, args["results_dir"])
                         for i in member_ids]
-        model.accumulate_mean(member_files, args["mean_traj_path"])   # one-shot: ensemble-mean trajectory from the full member outputs
-        logger.info(f"Done. {windows_run} windows run, {windows_updated} EnKF updates applied.")
-        return windows_run, windows_updated
-
+        model.accumulate_mean(member_files, args["mean_traj_path"])
+        logger.info(f"Done. {len(boundaries)} windows run, {windows_updated} EnKF updates applied.")
+        return len(boundaries), windows_updated
     finally:
         model.stop_containers(args)
 
 
-# ---------------------------------------------------------------------------
-# End-to-end EnKF run (validate -> build args -> window loop -> summarise)
-# ---------------------------------------------------------------------------
-
 def run_enkf(run_raw, ensemble_raw, ensemble_base, n_members, model):
-    """Native EnKF engine driver: validate run args, build the merged args, run the
-    EnKF window loop, then write the posterior summary + skill report to the run folder (run/<lake>/).
-    `model` is the selected forward model (see assimilator.models)."""
-    verify_args(run_raw, REQUIRED_RUN + REQUIRED_ENKF)
-    verify_args(ensemble_raw, REQUIRED_ENKF_ENSEMBLE)
+    """Run the native EnKF and write its summary and skill report to ensemble_base."""
     args = build_python_run_args(run_raw, ensemble_raw, ensemble_base, n_members, model)
-
     log_run_header(ensemble_raw)
     t0 = time.perf_counter()
     windows_run, windows_updated = run_enkf_loop(args, model)
