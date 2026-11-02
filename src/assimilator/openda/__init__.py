@@ -1,9 +1,9 @@
-"""The OpenDA engine: runs a model under OpenDA (https://www.openda.org) as a black box.
+"""The OpenDA engine: a model run under OpenDA (https://www.openda.org) as a black box.
 
-- ``adapter``  -- copies the framework's inputs (model setup, perturbed forcings, warm start,
-                 observations) into OpenDA's working-dir layout, launches OpenDA, summarises.
-- ``config``   -- renders the OpenDA configuration (run.oda + the .gen.xml chain).
-- ``restart``  -- the restart chain: carries the ensemble from one OpenDA run to the next.
-- ``binding``  -- what the engine needs from a model; each model provides one
-                 (ForwardModel.openda_binding).
+- ``engine``   -- run_openda (one OpenDA run) and run_openda_chain (a restart chain)
+- ``adapter``  -- prepares the working dir from the framework's inputs
+- ``config``   -- renders the OpenDA configuration (run.oda and the .gen.xml chain)
+- ``launch``   -- the OpenDA environment, and oda_run.sh with its log followed
+- ``restart``  -- the restart chain that carries the ensemble from one run to the next
+- ``binding``  -- what the engine needs from a model (ForwardModel.openda_binding)
 """

@@ -4,7 +4,7 @@ The engines (`algorithms/enkf.py`, `algorithms/pf.py`), the forcing perturbation
 the run summary (`summarize.py`) and the pipeline (`pipeline.py`) touch a model ONLY through the
 methods below. Everything a model knows about its own files -- input layout, time convention,
 forcing format, output format, restart/state format, how it is launched -- lives in its adapter
-(e.g. `models/simstrat.py`).
+(e.g. `models/simstrat/`).
 
 Adding a model = one subclass implementing these methods, registered with
 `assimilator.models.register_model`. The adapter can live in this package or in the host repo.

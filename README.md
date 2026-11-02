@@ -86,12 +86,16 @@ src/assimilator/
   config.py                    the run config: DEFAULTS, build_config (validation)
   algorithms/                  native EnKF and PF (model-agnostic)
   perturbate.py                AR(1) forcing perturbation (model-agnostic)
-  observations.py              observation preprocessing: seiche filter, depth grid, thinning
+  observations.py              loading observations, and preprocessing: seiche filter, depth grid, thinning
+  sigma.py                     the observation error sigma_obs (one value or per season)
+  obs_operator.py              observation operator (model state -> observation depths)
+  summarize.py, report.py      run summary and skill, run logging
+  rng.py, containers.py        time-keyed random streams, the persistent model container
   fitting/                     offline fits: filter window, analysis hour, sigma_obs, AR(1)
   models/base.py               ForwardModel: the interface every model implements
-  models/simstrat.py           the Simstrat adapter -- the only module that knows Simstrat's files
-  openda/                      OpenDA engine (Simstrat only)
-static/openda/                 OpenDA wrapper (Java-side XML + Python wrapper)
+  models/simstrat/             Simstrat: the adapter, its binary snapshot, its OpenDA binding
+  openda/                      OpenDA engine: prepare (adapter), launch, run (engine), restart chain
+static/openda/                 the Simstrat OpenDA wrapper (wrapper XML + Python wrapper)
 examples/enkf.json             a complete run config
 tests/                         pytest suite, incl. a pure-Python toy model
 ```
@@ -137,4 +141,4 @@ python -m pytest tests
 ```
 
 The engine tests run on a pure-Python toy model (no Docker); a check fails if Simstrat-specific
-code appears outside `models/simstrat.py` and `openda/`.
+code appears outside `models/simstrat/`.

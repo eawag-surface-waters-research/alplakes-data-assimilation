@@ -52,9 +52,9 @@ def test_perturbations_accept_full_and_flat_forms():
 
 
 # Simstrat's files and names may appear only in its adapter and in the Simstrat-only OpenDA engine.
-# models/simstrat.py and its OpenDA binding hold all Simstrat knowledge; the OpenDA engine (openda/)
-# holds none, it gets everything from the binding.
-ALLOWED = {os.path.join("models", "simstrat.py"), os.path.join("models", "simstrat_openda.py")}
+# models/simstrat/ holds all Simstrat knowledge; the engines get everything through the model and
+# its OpenDA binding.
+ALLOWED = os.path.join("models", "simstrat")
 FORBIDDEN = re.compile(r"\bsimstrat\b|\bt_out\b|forcing\.dat|settings\.par|\bz_out\b", re.I)
 # The registry name of the default model is the one Simstrat word allowed elsewhere.
 ALLOWED_TOKENS = {("config.py", "simstrat")}
@@ -86,9 +86,9 @@ def test_no_simstrat_knowledge_outside_its_adapter():
             if not f.endswith(".py"):
                 continue
             rel = os.path.relpath(os.path.join(root, f), SRC)
-            if rel in ALLOWED or rel.split(os.sep)[0] in ALLOWED or rel == os.path.join("models", "__init__.py"):
+            if rel.startswith(ALLOWED + os.sep) or rel == os.path.join("models", "__init__.py"):
                 continue
             for line, tok in _code_tokens(os.path.join(root, f)):
                 if FORBIDDEN.search(tok) and (rel, tok) not in ALLOWED_TOKENS:
                     leaks.append(f"{rel}:{line}: {tok!r}")
-    assert not leaks, "Simstrat-specific code outside models/simstrat.py:\n" + "\n".join(leaks)
+    assert not leaks, "Simstrat-specific code outside models/simstrat/:\n" + "\n".join(leaks)

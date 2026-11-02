@@ -41,7 +41,7 @@ import json
 import logging
 from xml.sax.saxutils import escape as xml_escape
 
-from assimilator.functions import SEASONS
+from ..sigma import SEASONS
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ def depth_label(d):
     return f"{d:g}m"
 
 
-def is_season_keyed(obs_std):
+def is_series_keyed(obs_std):
     """True if obs_std is {(depth, season): sigma} rather than a plain scalar."""
     return isinstance(obs_std, dict) and bool(obs_std) and all(isinstance(k, tuple) for k in obs_std)
 
@@ -90,9 +90,9 @@ def series_specs(depths, obs_std):
     One series per depth, unless obs_std is season-keyed: then one per (depth, season), each with
     its own standardDeviation. That is how the season pair reaches OpenDA EXACTLY -- the
     stochObserver carries one standardDeviation per series, and the series are ours to define
-    (functions.sigma_obs_by_depth_season). A (depth, season) with no observations in the window is
+    (assimilator.sigma). A (depth, season) with no observations in the window is
     not emitted, so an operational window inside one season declares only that season's series."""
-    if is_season_keyed(obs_std):
+    if is_series_keyed(obs_std):
         return [(f"T_{depth_label(d)}_{s}", d, obs_std[(float(d), s)])
                 for d in depths for s in SEASONS if (float(d), s) in obs_std]
     return [(f"T_{depth_label(d)}", d, obs_std) for d in depths]

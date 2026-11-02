@@ -11,11 +11,12 @@ import glob
 import shutil
 from datetime import date, datetime, timezone
 
-from ..openda.binding import OpenDABinding
-from .simstrat import SIMSTRAT_REF_YEAR, read_snapshot, _read_z_out
+from ...openda.binding import OpenDABinding
+from .model import SIMSTRAT_REF_YEAR, _read_z_out
+from .snapshot import read_snapshot
 
-STATIC_OPENDA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))))), "static", "openda")
+STATIC_OPENDA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))), "static", "openda")
 
 # Settings.par key -> the shared input it names (restart chain).
 PAR_SHARED = {"Inflow": "Qin.dat", "Inflow temperature": "Tin.dat", "Inflow salinity": "Sin.dat"}

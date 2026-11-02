@@ -1,24 +1,21 @@
-"""Observation preprocessing: raw sub-daily profiles -> the series a run assimilates.
+"""Observations: the series a run assimilates, and how a raw record becomes that series.
 
-    raw (time, depth, value), sub-daily
-      │  1. filter_seiche   causal trailing box of one seiche period below THERMO_DEPTH_MIN
-      │  2. select_depths   (optional) keep the depths nearest a target grid
-      │  3. thin_daily      one profile per day, at a fixed hour (or the first in a window)
-      ▼
-    assimilated series = the analysis schedule (one analysis per observation time)
+Loading (used by the engines): a (time, depth, value) CSV binned to the hour, and the
+assimilation windows its observation times define.
 
-Rows are SELECTED or averaged, never invented, and every function is a pure DataFrame -> DataFrame
-transform: no files, no config lookups. `preprocess` chains them from one config block, and with
-`since` reprocesses only the tail of a growing record (with enough look-back that the result is
-identical to processing the whole record -- the causal filter makes that possible).
+Preprocessing (used by the host before a run), each step a pure DataFrame transform that selects
+or averages rows and never invents one:
 
-Ported from the feat/da-combi scripts filter_observations.py and generate_assimilation_series.py
-(stage 2); the numbers are unchanged. The per-lake parameters are fitted with assimilator.fitting.
+    raw sub-daily (time, depth, value)
+      1. filter_seiche   causal trailing mean over one seiche period below THERMO_DEPTH_MIN
+      2. select_depths   (optional) the depths nearest a target grid
+      3. thin_daily      one profile per day, at a fixed hour or the first in a window
 
-Config block (all keys optional; an absent step is skipped):
+`preprocess` chains them from one config block; with `since` it reprocesses only the tail of a
+growing record, with enough look-back to match a full reprocess.
 
     {"filter":   {"w_seiche_h": 27.3, "thermo_depth_min": 4.0},
-     "schedule": {"hour": 6, "max_offset_h": 1.5}          # or {"hour_window": [0, 6]}
+     "schedule": {"hour": 6, "max_offset_h": 1.5},          # or {"hour_window": [0, 6]}
      "depths":   [0.5, 1, 3, ...], "depth_tolerance_m": 0.5}
 """
 import logging
@@ -26,7 +23,57 @@ import logging
 import numpy as np
 import pandas as pd
 
+from .report import display_path
+
 logger = logging.getLogger(__name__)
+
+
+def bin_hourly(obs):
+    """One mean value per (depth, hour), the hour centred on its label: [HH-30min, HH+30min)."""
+    obs = obs.copy()
+    # ISO8601: the CSVs mix whole and fractional seconds, which a format inferred from row 0 rejects.
+    obs["time"] = pd.to_datetime(obs["time"], utc=True, format="ISO8601")
+    obs["time"] = (obs["time"] + pd.Timedelta(minutes=30)).dt.floor("1h")
+    return obs.groupby(["depth", "time"])["value"].mean().reset_index()
+
+
+def load_obs(obs_path):
+    return bin_hourly(pd.read_csv(obs_path))
+
+
+def filter_obs_to_model_depths(obs_df, model_depths):
+    """Only the depths the model outputs (all of them when `model_depths` is empty), so every
+    engine assimilates the same depths."""
+    if not model_depths:
+        return obs_df
+    obs_depths = sorted(obs_df["depth"].unique())
+    matched = {d for d in obs_depths if any(abs(d - m) <= 1e-6 for m in model_depths)}
+    dropped = [d for d in obs_depths if d not in matched]
+    if dropped:
+        logger.warning(f"[obs] dropping obs depths with no matching model output depth: "
+                       f"{[f'{d:g}' for d in dropped]} m")
+    return obs_df[obs_df["depth"].isin(matched)]
+
+
+def log_obs_summary(obs, obs_path):
+    if obs.empty:
+        logger.warning(f"Obs: no observations after filtering <- {display_path(obs_path)}")
+        return
+    depths = sorted(obs["depth"].unique())
+    logger.info(f"Obs: {len(obs)} readings, {len(depths)} depths {[f'{d:g}' for d in depths]}, "
+                f"{obs['time'].min().date()}..{obs['time'].max().date()} <- {display_path(obs_path)}")
+
+
+def obs_window_boundaries(obs_df, start_date, end_date):
+    """The assimilation windows' ends: every observation time in (start_date, end_date], then
+    end_date. They depend only on the observations, so a run continued in slices steps through
+    the same windows as one continuous run, and they are OpenDA's analysis times too."""
+    times = sorted(t.to_pydatetime() for t in obs_df["time"].drop_duplicates())
+    bounds = [t for t in times if start_date < t <= end_date]
+    if not bounds or bounds[-1] < end_date:
+        bounds.append(end_date)
+    return bounds
+
 
 # ------------------------------------------------------------------------------------- filter --
 
@@ -119,7 +166,7 @@ def filter_seiche(obs, params=None, check_rate=True):
         logger.warning(msg)
     logger.debug(f"  {rate:.0f} samples per depth per day over {span} d")
 
-    # Round to the NEAREST bin, as functions.load_obs does, so a sample lands in the same hour for
+    # Round to the NEAREST bin, as load_obs does, so a sample lands in the same hour for
     # the filter and the assimilator.
     obs = obs.copy()
     obs["time"] = (obs["time"] + pd.Timedelta(minutes=dt / 2)).dt.floor(f"{dt}min")

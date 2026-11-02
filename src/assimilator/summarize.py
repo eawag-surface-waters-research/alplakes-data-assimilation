@@ -30,7 +30,8 @@ import logging
 import numpy as np
 import pandas as pd
 
-from .functions import load_obs, filter_obs_to_model_depths, display_path
+from .observations import load_obs, filter_obs_to_model_depths
+from .report import display_path
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,7 @@ def summarize_run(final_dir, lake, engine, label, member_files, model, obs_csv=N
 
 def report_summary(engine, label, member_files, lake, obs_csv, out_dir, model):
     """Write the posterior summary + skill report into `out_dir` (the run's own folder) and log a
-    one-line recap. Shared tail for both native (run_enkf/run_pf) and OpenDA (run_openda) runs.
+    one-line recap. Shared by the native and OpenDA engines.
     Returns (csv_path, overall_skill) for the caller's run footer."""
     out_csv, n_mem, T, D, overall = summarize_run(out_dir, lake, engine, label, member_files, model,
                                                   obs_csv=obs_csv)
@@ -191,7 +192,7 @@ def summarize_from_config(cfg):
         member_files  = [model.member_output_file(ensemble_base, i, cfg["results_dir"])
                          for i in range(1, n_members + 1)]
         return report_summary("python", label, member_files, lake, obs_csv, ensemble_base, model)
-    from .openda.adapter import openda_member_files, openda_chain_member_files
+    from .openda.engine import openda_member_files, openda_chain_member_files
     if cfg.get("openda_restart"):
         # restart chain: the work dirs hold only the latest run; the chain's files hold all of it
         member_files = openda_chain_member_files(cfg["openda_dir"], n_members, model, cfg.get("results_dir", "Results"))

@@ -1,17 +1,14 @@
 """The native Ensemble Kalman Filter: one forecast and analysis window per observation time."""
 import os
-import time
 import logging
 import concurrent.futures
 import numpy as np
 import pandas as pd
 
-from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
-                         build_python_run_args, make_progress, log_obs_summary,
-                         log_run_header, log_run_footer, time_keyed_rng,
-                         resolve_sigma_obs, log_sigma_summary)
+from .common import reset_members, run_observations, step_windows
 from ..obs_operator import build_H
-from ..summarize import report_summary
+from ..rng import time_keyed_rng
+from ..sigma import resolve_sigma_obs, log_sigma_summary
 
 logger = logging.getLogger(__name__)
 
@@ -141,77 +138,18 @@ def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when):
 
 
 def run_enkf_loop(args, model):
-    member_ids  = args["member_ids"]
-    max_workers = args.get("max_workers")
-
     if args.get("reset"):
-        model.clear_member_state(args["ensemble_base"], member_ids, args["results_dir"])
-        model.clear_member_outputs(args["ensemble_base"], member_ids, args["results_dir"])
-        for p in [args["mean_traj_path"], args["diag_path"], args["innov_depth_path"], args["kgain_depth_path"]]:
-            if os.path.exists(p):
-                os.remove(p)
-        logger.info(f"Reset: cleared {args['results_dir']}/ snapshots and trajectory files.")
-
-    obs = load_obs(args["obs_path"])
-    obs = filter_obs_to_model_depths(obs, model.model_output_depths(args["ensemble_base"]))
-    log_obs_summary(obs, args["obs_path"])
-    start_date, end_date = args["start_date"], args["end_date"]
-
-    # The windows end at the observation times, plus a last one to end_date without an update:
-    # they depend only on the observations, so a run split into slices steps as one run does.
-    boundaries = obs_window_boundaries(obs, start_date, end_date)
-    logger.info(f"EnKF: {start_date.date()} → {end_date.date()} ({len(boundaries)} windows, "
-                f"{len(member_ids)} members, inflation={args['inflation']})")
+        reset_members(args, model, [args["diag_path"], args["innov_depth_path"], args["kgain_depth_path"]])
+    obs = run_observations(args, model)
     log_sigma_summary(args)
+    logger.info(f"EnKF inflation={args['inflation']}")
 
-    model.start_containers(args, max_workers=max_workers)
-    try:
-        windows_updated = 0
-        progress = args.get("progress", False)
-        bar      = make_progress(max(1, len(boundaries)), progress, desc=f"EnKF {args['lake']}")
-        current  = start_date
-        for window_end in boundaries:
-            t0 = time.perf_counter()
-            failed = model.run_window(current, window_end, args, max_workers=max_workers)
-            t_model = time.perf_counter() - t0
+    def update(window_start, window_end, failed):
+        y_obs, sim_depths, obs_depths = window_observations(obs, window_start, window_end, model)
+        if y_obs is None:
+            return False, "no obs"
+        good = [i for i in args["member_ids"] if i not in failed]
+        n_updated = _analyse(args, model, good, y_obs, sim_depths, obs_depths, window_end) if len(good) >= 2 else 0
+        return n_updated > 0, f"n_obs={len(y_obs)}  n_updated={n_updated}"
 
-            y_obs, sim_depths, obs_depths = window_observations(obs, current, window_end, model)
-            n_updated = 0
-            if y_obs is not None:
-                good = [i for i in member_ids if i not in failed]
-                if len(good) >= 2:
-                    n_updated = _analyse(args, model, good, y_obs, sim_depths, obs_depths, window_end)
-                    windows_updated += n_updated > 0
-
-            obs_str = f"n_obs={len(y_obs)}  n_updated={n_updated}" if y_obs is not None else "no obs"
-            status  = f"failed={failed}" if failed else "ok"
-            logger.info(f"  {current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}  {obs_str}  [{status}]  "
-                        f"[model={t_model:.1f}s  total={time.perf_counter() - t0:.1f}s]",
-                        extra={"file_only": True})
-            if progress:
-                bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  {obs_str}  [{status}]")
-                bar.update(1)
-            current = window_end
-
-        bar.close()
-        member_files = [model.member_output_file(args["ensemble_base"], i, args["results_dir"])
-                        for i in member_ids]
-        model.accumulate_mean(member_files, args["mean_traj_path"])
-        logger.info(f"Done. {len(boundaries)} windows run, {windows_updated} EnKF updates applied.")
-        return len(boundaries), windows_updated
-    finally:
-        model.stop_containers(args)
-
-
-def run_enkf(run_raw, ensemble_raw, ensemble_base, n_members, model):
-    """Run the native EnKF and write its summary and skill report to ensemble_base."""
-    args = build_python_run_args(run_raw, ensemble_raw, ensemble_base, n_members, model)
-    log_run_header(ensemble_raw)
-    t0 = time.perf_counter()
-    windows_run, windows_updated = run_enkf_loop(args, model)
-
-    member_files = [model.member_output_file(ensemble_base, i, args["results_dir"])
-                    for i in args["member_ids"]]
-    out_csv, skill = report_summary("python", "EnKF", member_files, args["lake"], args["obs_path"],
-                                   ensemble_base, model)
-    log_run_footer(ensemble_raw, skill, windows_run, windows_updated, time.perf_counter() - t0, out_csv)
+    return step_windows(args, model, obs, update)

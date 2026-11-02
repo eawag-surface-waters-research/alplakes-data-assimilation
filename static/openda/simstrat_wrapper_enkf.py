@@ -22,7 +22,7 @@ import numpy as np
 # This file lives at <openda_dir>/stochModel/bin/; the assimilator package is found through
 # PYTHONPATH, set by the engine.
 OPENDA_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from assimilator.models.simstrat import read_snapshot_T_at, write_snapshot_T_at   # noqa: E402
+from assimilator.models.simstrat.snapshot import read_snapshot_T_at, write_snapshot_T_at   # noqa: E402
 from assimilator.obs_operator import build_H                                      # noqa: E402
 
 SNAPSHOT_FILENAME = "simulation-snapshot.dat"

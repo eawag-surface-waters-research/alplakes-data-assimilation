@@ -26,7 +26,7 @@ Where these files live is up to you; the paths go into the run configuration or 
 
 A complete, calibrated Simstrat setup that runs on its own: `Settings.par`, `Forcing.dat`, bathymetry, grid, initial conditions, absorption, inflow and outflow files, and `z_out.dat`. Setups for the Alplakes lakes can be downloaded from [alplakes.eawag.ch/downloads](https://www.alplakes.eawag.ch/downloads). On top of a standard setup:
 
-- **`Settings.par`** must have `"Continue from last snapshot"` enabled, so each assimilation window restarts from the state the previous one left, and `"Reference year"` 1981 (`SIMSTRAT_REF_YEAR` in `models/simstrat.py`). The engines set the start and end dates themselves, in their own copies.
+- **`Settings.par`** must have `"Continue from last snapshot"` enabled, so each assimilation window restarts from the state the previous one left, and `"Reference year"` 1981 (`SIMSTRAT_REF_YEAR` in `models/simstrat/model.py`). The engines set the start and end dates themselves, in their own copies.
 - **`Forcing.dat`** is the standard Simstrat file: one header line, then time (days since 1 January of the reference year), u and v wind (m/s), air temperature (°C), solar radiation (W/m²), vapour pressure (mbar), cloud cover (–) and rain (m/h). It must cover the whole run. Each member gets its own copy with u, v and solar radiation perturbed.
 - **`z_out.dat`** lists the output depths. The run adds the observation depths to the members' copies, so you don't have to. **The setup folder itself is never modified**; the extended grid is written to `<ensemble_base>/z_out.dat` in case you want it for your own runs.
 

@@ -18,9 +18,8 @@ constraint stays visible. Only hours the lake genuinely samples are candidates.
 The free run must not have assimilated anything, or the hours it was nudged at look best.
 """
 import numpy as np
-import pandas as pd
 
-from ..functions import bin_hourly
+from ..observations import bin_hourly
 from ..observations import FILTER_DEFAULTS
 
 # Surface zone: where the diurnal cycle lives and the hour choice is decided. Upper bound is the

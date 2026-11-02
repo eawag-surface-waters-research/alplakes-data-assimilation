@@ -18,7 +18,8 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from ..functions import SEASONS, season_of, bin_hourly
+from ..observations import bin_hourly
+from ..sigma import SEASONS, season_of
 
 MIN_HOURS = 24   # a depth must be present this often in EVERY season
 

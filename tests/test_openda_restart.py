@@ -10,9 +10,9 @@ import pytest
 import assimilator
 from assimilator.models import MODELS, get_model
 from assimilator.openda import restart as rc
-from assimilator.openda import adapter
+from assimilator.openda import engine
 from assimilator.openda.config import render
-from assimilator.perturbate import perturbator
+from assimilator.perturbate import perturbate
 from toy_model import ToyModel, write_inputs
 
 UTC = timezone.utc
@@ -114,14 +114,14 @@ def _chain_cfg(tmp_path, start, end, obs_times, **restart):
 
 def test_chain_runs_from_its_end_in_chunks(tmp_path, monkeypatch):
     runs = []
-    monkeypatch.setattr(adapter, "run_openda", lambda run_cfg, *a, **k: runs.append(
-        (run_cfg["start_date"][:10], run_cfg["end_date"][:10])))
-    monkeypatch.setattr("assimilator.perturbate.perturbator", lambda *a, **k: None)
+    monkeypatch.setattr(engine, "run_openda", lambda run_cfg, *a, **k: runs.append(
+        (f"{run_cfg['start_date']:%Y-%m-%d}", f"{run_cfg['end_date']:%Y-%m-%d}")))
+    monkeypatch.setattr("assimilator.perturbate.perturbate", lambda *a, **k: None)
 
     cfg = _chain_cfg(tmp_path, "2026-01-01", "2026-03-15",
                      ["2026-01-10 06:00", "2026-02-20 06:00", "2026-03-10 06:00", "2026-03-14 06:00"],
                      cycle_max_days=31)
-    assert adapter.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-15")
+    assert engine.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-15")
     assert runs == [("2026-01-01", "2026-02-01"), ("2026-02-01", "2026-03-04"), ("2026-03-04", "2026-03-15")]
 
     # a chain that already ends after start_date continues from its own end
@@ -129,13 +129,13 @@ def test_chain_runs_from_its_end_in_chunks(tmp_path, monkeypatch):
     _openda_wrote_restart(cfg["openda_dir"])
     rc.commit_restart(cfg["openda_dir"], chain, "2026-03-14", ID)
     runs.clear()
-    assert adapter.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-15")
+    assert engine.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-15")
     assert runs == [("2026-03-14", "2026-03-15")]
 
     # already there: nothing to do; a chain ending before start_date is refused
-    assert adapter.run_openda_chain(dict(cfg, end_date="2026-03-14"), _Model(), params={}) == t("2026-03-14")
+    assert engine.run_openda_chain(dict(cfg, end_date="2026-03-14"), _Model(), params={}) == t("2026-03-14")
     with pytest.raises(ValueError):
-        adapter.run_openda_chain(dict(cfg, start_date="2026-03-20", end_date="2026-03-21"), _Model(), params={})
+        engine.run_openda_chain(dict(cfg, start_date="2026-03-20", end_date="2026-03-21"), _Model(), params={})
 
 
 def test_forcing_is_continuous_when_a_boundary_falls_between_rows(tmp_path):
@@ -157,13 +157,13 @@ def test_forcing_is_continuous_when_a_boundary_falls_between_rows(tmp_path):
             return pd.read_csv(base / "run" / "ensemble2" / "forcing.csv").set_index("time_days")["U"]
 
         one = members(tmp_path / "one")
-        perturbator(dict(one, start_date="2024-06-01T00:00", end_date="2024-06-02T00:00"), get_model("toy"))
+        perturbate(dict(one, start_date="2024-06-01T00:00", end_date="2024-06-02T00:00"), get_model("toy"))
         whole = forcing(tmp_path / "one")
 
         two = members(tmp_path / "two")
-        perturbator(dict(two, start_date="2024-06-01T00:00", end_date="2024-06-01T06:30"), get_model("toy"))
+        perturbate(dict(two, start_date="2024-06-01T00:00", end_date="2024-06-01T06:30"), get_model("toy"))
         first = forcing(tmp_path / "two")
-        perturbator(dict(two, start_date="2024-06-01T06:30", end_date="2024-06-02T00:00"), get_model("toy"))
+        perturbate(dict(two, start_date="2024-06-01T06:30", end_date="2024-06-02T00:00"), get_model("toy"))
         second = forcing(tmp_path / "two")
 
         assert first.index.max() > second.index.min()             # both runs hold the 06:00-07:00 rows
@@ -175,16 +175,16 @@ def test_forcing_is_continuous_when_a_boundary_falls_between_rows(tmp_path):
 
 def test_openda_is_never_started_on_a_window_without_observations(tmp_path, monkeypatch):
     runs = []
-    monkeypatch.setattr(adapter, "run_openda", lambda run_cfg, *a, **k: runs.append(
-        (run_cfg["start_date"][:10], run_cfg["end_date"][:10])))
-    monkeypatch.setattr("assimilator.perturbate.perturbator", lambda *a, **k: None)
+    monkeypatch.setattr(engine, "run_openda", lambda run_cfg, *a, **k: runs.append(
+        (f"{run_cfg['start_date']:%Y-%m-%d}", f"{run_cfg['end_date']:%Y-%m-%d}")))
+    monkeypatch.setattr("assimilator.perturbate.perturbate", lambda *a, **k: None)
 
     # an empty first chunk is merged into the next; the gap after the last observation is left
     cfg = _chain_cfg(tmp_path, "2026-01-01", "2026-04-15", ["2026-02-20 06:00"], cycle_max_days=31)
-    assert adapter.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-04")
+    assert engine.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-04")
     assert runs == [("2026-01-01", "2026-03-04")]
 
     # nothing at all after the start: the chain stays put
     runs.clear()
     cfg = _chain_cfg(tmp_path, "2026-03-04", "2026-04-15", ["2026-02-20 06:00"])
-    assert adapter.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-04") and runs == []
+    assert engine.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-04") and runs == []

@@ -1,6 +1,6 @@
 """A model as an OpenDA black box: what the OpenDA engine needs to know about a model.
 
-The engine (adapter.py, config.py, restart.py) holds no model knowledge. It runs any model whose
+The engine (adapter.py, config.py, engine.py, launch.py, restart.py) holds no model knowledge. It runs any model whose
 wrapper keeps this contract, in each OpenDA work dir:
 
     time_control.yaml      [start, dt, end] in model days, written by OpenDA before each window
@@ -15,7 +15,7 @@ restored. Everything else -- file names and layout, the time axis, how the templ
 starting state, the forcing, the outputs, the container -- belongs to the binding.
 
 One binding per model, returned by ForwardModel.openda_binding(); the Simstrat one is
-models/simstrat_openda.py. Adding a model to OpenDA = a wrapper script + wrapper XML keeping the
+models/simstrat/openda.py. Adding a model to OpenDA = a wrapper script + wrapper XML keeping the
 contract above, and a binding.
 """
 from abc import ABC, abstractmethod

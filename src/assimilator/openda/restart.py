@@ -27,7 +27,8 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-from assimilator.functions import RNG_STREAMS
+from ..config import utc
+from ..rng import RNG_STREAMS
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +47,6 @@ def settings(cfg):
         raise ValueError(f"openda_restart: unknown key(s) {sorted(unknown)}; "
                          f"expected {sorted(set(DEFAULTS) | {'dir'})}")
     return {**DEFAULTS, **spec}
-
-
-def utc(t):
-    """A tz-aware UTC datetime from an ISO string or a datetime (naive = UTC); seconds dropped
-    below the minute, the resolution restart files are named at."""
-    if isinstance(t, str):
-        t = datetime.fromisoformat(t)
-    t = t.replace(tzinfo=timezone.utc) if t.tzinfo is None else t.astimezone(timezone.utc)
-    return t.replace(second=0, microsecond=0)
 
 
 def chain_dir(cfg, openda_dir):

@@ -5,15 +5,11 @@ the lowest-RMSE member is copied onto all others, collapsing the spread, which t
 forcing perturbation rebuilds. Kept as a simple, deliberate scheme.
 """
 import os
-import time
 import logging
 import concurrent.futures
 import numpy as np
 
-from ..functions import (load_obs, filter_obs_to_model_depths, obs_window_boundaries,
-                         build_python_run_args, make_progress, log_obs_summary,
-                         log_run_header, log_run_footer)
-from ..summarize import report_summary
+from .common import reset_members, run_observations, step_windows
 
 logger = logging.getLogger(__name__)
 
@@ -57,91 +53,31 @@ def rmse_in_window(sim_df, obs_df, window_start, window_end, depth_weights, mode
 
 
 def run_pf_loop(args, model):
-    member_ids  = args["member_ids"]
-    max_workers = args.get("max_workers")
-
     if args.get("reset"):
-        model.clear_member_state(args["ensemble_base"], member_ids, args["results_dir"])
-        model.clear_member_outputs(args["ensemble_base"], member_ids, args["results_dir"])
-        if os.path.exists(args["mean_traj_path"]):
-            os.remove(args["mean_traj_path"])
-        logger.info(f"Reset: cleared {args['results_dir']}/ snapshots and trajectory files.")
-
-    obs = load_obs(args["obs_path"])
-    obs = filter_obs_to_model_depths(obs, model.model_output_depths(args["ensemble_base"]))
-    log_obs_summary(obs, args["obs_path"])
+        reset_members(args, model)
+    obs = run_observations(args, model)
     depth_weights = compute_depth_weights(obs, model)
     logger.info(f"Depth weights: { {d: round(w, 2) for d, w in depth_weights.items()} }")
-    start_date, end_date = args["start_date"], args["end_date"]
 
-    boundaries = obs_window_boundaries(obs, start_date, end_date)
-    logger.info(f"PF: {start_date.date()} → {end_date.date()} ({len(boundaries)} windows, "
-                f"{len(member_ids)} members)")
+    def update(window_start, window_end, failed):
+        def score(i):
+            if i in failed:
+                return i, np.nan, 0, 0
+            try:
+                sim = model.load_T_window(os.path.join(args["ensemble_base"], f"ensemble{i}"),
+                                          args, window_start, window_end)
+                return (i, *rmse_in_window(sim, obs, window_start, window_end, depth_weights, model))
+            except Exception:
+                return i, np.nan, 0, 0
 
-    model.start_containers(args, max_workers=max_workers)
-    try:
-        windows_copied = 0
-        progress = args.get("progress", False)
-        bar      = make_progress(max(1, len(boundaries)), progress, desc=f"PF {args['lake']}")
-        current  = start_date
-        for window_end in boundaries:
-            t0 = time.perf_counter()
-            failed = model.run_window(current, window_end, args, max_workers=max_workers)
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            scores = {r[0]: r[1:] for r in pool.map(score, args["member_ids"])}
+        counts = f"obs={max(s[1] for s in scores.values())}  matched={max(s[2] for s in scores.values())}"
+        valid  = [(i, s[0]) for i, s in scores.items() if not np.isnan(s[0])]
+        if not valid:
+            return False, f"no obs — snapshots unchanged  {counts}"
+        best_id, best_rmse = min(valid, key=lambda x: x[1])
+        model.copy_member_state(best_id, args["member_ids"], args)
+        return True, f"best=ensemble{best_id:02d}  RMSE={best_rmse:.4f} °C  {counts}"
 
-            def score(i):
-                if i in failed:
-                    return i, np.nan, 0, 0
-                try:
-                    sim = model.load_T_window(os.path.join(args["ensemble_base"], f"ensemble{i}"),
-                                              args, current, window_end)
-                    return (i, *rmse_in_window(sim, obs, current, window_end, depth_weights, model))
-                except Exception:
-                    return i, np.nan, 0, 0
-
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                scores = {r[0]: r[1:] for r in pool.map(score, member_ids)}
-            n_obs     = max(s[1] for s in scores.values())
-            n_matched = max(s[2] for s in scores.values())
-            valid     = [(i, s[0]) for i, s in scores.items() if not np.isnan(s[0])]
-            status    = f"failed={failed}" if failed else "ok"
-            window    = f"{current:%Y-%m-%d %H:%M} -> {window_end:%Y-%m-%d %H:%M}"
-
-            if valid:
-                best_id, best_rmse = min(valid, key=lambda x: x[1])
-                model.copy_member_state(best_id, member_ids, args)
-                windows_copied += 1
-                logger.info(f"  {window}  best=ensemble{best_id:02d}  RMSE={best_rmse:.4f} °C  "
-                            f"obs={n_obs}  matched={n_matched}  [{status}]  [{time.perf_counter() - t0:.1f}s]",
-                            extra={"file_only": True})
-                postfix = f"best=ens{best_id:02d}  RMSE={best_rmse:.3f}  [{status}]"
-            else:
-                logger.info(f"  {window}  no obs — snapshots unchanged  obs={n_obs}  matched={n_matched}  "
-                            f"[{status}]  [{time.perf_counter() - t0:.1f}s]", extra={"file_only": True})
-                postfix = f"no obs  [{status}]"
-            if progress:
-                bar.set_postfix_str(f"{window_end:%Y-%m-%d %H:%M}  {postfix}")
-                bar.update(1)
-            current = window_end
-
-        bar.close()
-        member_files = [model.member_output_file(args["ensemble_base"], i, args["results_dir"])
-                        for i in member_ids]
-        model.accumulate_mean(member_files, args["mean_traj_path"])
-        logger.info(f"Done. {len(boundaries)} windows run, {windows_copied} best-copy steps applied.")
-        return len(boundaries), windows_copied
-    finally:
-        model.stop_containers(args)
-
-
-def run_pf(run_raw, ensemble_raw, ensemble_base, n_members, model):
-    """Run the native PF and write its summary and skill report to ensemble_base."""
-    args = build_python_run_args(run_raw, ensemble_raw, ensemble_base, n_members, model)
-    log_run_header(ensemble_raw)
-    t0 = time.perf_counter()
-    windows_run, windows_copied = run_pf_loop(args, model)
-
-    member_files = [model.member_output_file(ensemble_base, i, args["results_dir"])
-                    for i in args["member_ids"]]
-    out_csv, skill = report_summary("python", "PF", member_files, args["lake"], args["obs_path"],
-                                   ensemble_base, model)
-    log_run_footer(ensemble_raw, skill, windows_run, windows_copied, time.perf_counter() - t0, out_csv)
+    return step_windows(args, model, obs, update)
