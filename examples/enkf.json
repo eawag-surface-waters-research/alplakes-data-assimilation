@@ -1,0 +1,25 @@
+{
+    "_note": "One run = one flat config. Paths resolve against the directory you run from. See docs/configuration.md. Run with: python src/assimilate.py run examples/enkf.json",
+    "lake": "upperlugano",
+    "model": "simstrat",
+    "engine": "python",
+    "algorithm": "EnKF",
+    "n_members": 20,
+    "start_date": "2025-01-01",
+    "end_date": "2025-12-31",
+    "model_inputs_path": "inputs/upperlugano",
+    "ensemble_base": "run/upperlugano",
+    "obs_file": "observations/upperlugano/temperature_filtered_h06_1d.csv",
+    "sigma_obs": {"mixed": 0.299, "stratified": 0.586},
+    "perturbations": {
+        "variables": {
+            "U":    {"phi": 0.754079, "sigma": 0.588286},
+            "V":    {"phi": 0.819307, "sigma": 0.715974},
+            "GLOB": {"phi": 0.86973,  "sigma": 25.717096}
+        }
+    },
+    "inflation": 1.0,
+    "sigma_scale": 1.0,
+    "rng_seed": 42,
+    "reset": false
+}
