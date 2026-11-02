@@ -150,7 +150,12 @@ def perturbate(args: dict, model, params: dict = None) -> None:
     steps_all = std["step"].to_numpy(dtype=np.int64)
     start = pd.Timestamp(args["start_date"]).tz_convert("UTC")
     end   = pd.Timestamp(args["end_date"]).tz_convert("UTC")
-    mask  = (std["time"] >= start) & (std["time"] <= end)
+    # The window's rows, plus the row on each side when a boundary falls between two rows, so the
+    # model has forcing at both ends (a no-op when the boundaries are on rows, e.g. 00:00).
+    t     = std["time"]
+    lo    = t[t <= start].max() if (t <= start).any() else t.min()
+    hi    = t[t >= end].min() if (t >= end).any() else t.max()
+    mask  = (t >= lo) & (t <= hi)
     df    = std[mask].reset_index(drop=True)
     steps = steps_all[mask.values]
     if df.empty:
@@ -169,6 +174,10 @@ def perturbate(args: dict, model, params: dict = None) -> None:
     resume_step = max((s for s in states if s <= steps[0]), default=None)
 
     night = df["GLOB"].values < 1.0   # night mask from the control's solar (no reanalysis at apply time)
+    # The chain state is saved at the last row at or before the window end: where the next window
+    # resumes, whether or not the end falls on a row.
+    at_or_before_end = (df["time"] <= end).to_numpy()
+    i_end = int(np.flatnonzero(at_or_before_end)[-1]) if at_or_before_end.any() else n - 1
 
     # Note: U and V are perturbed with independent AR(1) draws (separate phi/sigma), so
     # their cross-correlation is ignored. Intended.
@@ -192,7 +201,7 @@ def perturbate(args: dict, model, params: dict = None) -> None:
                 else phi * prev + _row_noise(rng_seed, name, steps[0], n_members) * sig
         for t in range(1, n):
             pert[t] = phi * pert[t - 1] + _row_noise(rng_seed, name, steps[t], n_members) * sig
-        end_state[name] = pert[-1].tolist()            # raw chain value (pre night-clip)
+        end_state[name] = pert[i_end].tolist()         # raw chain value (pre night-clip)
         if clip_zero:
             pert[night] = 0.0
         ensemble = df[name].values[:, None] + pert
@@ -203,10 +212,10 @@ def perturbate(args: dict, model, params: dict = None) -> None:
             ensemble = np.clip(ensemble, 0.0, None)
         perturbed[name] = ensemble
 
-    states[int(steps[-1])] = end_state
+    states[int(steps[i_end])] = end_state
     _save_state(state_path, params_echo, states)
     resume_str = "cold start" if resume_step is None else f"resumed from step {resume_step}"
-    logger.info(f"{lake}: AR(1) chain {resume_str}; state saved at step {int(steps[-1])} "
+    logger.info(f"{lake}: AR(1) chain {resume_str}; state saved at step {int(steps[i_end])} "
                 f"-> {STATE_FILENAME}")
 
     spreads = {name: arr.std(axis=1).mean() for name, arr in perturbed.items()}

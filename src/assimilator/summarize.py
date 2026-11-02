@@ -191,6 +191,10 @@ def summarize_from_config(cfg):
         member_files  = [model.member_output_file(ensemble_base, i, cfg["results_dir"])
                          for i in range(1, n_members + 1)]
         return report_summary("python", label, member_files, lake, obs_csv, ensemble_base, model)
-    from .openda.adapter import openda_member_files
-    member_files = openda_member_files(cfg["openda_dir"], n_members)
+    from .openda.adapter import openda_member_files, openda_chain_member_files
+    if cfg.get("openda_restart"):
+        # restart chain: the work dirs hold only the latest run; the chain's files hold all of it
+        member_files = openda_chain_member_files(cfg["openda_dir"], n_members, cfg.get("results_dir", "Results"))
+    else:
+        member_files = openda_member_files(cfg["openda_dir"], n_members)
     return report_summary("openda", label, member_files, lake, obs_csv, cfg["openda_dir"], model)

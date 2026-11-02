@@ -90,7 +90,7 @@ def cmd_run(cli):
     log_file = cli.log_file or os.path.join(cfg["ensemble_base"], "logs",
                                             f"pipeline_{datetime.now():%Y%m%d_%H%M%S}.log")
     _setup_logging(log_file, cli.verbose)
-    result = run(cfg, force_copy=cli.force_copy, skip_oda=cli.skip_oda)
+    result = run(cfg, force_copy=cli.force_copy, skip_oda=cli.skip_oda, max_cycles=cli.max_cycles)
     logger.info(f"mean trajectory -> {result['mean_trajectory']}")
     if result["output_grid"]:
         logger.info(f"output grid incl. observation depths -> {result['output_grid']}")
@@ -205,6 +205,8 @@ def main(argv=None):
     r.add_argument("--reset", action="store_true", help="start from scratch in --out")
     r.add_argument("--force-copy", action="store_true", help="re-copy the setup into the members")
     r.add_argument("--skip-oda", action="store_true", help="openda: prepare but do not run OpenDA")
+    r.add_argument("--max-cycles", type=int, default=None,
+                   help="openda restart chain: run at most N OpenDA runs of a long catch-up")
     r.add_argument("--no-progress", action="store_true")
     r.add_argument("--log-file", help="default: <out>/logs/pipeline_<timestamp>.log")
     r.set_defaults(func=cmd_run)

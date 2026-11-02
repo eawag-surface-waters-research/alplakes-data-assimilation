@@ -23,7 +23,7 @@ from .perturbate import perturbator, load_perturbations
 logger = logging.getLogger(__name__)
 
 
-def run(cfg, force_copy=False, skip_oda=False):
+def run(cfg, force_copy=False, skip_oda=False, max_cycles=None):
     """Run one assimilation described by `cfg` (see assimilator.config). Returns a dict of what
     was produced:
 
@@ -34,6 +34,10 @@ def run(cfg, force_copy=False, skip_oda=False):
         analysis_time     the instant the members' final state is at (end_date, tz-aware UTC):
                           observations in (start_date, end_date] were assimilated
         cfg               the resolved run config
+
+    With engine "openda" and an "openda_restart" block, the run continues an OpenDA restart chain
+    (assimilator.openda.restart) from where it ends, and analysis_time is where it ends afterwards.
+    `max_cycles` caps the number of OpenDA runs of a long catch-up.
     """
     cfg       = build_config(cfg)
     model     = get_model(cfg["model"])
@@ -74,6 +78,16 @@ def run(cfg, force_copy=False, skip_oda=False):
         if n:
             logger.info(f"      member output depths <- model + obs depth superset "
                         f"({len(obs_depths)} obs depths; {n} files updated)")
+
+    # --- 3-5. OpenDA restart chain: perturb + run OpenDA per run of the chain ---------------------
+    if engine == "openda" and cfg.get("openda_restart"):
+        from .openda.adapter import run_openda_chain
+        params = load_perturbations(cfg)   # fail fast: errors if missing or malformed
+        analysis_time = run_openda_chain(cfg, model, params, skip_oda=skip_oda, max_cycles=max_cycles)
+        logger.info("=== pipeline complete ===")
+        return {"ensemble_base": ensemble_base, "output_grid": output_grid,
+                "mean_trajectory": model.mean_traj_path(cfg["openda_dir"], cfg["algorithm"]),
+                "analysis_time": analysis_time, "cfg": cfg}
 
     # --- 3. perturb forcings (always) ------------------------------------------------------------
     logger.info(f"[3/5] perturbate forcing in ensemble1..{n_members}")
