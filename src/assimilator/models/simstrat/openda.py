@@ -12,7 +12,7 @@ import shutil
 from datetime import date, datetime, timezone
 
 from ...openda.binding import OpenDABinding
-from .model import SIMSTRAT_REF_YEAR, _read_z_out
+from .model import SIMSTRAT_REF_YEAR, read_z_out
 from .snapshot import read_snapshot
 
 STATIC_OPENDA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
@@ -128,7 +128,7 @@ class SimstratOpenDA(OpenDABinding):
             f.write(s)
 
     def output_depths(self, model_inputs):
-        return _read_z_out(os.path.join(model_inputs, "z_out.dat"))
+        return read_z_out(os.path.join(model_inputs, "z_out.dat"))
 
     def work_output(self, openda_dir, i):
         return os.path.join(openda_dir, "Results", f"work{i}", "Results", "T_out.dat")

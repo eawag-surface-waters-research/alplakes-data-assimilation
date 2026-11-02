@@ -111,7 +111,7 @@ def read_output(path):
             df.iloc[:, 1:].to_numpy(dtype=float))
 
 
-def _read_z_out(path):
+def read_z_out(path):
     """The depths (positive metres) in a z_out.dat, [] if there is none."""
     if not os.path.isfile(path):
         return []
@@ -125,7 +125,7 @@ def _read_z_out(path):
     return depths
 
 
-def _write_z_out(path, depths):
+def write_z_out(path, depths):
     with open(path, "w") as f:
         f.write("Depths [m]\n")
         for z in sorted(depths):
@@ -133,10 +133,10 @@ def _write_z_out(path, depths):
 
 
 def model_output_depths(ensemble_base):
-    return _read_z_out(os.path.join(ensemble_base, "ensemble1", "z_out.dat"))
+    return read_z_out(os.path.join(ensemble_base, "ensemble1", "z_out.dat"))
 
 
-def _extend_depths(existing, obs):
+def extend_depths(existing, obs):
     """The output depths plus the observation depths above the deepest of them (the bed)."""
     return set(existing) | {o for o in obs if o <= max(existing)}
 
@@ -150,16 +150,16 @@ def set_output_depths(model_inputs, ensemble_base, n_members, obs_depths):
     rewritten = 0
     for i in range(n_members + 1):
         path = os.path.join(ensemble_base, f"ensemble{i}", "z_out.dat")
-        existing = _read_z_out(path)
-        if existing and _extend_depths(existing, obs) != set(existing):
-            _write_z_out(path, _extend_depths(existing, obs))
+        existing = read_z_out(path)
+        if existing and extend_depths(existing, obs) != set(existing):
+            write_z_out(path, extend_depths(existing, obs))
             rewritten += 1
-    source = _read_z_out(os.path.join(model_inputs, "z_out.dat"))
+    source = read_z_out(os.path.join(model_inputs, "z_out.dat"))
     if not source:
         return rewritten, None
     extended = os.path.join(ensemble_base, "z_out.dat")
     os.makedirs(ensemble_base, exist_ok=True)
-    _write_z_out(extended, _extend_depths(source, obs))
+    write_z_out(extended, extend_depths(source, obs))
     return rewritten, extended
 
 
