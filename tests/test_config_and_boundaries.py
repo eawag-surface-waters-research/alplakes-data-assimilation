@@ -52,7 +52,9 @@ def test_perturbations_accept_full_and_flat_forms():
 
 
 # Simstrat's files and names may appear only in its adapter and in the Simstrat-only OpenDA engine.
-ALLOWED = {os.path.join("models", "simstrat.py"), "openda"}
+# models/simstrat.py and its OpenDA binding hold all Simstrat knowledge; the OpenDA engine (openda/)
+# holds none, it gets everything from the binding.
+ALLOWED = {os.path.join("models", "simstrat.py"), os.path.join("models", "simstrat_openda.py")}
 FORBIDDEN = re.compile(r"\bsimstrat\b|\bt_out\b|forcing\.dat|settings\.par|\bz_out\b", re.I)
 # The registry name of the default model is the one Simstrat word allowed elsewhere.
 ALLOWED_TOKENS = {("config.py", "simstrat")}

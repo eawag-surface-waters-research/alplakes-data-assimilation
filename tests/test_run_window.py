@@ -7,10 +7,13 @@ import pandas as pd
 
 import assimilator
 from assimilator.functions import load_obs, obs_window_boundaries
-from assimilator.models import MODELS
+from assimilator.models import MODELS, get_model
 from assimilator.openda.adapter import _build_observations
-from assimilator.openda.config import render, simstrat_time, format_day
+from assimilator.openda.config import render, format_day
 from toy_model import ToyModel
+
+SIMSTRAT = get_model("simstrat").openda_binding()
+simstrat_time = SIMSTRAT.model_time
 
 UTC = timezone.utc
 
@@ -42,7 +45,7 @@ def test_openda_takes_every_observation_at_its_own_hour(tmp_path):
     _write_obs(tmp_path / "obs.csv", IRREGULAR)
     os.makedirs(tmp_path / "inputs")
     raw = {"lake": "x", "obs_file": str(tmp_path / "obs.csv"), "start_date": START, "end_date": END}
-    depths, n_analysis, series = _build_observations(raw, str(tmp_path / "oda"), str(tmp_path / "inputs"))
+    depths, n_analysis, series = _build_observations(raw, str(tmp_path / "oda"), str(tmp_path / "inputs"), SIMSTRAT)
 
     assert depths == [1.0] and series == [(1.0, None)] and n_analysis == len(EXPECTED)
     written = pd.read_csv(tmp_path / "oda" / "stochObserver" / "T_1m_real.csv", dtype={"time": str})
@@ -57,14 +60,14 @@ def test_openda_season_split_partitions_the_observations(tmp_path):
     os.makedirs(tmp_path / "inputs")
     raw = {"lake": "x", "obs_file": str(tmp_path / "obs.csv"), "start_date": "2025-04-29",
            "end_date": "2025-05-02", "_season_series": True}
-    _, n_analysis, series = _build_observations(raw, str(tmp_path / "oda"), str(tmp_path / "inputs"))
+    _, n_analysis, series = _build_observations(raw, str(tmp_path / "oda"), str(tmp_path / "inputs"), SIMSTRAT)
     assert series == [(1.0, "mixed"), (1.0, "stratified")] and n_analysis == 3
     mixed = pd.read_csv(tmp_path / "oda" / "stochObserver" / "T_1m_mixed_real.csv")
     assert list(mixed["value"]) == [5.0, 5.5]
 
 
 def test_openda_runs_to_end_date_not_the_day_after(tmp_path):
-    render(str(tmp_path), "EnKF", 4, [1.0], START, END, obs_std=0.5)
+    render(str(tmp_path), SIMSTRAT, "EnKF", 4, [1.0], START, END, obs_std=0.5)
     line = (tmp_path / "stochModel" / "template" / "time_control.yaml").read_text().splitlines()[-1]
     assert line.startswith(f"time: [{format_day(simstrat_time(START))}, 1.0, {format_day(simstrat_time(END))}]")
     assert simstrat_time(END) - simstrat_time(START) == 6.0
@@ -94,7 +97,7 @@ def test_openda_keeps_an_observation_one_hour_after_the_start(tmp_path):
     os.makedirs(tmp_path / "inputs")
     raw = {"lake": "x", "obs_file": str(tmp_path / "obs.csv"), "start_date": "2025-01-10",
            "end_date": "2025-01-11"}
-    _, n_analysis, _ = _build_observations(raw, str(tmp_path / "oda"), str(tmp_path / "inputs"))
+    _, n_analysis, _ = _build_observations(raw, str(tmp_path / "oda"), str(tmp_path / "inputs"), SIMSTRAT)
     assert n_analysis == 1
 
 

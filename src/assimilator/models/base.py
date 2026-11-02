@@ -146,3 +146,9 @@ class ForwardModel(ABC):
     def write_mean_state(self, cfg, out_path):
         """Write the ensemble-mean analysis state of members 1..N as a warm start at `out_path`
         (the deterministic forecast's initial condition)."""
+
+    # --- OpenDA ---------------------------------------------------------------------------------
+    def openda_binding(self):
+        """The model as an OpenDA black box (assimilator.openda.binding.OpenDABinding), or None if
+        it cannot run under the OpenDA engine. Not needed for the native engines."""
+        return None

@@ -1,11 +1,9 @@
-"""OpenDA cross-validation support.
+"""The OpenDA engine: runs a model under OpenDA (https://www.openda.org) as a black box.
 
-Bridges the Python DA framework into the standalone ``openda_simstrat/`` layout:
-
-- ``adapter``  — exports the framework's inputs/forcings/warmup/observations
-                 (data files) into OpenDA's directory layout.
-- ``config``   — renders the OpenDA filter configuration (run.oda + the .gen.xml
-                 chain) from ``obs_depths`` / window / ``n_members``.
-
-Driven end-to-end by ``src/openda_assimilation.py``.
+- ``adapter``  -- copies the framework's inputs (model setup, perturbed forcings, warm start,
+                 observations) into OpenDA's working-dir layout, launches OpenDA, summarises.
+- ``config``   -- renders the OpenDA configuration (run.oda + the .gen.xml chain).
+- ``restart``  -- the restart chain: carries the ensemble from one OpenDA run to the next.
+- ``binding``  -- what the engine needs from a model; each model provides one
+                 (ForwardModel.openda_binding).
 """

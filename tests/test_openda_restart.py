@@ -78,7 +78,8 @@ def test_append_trajectory_replaces_a_rerun_instead_of_duplicating(tmp_path):
 
 def test_render_restart_chain(tmp_path):
     restart = str(tmp_path / "restart" / "restart_20261102T0000Z.zip")
-    render(str(tmp_path), "EnKF", 4, [1.0], "2026-11-02", "2026-11-03", obs_std=0.5, restart=restart, seed=1234)
+    binding = get_model("simstrat").openda_binding()
+    render(str(tmp_path), binding, "EnKF", 4, [1.0], "2026-11-02", "2026-11-03", obs_std=0.5, restart=restart, seed=1234)
     oda = (tmp_path / "run.oda").read_text()
     assert "<restartInFile>restart/restart_20261102T0000Z.zip</restartInFile>" in oda
     assert 'seedValue="1234"' in oda and "<restartOutFileOnlyAtEndOfRun>true" in oda
@@ -86,7 +87,7 @@ def test_render_restart_chain(tmp_path):
     assert "<modelStateFile>Results/simulation-snapshot.dat</modelStateFile>" in model
     assert os.path.isabs(model.split('key="instanceDir"  value="')[1].split('"')[0])
 
-    render(str(tmp_path / "plain"), "EnKF", 4, [1.0], "2026-11-02", "2026-11-03", obs_std=0.5)
+    render(str(tmp_path / "plain"), binding, "EnKF", 4, [1.0], "2026-11-02", "2026-11-03", obs_std=0.5)
     assert "restartInFile" not in (tmp_path / "plain" / "run.oda").read_text()
 
 
@@ -97,6 +98,8 @@ def test_seed_differs_per_run_and_is_reproducible():
 
 
 class _Model:
+    name = "simstrat"
+
     def run_config(self):
         return {}
 

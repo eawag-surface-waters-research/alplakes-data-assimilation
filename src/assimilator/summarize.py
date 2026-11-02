@@ -194,7 +194,7 @@ def summarize_from_config(cfg):
     from .openda.adapter import openda_member_files, openda_chain_member_files
     if cfg.get("openda_restart"):
         # restart chain: the work dirs hold only the latest run; the chain's files hold all of it
-        member_files = openda_chain_member_files(cfg["openda_dir"], n_members, cfg.get("results_dir", "Results"))
+        member_files = openda_chain_member_files(cfg["openda_dir"], n_members, model, cfg.get("results_dir", "Results"))
     else:
-        member_files = openda_member_files(cfg["openda_dir"], n_members)
+        member_files = openda_member_files(cfg["openda_dir"], n_members, model.openda_binding())
     return report_summary("openda", label, member_files, lake, obs_csv, cfg["openda_dir"], model)

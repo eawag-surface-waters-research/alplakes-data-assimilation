@@ -663,6 +663,12 @@ class Simstrat(ForwardModel):
     member_output_file    = staticmethod(member_output_file)
     read_output           = staticmethod(read_output)
 
+    def openda_binding(self):
+        """Simstrat as an OpenDA black box (imported here: the OpenDA wrapper imports this module
+        once per member per analysis and does not need it)."""
+        from .simstrat_openda import SimstratOpenDA
+        return SimstratOpenDA()
+
 
 # ===========================================================================
 # Binary snapshot I/O (simulation-snapshot.dat) — folded in from the former snapshot.py

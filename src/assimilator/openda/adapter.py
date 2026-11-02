@@ -1,39 +1,18 @@
-"""Export framework outputs into the standalone openda_simstrat/ layout.
+"""Prepare and run a model under OpenDA: the OpenDA engine's adapter and driver.
 
-Replaces openda_simstrat/generate_ensemble_forcings.py, generate_warmup_snapshot.py
-and prepare_real_obs.py: instead of regenerating perturbed forcings (its own AR(1)),
-a separate spin-up snapshot, and the observation CSVs by hand, this COPIES the Python
-framework's already-generated inputs into OpenDA's layout and builds the stochObserver
-observation files in one step.  Result: the OpenDA EnKF reference runs on byte-identical
-forcings + warmup as the Python EnKF, so the cross-validation is rigorous, with no
-duplicated generation.
+Copies the framework's own inputs into OpenDA's working-dir layout -- the model setup, every
+member's perturbed forcing, the warm start -- and builds the stochObserver observation files, so
+OpenDA runs on exactly the forcing and starting state the native engines use. Then renders the
+OpenDA configuration (config.py), launches oda_run.sh and summarises.
 
-Syncs:
-  inputs/<lake>/*               (except OpenDA coupling files + Results/ + dated snapshots)
-      -> openda_simstrat/stochModel/template/*                                 (Bathymetry, Grid, Settings.par,
-                                                                                Absorption, Qin/Qout/Sin/Tin,
-                                                                                InitialConditions, aed2.nml, AED2_*, ...)
-  run/<lake>/ensemble{i}/Forcing.dat
-      -> openda_simstrat/forcings/Forcing_{i}.dat                              (i = 0..N; 0 = control)
-  inputs/<lake>/simulation-snapshot_<date>.dat
-      -> openda_simstrat/stochModel/template/Results/simulation-snapshot.dat   (the warmup OpenDA reads)
+    <model inputs>/*                 -> stochModel/template/   (the model's template inputs)
+    <ensemble_base>/ensemble<i>/     -> forcings/              (member i's perturbed forcing)
+    the warm start                   -> stochModel/template/   (its starting state + state file)
+    the run's "obs_file"             -> stochObserver/T_<depth>m[_<season>]_real.csv
 
-Builds (formerly prepare_real_obs.py):
-  the run's "obs_file" (time, depth, value)
-      -> openda_simstrat/stochObserver/T_{depth}m_real.csv                     (every observation at its own
-                                                                                hour, time in fractional Simstrat days)
-
-OpenDA-specific coupling files in the template are NEVER overwritten:
-  temperature_state.txt, time_control.yaml, timeSeriesFormatter.xml.
-
-OpenDA reads the warmup from template/Results/simulation-snapshot.dat (cloned into
-each work dir; Simstrat "Continue from last snapshot" reads it).  The dated
-simulation-snapshot_*.dat at the template ROOT is only an archive for diagnostics
-and is left untouched.
-
-OpenDA's XML configs / wrappers are left untouched (this only writes data files).
-Prerequisite: run main.py (its copy + perturbate steps) first so the
-ensemble Forcing.dat files exist.
+Everything model-specific -- names, layout, time axis, starting state, forcing, outputs, the
+container -- comes from the model's OpenDA binding (openda/binding.py), so this module runs any
+model that has one. OpenDA's coupling files in the template are never overwritten.
 
 Usage:  python src/assimilator/openda/adapter.py args/run_openda.json
 """
@@ -62,10 +41,10 @@ from assimilator.functions import (verify_args, resolve_obs_path, load_obs, to_u
                                    start_persistent_container, stop_persistent_container,
                                    sigma_obs_spec, should_season_split,
                                    sigma_obs_for_series, season_of)
-from assimilator.models.simstrat import read_snapshot, SIMSTRAT_REF_YEAR, accumulate_mean, mean_traj_path
 from assimilator.summarize import report_summary
 from assimilator.models import get_model
-from .config import (FILTERS, render as render_oda, series_specs, simstrat_time, format_day,
+from assimilator.config import DEFAULTS as RUN_DEFAULTS
+from .config import (FILTERS, render as render_oda, series_specs, format_day,
                      is_season_keyed as is_season_keyed_series, results_filename)
 from . import restart as restart_chain
 
@@ -73,29 +52,27 @@ logger = logging.getLogger(__name__)
 
 REQUIRED = ["lake", "n_members", "ensemble_base"]
 
-# Black-box coupling files OpenDA owns — never overwrite these in the template.
-OPENDA_SPECIFIC = {"temperature_state.txt", "time_control.yaml", "timeSeriesFormatter.xml"}
-
-# The only hand-maintained OpenDA pieces (everything else in openda_simstrat/ is
-# generated/synced). Copied into the working dir at adapt time so the working dir
-# stays fully reproducible from static/openda/.
-STATIC_OPENDA = os.path.join(ROOT, "static", "openda")
-
 # Restart chain (openda/restart.py), continuing from a saved ensemble: the marker file tells the
 # wrapper every member must have been restored, and the sentinel fills the template state so an
-# un-restored member is caught. static/openda/simstrat_wrapper_enkf.py keeps its own copy of both.
+# un-restored member is caught. Every wrapper keeps its own copy of both (binding.py).
 RESTART_MARKER   = "RESTART_EXPECTED"
 RESTART_SENTINEL = -999.0
 
-# Restart chain only: these inputs cover the whole record (~35 MB for one lake) but a run reads a
-# day of them, and OpenDA clones the template into every work dir. So they are kept once in
-# <openda_dir>/shared, Settings.par points every member there, and the template's Forcing.dat is cut
-# to the run (the wrapper replaces it for every member but work0). Work dirs are
+# Restart chain only: the binding's long read-only inputs are kept once in <openda_dir>/shared
+# instead of in the template OpenDA clones into every work dir, and the template's control forcing
+# is cut to the run (the wrapper replaces it for every member but work0). Work dirs are
 # <openda_dir>/Results/work<k>, hence two levels up, inside the container's openda_dir mount.
-SHARED_INPUTS = ("Qin.dat", "Tin.dat", "Sin.dat", "AED2_inflow")
-SHARED_DIR    = "shared"
-SHARED_REL    = "../../" + SHARED_DIR
-PAR_SHARED    = {"Inflow": "Qin.dat", "Inflow temperature": "Tin.dat", "Inflow salinity": "Sin.dat"}
+SHARED_DIR = "shared"
+SHARED_REL = "../../" + SHARED_DIR
+
+
+def openda_binding(cfg):
+    """The OpenDA binding of the run's model (openda/binding.py)."""
+    model   = get_model(cfg.get("model") or RUN_DEFAULTS["model"])
+    binding = model.openda_binding()
+    if binding is None:
+        raise ValueError(f"model '{model.name}' has no OpenDA binding: it cannot run with engine 'openda'")
+    return binding
 
 
 def _copy(src, dst):
@@ -119,11 +96,11 @@ def _unchanged(src, dst):
             and abs(os.path.getmtime(src) - os.path.getmtime(dst)) < 1e-6)
 
 
-def _sync_shared(model_inputs, shared_dir):
-    """Copy SHARED_INPUTS into <openda_dir>/shared, leaving unchanged files alone. Returns the
-    number copied (0 on a day when the inputs did not change)."""
+def _sync_shared(model_inputs, shared_dir, names):
+    """Copy the binding's shared inputs `names` into <openda_dir>/shared, leaving unchanged files
+    alone. Returns the number copied (0 on a day when the inputs did not change)."""
     copied = 0
-    for name in SHARED_INPUTS:
+    for name in names:
         src = os.path.join(model_inputs, name)
         if not os.path.exists(src):
             continue
@@ -137,54 +114,7 @@ def _sync_shared(model_inputs, shared_dir):
     return copied
 
 
-def _point_par_at_shared(par_path):
-    """Point the template's Settings.par at the shared inputs instead of its own copies."""
-    s = open(par_path).read()
-    for key, name in PAR_SHARED.items():
-        s = re.sub(rf'("{key}"\s*:\s*)"[^"]*"', lambda m: f'{m.group(1)}"{SHARED_REL}/{name}"', s)
-    s = re.sub(r'("PathAED2inflow"\s*:\s*)"[^"]*"', lambda m: f'{m.group(1)}"{SHARED_REL}/AED2_inflow/"', s)
-    with open(par_path, "w") as f:
-        f.write(s)
-
-
-def _write_cycle_forcing(src, dst, start_day, end_day):
-    """The control Forcing.dat rows of this run, plus one row on each side so Simstrat can
-    interpolate at the boundaries. Returns (rows written, rows in the control)."""
-    header, *rows = open(src).read().splitlines()
-
-    def day(r):
-        try:
-            return float(r.split()[0])
-        except (ValueError, IndexError):
-            return None
-    days = [(day(r), r) for r in rows]
-    lo = max([t for t, _ in days if t is not None and t <= start_day] or [-1e9])
-    hi = min([t for t, _ in days if t is not None and t >= end_day] or [1e9])
-    keep = [r for t, r in days if t is not None and lo <= t <= hi]
-    with open(dst, "w") as f:
-        f.write("\n".join([header] + keep) + "\n")
-    return len(keep), len(rows)
-
-
-def _model_output_depths(inputs_dir):
-    """Depths (positive metres) the model outputs, read from <inputs_dir>/z_out.dat. Reads the
-    canonical source (model_inputs) rather than the template copy. Returns [] if absent (no
-    depth filtering)."""
-    path = os.path.join(inputs_dir, "z_out.dat")
-    if not os.path.isfile(path):
-        return []
-    depths = []
-    with open(path) as f:
-        for line in f:
-            try:
-                depths.append(abs(float(line.strip())))
-            except ValueError:
-                continue  # header line ("Depths [m]")
-    return depths
-
-
-
-def _build_observations(raw, openda_dir, model_inputs):
+def _build_observations(raw, openda_dir, model_inputs, binding):
     """Build the OpenDA stochObserver obs files from the observation CSV.
 
     Every observation is assimilated at its own time, binned to the hour exactly as the native
@@ -193,11 +123,10 @@ def _build_observations(raw, openda_dir, model_inputs):
     Only observations in (start_date, end_date] are kept, the native window rule
     (functions.obs_window_boundaries): one at start_date was the previous run's last analysis.
 
-    Writes stochObserver/T_{depth}m[_{season}]_real.csv, time in fractional Simstrat days since
-    1 Jan SIMSTRAT_REF_YEAR. OpenDA analyses at exactly these times (analysisTimes
-    "fromObservationTimes"). Depths are dropped if they have data on fewer than `obs_min_days`
-    days or no matching model-output depth (model_inputs/z_out.dat), and returned sorted for the
-    config generator to wire everywhere.
+    Writes stochObserver/T_{depth}m[_{season}]_real.csv, time in model days (the binding's).
+    OpenDA analyses at exactly these times (analysisTimes "fromObservationTimes"). Depths are
+    dropped if they have data on fewer than `obs_min_days` days or no matching model-output depth
+    (binding.output_depths), and returned sorted for the config generator to wire everywhere.
     """
     stoch_dir = os.path.join(openda_dir, "stochObserver")
     obs_csv   = resolve_obs_path(raw)
@@ -217,14 +146,14 @@ def _build_observations(raw, openda_dir, model_inputs):
     days     = obs.groupby("depth")["time"].agg(lambda t: t.dt.floor("D").nunique())
     depths   = sorted(float(d) for d, n in days.items() if n >= min_days)
 
-    # Keep only depths the model actually outputs (z_out.dat): an obs depth with no
+    # Keep only depths the model actually outputs: an obs depth with no
     # matching model output depth can't be assimilated, since there is no model prediction to compare it against.
-    model_depths = _model_output_depths(model_inputs)
+    model_depths = binding.output_depths(model_inputs)
     if model_depths:
         matched = [d for d in depths if any(abs(d - m) <= 1e-6 for m in model_depths)]
         dropped = [d for d in depths if d not in matched]
         if dropped:
-            logger.warning(f"[adapter] dropping obs depths with no matching model output depth (z_out.dat): "
+            logger.warning(f"[adapter] dropping obs depths with no matching model output depth: "
                            f"{[f'{d:g}' for d in dropped]} m")
         depths = matched
     obs = obs[obs["depth"].isin(depths)]
@@ -254,7 +183,7 @@ def _build_observations(raw, openda_dir, model_inputs):
             with open(out_path, "w", newline="") as f:
                 f.write("time,value\n")
                 for t, v in zip(part["time"], part["value"]):
-                    f.write(f"{format_day(simstrat_time(t))},{v:.6f}\n")
+                    f.write(f"{format_day(binding.model_time(t))},{v:.6f}\n")
             series_keys.append((depth, s))
     logger.info(f"  wrote {len(series_keys)} series files -> {display_path(stoch_dir)}")
 
@@ -271,121 +200,92 @@ def adapt(raw):
     ensemble_base = raw["ensemble_base"]
     model_inputs  = raw["model_inputs_path"]
     openda_dir    = raw["openda_dir"]
-    forcings_dir = os.path.join(openda_dir, "forcings")
-    template_dir = os.path.join(openda_dir, "stochModel", "template")
+    forcings_dir  = os.path.join(openda_dir, "forcings")
+    template_dir  = os.path.join(openda_dir, "stochModel", "template")
+    binding       = openda_binding(raw)
 
-    # openda_simstrat/ is fully generated — create the working dir + template skeleton
-    # on demand (nothing is committed; the static wrapper lives in static/openda/).
+    # The OpenDA working dir is fully generated: create it and the template skeleton on demand.
     os.makedirs(template_dir, exist_ok=True)   # also creates openda_dir/stochModel
 
-    logger.info(f"[adapter] lake={lake}  framework={display_path(ensemble_base)}  "
+    logger.info(f"[adapter] lake={lake}  model={binding.name}  framework={display_path(ensemble_base)}  "
                 f"-> openda={display_path(openda_dir)}")
 
     # ------------------------------------------------------------------
-    # 0. Hand-maintained wrapper: static/openda/* -> working dir
+    # 0. The model's hand-maintained wrapper -> stochModel/
     #    (the only non-generated OpenDA pieces; everything else is rendered/synced)
     # ------------------------------------------------------------------
-    logger.info("[adapter] wrapper (static/openda) -> stochModel/:")
-    _copy(os.path.join(STATIC_OPENDA, "simstratWrapperEnKF.xml"),
-          os.path.join(openda_dir, "stochModel", "simstratWrapperEnKF.xml"))
-    _copy(os.path.join(STATIC_OPENDA, "simstrat_wrapper_enkf.py"),
-          os.path.join(openda_dir, "stochModel", "bin", "simstrat_wrapper_enkf.py"))
+    for src, rel in binding.wrapper_files():
+        _copy(src, os.path.join(openda_dir, "stochModel", rel))
+    logger.info(f"[adapter] wrapper -> stochModel/: {[rel for _, rel in binding.wrapper_files()]}")
 
     # ------------------------------------------------------------------
-    # 1. Model inputs: model_inputs/* -> template/
-    #    (skip OpenDA coupling files, the heavy Results/, the visualization-only
-    #    ref/, and dated snapshot archives — the warmup is placed into
-    #    template/Results/ in step 3)
+    # 1. Model inputs -> template/ (not OpenDA's coupling files, and only what the binding counts
+    #    as template input: its starting state is placed by step 3)
     # ------------------------------------------------------------------
     if not os.path.isdir(model_inputs):
         raise FileNotFoundError(
-            f"model_inputs not found: {model_inputs} (provide it manually — Simstrat inputs + a dated simulation-snapshot_*.dat)")
-    logger.info(f"[adapter] model inputs -> template/ (skipping OpenDA-specific {sorted(OPENDA_SPECIFIC)}):")
+            f"model_inputs not found: {model_inputs} (provide the model setup with its dated warm start)")
+    logger.info(f"[adapter] model inputs -> template/ (skipping OpenDA-specific {sorted(binding.coupling_files)}):")
     chain = raw.get("_restart_in") is not None     # a run of a restart chain (openda/restart.py)
     for name in sorted(os.listdir(model_inputs)):
-        if name in OPENDA_SPECIFIC or name in ("Results", "ref") or name.startswith("simulation-snapshot_"):
+        if name in binding.coupling_files or not binding.is_template_input(name):
             continue
-        if chain and (name in SHARED_INPUTS or name == "Forcing.dat"):
+        if chain and (name in binding.shared_inputs or name == binding.forcing_file):
             continue
         _copy_path(os.path.join(model_inputs, name),
                    os.path.join(template_dir, name))
     if chain:
-        n = _sync_shared(model_inputs, os.path.join(openda_dir, SHARED_DIR))
-        _point_par_at_shared(os.path.join(template_dir, "Settings.par"))
-        kept, total = _write_cycle_forcing(os.path.join(model_inputs, "Forcing.dat"),
-                                           os.path.join(template_dir, "Forcing.dat"),
-                                           simstrat_time(raw["start_date"]), simstrat_time(raw["end_date"]))
-        logger.info(f"[adapter] run inputs: {sorted(SHARED_INPUTS)} shared from {SHARED_DIR}/ "
-                    f"({n} file(s) copied), Forcing.dat cut to {kept}/{total} rows")
+        n = _sync_shared(model_inputs, os.path.join(openda_dir, SHARED_DIR), binding.shared_inputs)
+        binding.point_config_at_shared(template_dir, SHARED_REL)
+        kept, total = binding.cut_forcing(model_inputs, template_dir, binding.model_time(raw["start_date"]),
+                                          binding.model_time(raw["end_date"]))
+        logger.info(f"[adapter] run inputs: {sorted(binding.shared_inputs)} shared from {SHARED_DIR}/ "
+                    f"({n} file(s) copied), {binding.forcing_file} cut to {kept}/{total} rows")
 
     # ------------------------------------------------------------------
-    # 2. Perturbed forcings: ensemble{i}/Forcing.dat -> forcings/Forcing_{i}.dat
+    # 2. Perturbed forcings: member i's forcing -> forcings/<binding.forcing_name(i)>
     # ------------------------------------------------------------------
     logger.info(f"[adapter] forcings (0..{n_members}):")
     for i in range(n_members + 1):                       # 0 = control, 1..N = members
-        src = os.path.join(ensemble_base, f"ensemble{i}", "Forcing.dat")
+        src = binding.member_forcing(ensemble_base, i)
         if not os.path.isfile(src):
             raise FileNotFoundError(
-                f"{src} missing — run main.py (copy + perturbate steps) first")
-        _copy(src, os.path.join(forcings_dir, f"Forcing_{i}.dat"))
+                f"{src} missing — run the copy + perturbate steps first")
+        _copy(src, os.path.join(forcings_dir, binding.forcing_name(i)))
     logger.info(f"  copied {n_members + 1} forcing files -> {display_path(forcings_dir)}")
 
     # ------------------------------------------------------------------
-    # 3. Warmup snapshot -> template/Results/simulation-snapshot.dat
-    #    (the live name OpenDA clones into each work dir and continues from).
-    #    Source: the dated warmup archive in model_inputs (stable; the live
-    #    model_inputs/Results/ copy may have been overwritten by later runs).
+    # 3. The template's starting state: the warm start (cloned into each work dir), or -- when a
+    #    restart chain continues from a saved ensemble (`_restart_in` = a file) -- none: the state
+    #    is filled with RESTART_SENTINEL and RESTART_MARKER set, so the wrapper stops if a member
+    #    was not restored. "" (the chain's cold start) and None use the warm start.
     # ------------------------------------------------------------------
-    #    Continuing a restart chain (`_restart_in` = a file): no warm start. The template snapshot
-    #    is removed, the state filled with RESTART_SENTINEL and RESTART_MARKER set, so the wrapper
-    #    stops if a member was not restored. "" (the chain's cold start) and None use the warm start.
     restart_in = raw.get("_restart_in")
     marker     = os.path.join(template_dir, RESTART_MARKER)
-    dated = sorted(glob.glob(os.path.join(model_inputs, "simulation-snapshot_*.dat")))
     if not restart_in and os.path.exists(marker):
         os.remove(marker)       # left over from an earlier run of the chain
     if restart_in:
         if not os.path.isfile(restart_in):
             raise FileNotFoundError(f"OpenDA restart file not found: {restart_in}")
-        if not dated:
-            raise FileNotFoundError(f"no simulation-snapshot_*.dat in {display_path(model_inputs)} "
-                                    f"— needed for the grid size of the restart template")
-        live_snap = os.path.join(template_dir, "Results", "simulation-snapshot.dat")
-        if os.path.exists(live_snap):
-            os.remove(live_snap)
-        n = len(read_snapshot(dated[-1], par_path=os.path.join(template_dir, "Settings.par")).model["T"])
-        with open(os.path.join(template_dir, "temperature_state.txt"), "w") as f:
-            f.write(f"{RESTART_SENTINEL:.6f}\n" * n)
+        n = binding.fill_template_sentinel(model_inputs, template_dir, RESTART_SENTINEL)
         with open(marker, "w") as f:
             f.write(f"{restart_in}\n")
         logger.info(f"[adapter] continuing from restart {display_path(restart_in)}: warm start skipped, "
-                    f"temperature_state.txt = {n} x {RESTART_SENTINEL:g}, {RESTART_MARKER} set")
-    elif not dated:
-        logger.warning(f"[adapter] no simulation-snapshot_*.dat in "
-                       f"{display_path(model_inputs)} — skipping warmup sync")
+                    f"{binding.state_file} = {n} x {RESTART_SENTINEL:g}, {RESTART_MARKER} set")
     else:
-        snap_src = dated[-1]
-        target   = os.path.join(template_dir, "Results", "simulation-snapshot.dat")
-        logger.info(f"[adapter] warmup: {os.path.basename(snap_src)} "
-                    f"-> {os.path.relpath(target, openda_dir)} (overwrites OpenDA's current warmup)")
-        _copy(snap_src, target)
-
-        # Seed OpenDA's initial state (temperature_state.txt) from the warmup
-        # snapshot's full-grid T profile — one value per cell.  Replaces the legacy
-        # 7-value placeholder and is automatically the right size for this lake's grid.
-        state_path = os.path.join(template_dir, "temperature_state.txt")
-        T = read_snapshot(snap_src, par_path=os.path.join(template_dir, "Settings.par")).model["T"]
-        with open(state_path, "w") as f:
-            for t in T:
-                f.write(f"{float(t):.6f}\n")
-        logger.info(f"[adapter] temperature_state.txt seeded from warmup ({len(T)} cells)")
+        seeded = binding.seed_template(model_inputs, template_dir)
+        if seeded is None:
+            logger.warning(f"[adapter] no warm start in {display_path(model_inputs)} — skipping warmup sync")
+        else:
+            src, n = seeded
+            logger.info(f"[adapter] warmup: {os.path.basename(src)} -> template, "
+                        f"{binding.state_file} seeded ({n} values)")
 
     # ------------------------------------------------------------------
-    # 4. Observations: observations/<lake>/temperature.csv -> stochObserver/T_{depth}m_real.csv
-    #    (every observation at its own hour, as the native engines).  Returns the
-    #    auto-detected depth list for the config generator to wire everywhere.
+    # 4. Observations -> stochObserver/T_{depth}m_real.csv (every observation at its own hour, as
+    #    the native engines). Returns the depth list for the config generator to wire everywhere.
     # ------------------------------------------------------------------
-    obs_depths, n_analysis, series_keys = _build_observations(raw, openda_dir, model_inputs)
+    obs_depths, n_analysis, series_keys = _build_observations(raw, openda_dir, model_inputs, binding)
 
     logger.info("[adapter] done.")
     return obs_depths, n_analysis, series_keys
@@ -405,32 +305,31 @@ def adapt(raw):
 # log/openda_logfile.txt). Tiers extracted:
 #   A header (once, file_only): version, algorithm className (filter), localization, instance count
 #   B per-step (file_only):     the "Forecast from" line (also drives the bar)
-#   C failures (WARNING, loud):  "Simstrat finished (exit N)" with N != 0
+#   C failures (WARNING, loud):  the wrapper's "Model finished (exit N)" with N != 0
 #   D footer (file_only):       "Application Done"
 # Deliberately NOT lifted (would flood): "Written T_*.csv" (~115k) and the per-member-per-step
-# wrapper lines ([TIMING]/[STATE]/[RESTART]/"Running Simstrat via Docker", ~7.7k each).
+# wrapper lines ([TIMING]/[STATE]/[RESTART]/container runs, ~7.7k each).
 _FORECAST_MARK = b"Forecast from"
-_FORECAST_DAYS = re.compile(r"\(([\d.]+)\s*-+>\s*([\d.]+)\)")   # the "(A-->B)" Simstrat day span
+_FORECAST_DAYS = re.compile(r"\(([\d.]+)\s*-+>\s*([\d.]+)\)")   # the "(A-->B)" model day span
 
 
-def _reformat_forecast(line):
+def _reformat_forecast(line, epoch):
     """OpenDA prints the Forecast line as '... <ts>UTC to <ts>UTC (A-->B)', but the <ts>UTC strings
-    render the Simstrat day number against the WRONG epoch (the MJD epoch 1858-11-17, not the
-    Simstrat reference year), giving nonsensical ~1902 dates. The '(A-->B)' Simstrat day numbers ARE
-    correct (the same convention summarize/_score use), so convert THOSE to real calendar dates and
-    drop the bogus UTC — and the per-step line then shows the same dates as the native engines.
+    render the model day number against the WRONG epoch (the MJD epoch 1858-11-17, not the model's
+    `epoch`), giving nonsensical dates. The '(A-->B)' model day numbers ARE correct (the same
+    convention summarize/_score use), so convert THOSE to real calendar dates and drop the bogus
+    UTC — and the per-step line then shows the same dates as the native engines.
     Falls back to the original line if the day span can't be parsed."""
     m = _FORECAST_DAYS.search(line)
     if not m:
         return line
-    epoch = datetime(SIMSTRAT_REF_YEAR, 1, 1)
     t0 = epoch + timedelta(days=float(m.group(1)))
     t1 = epoch + timedelta(days=float(m.group(2)))
     return (f"Forecast {t0:%Y-%m-%d %H:%M} -> {t1:%Y-%m-%d %H:%M} "
             f"(sim-day {m.group(1)}->{m.group(2)})")
 
 
-def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled):
+def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled, epoch):
     """Launch oda_run.sh (non-blocking) and drive a progress bar by tailing
     openda_logfile.txt for "Forecast from" lines. `total` is the expected step count
     from the run dates; tqdm tolerates overflow if OpenDA's half-day spin-up/tail
@@ -445,7 +344,7 @@ def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled
     pos       = 0                     # byte offset already consumed from the logfile
     instances = 0                     # count of "Creating model instance" (members initialized)
     pending   = None                  # the current step's Forecast line, awaiting its member tally
-    step_ok = step_fail = 0           # Simstrat exits seen since `pending` (this step's instances)
+    step_ok = step_fail = 0           # model exits seen since `pending` (this step's instances)
 
     # The instances run AFTER their step's Forecast line and BEFORE the next one, so a step's
     # member tally is only complete when the next Forecast (or "Application Done") arrives. We hold
@@ -478,12 +377,12 @@ def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled
                         if _FORECAST_MARK in raw_line:
                             bar.update(1)
                             _flush_pending()              # close out the previous step's tally
-                            pending = _reformat_forecast(raw_line.decode("utf-8", "replace").strip())
-                        elif b"Simstrat finished (exit 0)" in raw_line:
+                            pending = _reformat_forecast(raw_line.decode("utf-8", "replace").strip(), epoch)
+                        elif b"Model finished (exit 0)" in raw_line:
                             step_ok += 1                  # this step's member ran OK
-                        elif b"Simstrat finished (exit" in raw_line:   # exit 0 handled above -> non-zero
+                        elif b"Model finished (exit" in raw_line:   # exit 0 handled above -> non-zero
                             step_fail += 1
-                            # Tier C: a non-zero Simstrat exit — surface LOUDLY (console + file). A
+                            # Tier C: a non-zero model exit — surface LOUDLY (console + file). A
                             # failed member otherwise hides in the 300k-line log while OpenDA still
                             # prints "Application Done" (this is how the §8 CRLF bug went unnoticed).
                             logger.warning("OpenDA member run failed: "
@@ -514,18 +413,15 @@ def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled
     return proc.returncode
 
 
-def openda_member_files(openda_dir, n_members):
-    """Members 1..N's T_out.dat inside an OpenDA working dir (Results/work<i>/Results/)."""
-    work_base = os.path.join(openda_dir, "Results")
-    return [os.path.join(work_base, f"work{i}", "Results", "T_out.dat")
-            for i in range(1, n_members + 1)]
+def openda_member_files(openda_dir, n_members, binding):
+    """Members 1..N's trajectories in their OpenDA work dirs (this run only)."""
+    return [binding.work_output(openda_dir, i) for i in range(1, n_members + 1)]
 
 
-def openda_chain_member_files(openda_dir, n_members, results_dir="Results"):
-    """Members 1..N's trajectories over a whole restart chain (ensemble<i>/<results_dir>/T_out.dat
-    in the OpenDA working dir): the work dirs hold only the latest run."""
-    return [os.path.join(openda_dir, f"ensemble{i}", results_dir, "T_out.dat")
-            for i in range(1, n_members + 1)]
+def openda_chain_member_files(openda_dir, n_members, model, results_dir="Results"):
+    """Members 1..N's trajectories over a whole restart chain, kept as members of the OpenDA working
+    dir (model.member_output_file): the work dirs hold only the latest run."""
+    return [model.member_output_file(openda_dir, i, results_dir) for i in range(1, n_members + 1)]
 
 
 def run_openda_chain(cfg, model, params, skip_oda=False, max_cycles=None):
@@ -561,14 +457,14 @@ def run_openda_chain(cfg, model, params, skip_oda=False, max_cycles=None):
         logger.info(f"[3/5] perturbate forcing in ensemble1..{cfg['n_members']}")
         perturbator(run_cfg, model, params=params)
         run_openda(run_cfg, run_cfg, cfg["ensemble_base"], cfg["n_members"], skip_oda,
-                   model_cfg=model.run_config(), model_name=cfg["model"])
+                   model_cfg=model.run_config(), model_name=model.name)
         if skip_oda:
             return s
     return cycles[-1][1]
 
 
 def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
-               model_cfg=None, model_name="simstrat"):
+               model_cfg=None, model_name=None):
     """OpenDA engine driver: sync inputs/forcings/warmup + build observations (adapt),
     render run.oda + the .gen.xml chain, launch oda_run.sh, then summarise.
 
@@ -577,9 +473,8 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     OpenDA wrapper — a separate WSL subprocess that can't receive Python args — reads it
     from there instead of hardcoding the version.
 
-    The generated working dir is named per run — run/openda_<model>_<lake>_<filter> (e.g.
-    run/openda_simstrat_upperlugano_enkf) — so runs are self-describing and don't clash.
-    Override with cfg["openda_dir"].
+    The generated working dir is named per run — openda_<model>_<lake>_<filter>, next to the
+    members — so runs are self-describing and don't clash. Override with cfg["openda_dir"].
 
     cfg["openda_bin"] (the dir holding the OpenDA binaries, e.g. .../openda_3.4.0/bin) is used to
     build the full OpenDA environment (OPENDADIR/OPENDALIB, the bundled JRE + bin on PATH,
@@ -591,6 +486,8 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
         raise ValueError(f"unknown algorithm '{filter_type}'; choose from {sorted(FILTERS)}")
     log_run_header(cfg)
     openda_dir  = cfg["openda_dir"]   # set by assimilator.config.build_config
+    model       = get_model(model_name or cfg.get("model") or RUN_DEFAULTS["model"])
+    binding     = openda_binding({"model": model.name})
 
     # Restart chain (opt-in, openda/restart.py): decided before adapt(), which needs to know whether
     # the template gets the warm start. Without "openda_restart" nothing here changes.
@@ -638,14 +535,13 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
                          f"missing one.")
 
     # Bridge the model image + the shared-container contract to the (separate-process) wrapper via a
-    # generated file (single source of truth: models.py). The wrapper execs Simstrat into ONE
+    # generated file (single source of truth: the binding). The wrapper execs the model into ONE
     # persistent container that run_openda starts below (mounting openda_dir at mount_base); it maps
-    # its work dir to <mount_base>/<relpath-from-openda_dir> and runs `binary` there — bypassing the
-    # image's /entrypoint.sh (hardcoded `cd /simstrat/run`), exactly as the native engine does.
-    image      = f"eawag/simstrat:{(model_cfg or {}).get('simstrat_version', '3.0.4')}"
-    binary     = (model_cfg or {}).get("simstrat_binary", "/simstrat/build/simstrat")
+    # its work dir to <mount_base>/<relpath-from-openda_dir> and runs `binary` there, as the native
+    # engine does.
+    run_in     = binding.container(model_cfg)
+    image, binary, mount_base = run_in["image"], run_in["binary"], run_in["mount_base"]
     container  = os.path.basename(openda_dir)
-    mount_base = "/simstrat/run"
     model_json = os.path.join(openda_dir, "stochModel", "template", "model.json")
     with open(model_json, "w") as f:
         json.dump({"image": image, "container": container,
@@ -662,7 +558,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # n_members+1 — matching the original full-parallel maxThreads. (auto = min(cpu, n_members+1).)
     max_threads = resolve_max_workers(cfg, n_members + 1)
     # obs_std was resolved before step 4 — it decided the series set the adapter just wrote.
-    oda_file = render_oda(openda_dir, filter_type, n_members, obs_depths,
+    oda_file = render_oda(openda_dir, binding, filter_type, n_members, obs_depths,
                           ensemble_raw["start_date"], ensemble_raw["end_date"],
                           obs_std=obs_std, max_threads=max_threads, restart=restart_in, seed=seed)
     logger.info(f"[5/5] rendered {oda_file} + chain for filter={filter_type} "
@@ -675,7 +571,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     # "openda_bin" to fall back to an externally-sourced environment.
     openda_bin = cfg.get("openda_bin")
     env = os.environ.copy()
-    # The wrapper subprocesses OpenDA spawns must import the assimilator package (read_snapshot etc.).
+    # The wrapper subprocesses OpenDA spawns must import the assimilator package (the model's modules).
     # They infer src/ by walking up from their own location, which breaks when openda_dir is rerouted
     # off the repo (run_root on ext4): pin PYTHONPATH to the repo src so the import resolves wherever
     # openda_dir lives. Java inherits this env and passes it to the wrapper processes.
@@ -706,7 +602,7 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     if chain:
         restart_chain.clear_openda_output(openda_dir, restart_dir)
     start_persistent_container(cfg, container, openda_dir, mount_base, image)
-    logger.info(f"      started 1 persistent Simstrat container ({container})")
+    logger.info(f"      started 1 persistent model container ({container})")
     logger.info(f"      {oda_exe} {oda_file}  (cwd={display_path(openda_dir)})")
     # Progress bar driven by tailing the logfile (see _launch_oda_with_progress). Same on/off flag
     # as the native engines (cfg["progress"], resolved in main.py). total = number of analysis
@@ -716,16 +612,16 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
     total    = max(1, n_analysis)
     t0 = time.perf_counter()
     try:
-        _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, progress)
+        _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, progress, binding.model_epoch())
     except FileNotFoundError:
         raise RuntimeError(
             "oda_run.sh not found — set \"openda_bin\" in the arg file to the OpenDA bin dir, "
             "or source the OpenDA environment so oda_run.sh is on PATH")
     finally:
-        # Remove the shared persistent Simstrat container (the wrapper exec'd into it instead of
+        # Remove the shared persistent model container (the wrapper exec'd into it instead of
         # docker-run-per-step). Runs on success or failure.
         stop_persistent_container(container)
-        logger.info(f"      removed persistent Simstrat container ({container})")
+        logger.info(f"      removed persistent model container ({container})")
     elapsed = time.perf_counter() - t0
 
     # Tidy the run dir: OpenDA writes its run log into the .oda cwd — move it into log/.
@@ -737,25 +633,25 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
         logger.info(f"      moved openda_logfile.txt -> {display_path(os.path.join(log_dir, 'openda_logfile.txt'))}")
 
     # Per-member work dirs live inside this run's dir at Results/work0..N.
-    member_files = openda_member_files(openda_dir, n_members)
+    member_files = openda_member_files(openda_dir, n_members, binding)
 
     results_dir = cfg.get("results_dir", "Results")
-    mean_path = mean_traj_path(openda_dir, filter_type)
+    mean_path = model.mean_traj_path(openda_dir, filter_type)
     if chain:
         # The work dirs hold only this run: archive its result file and logs (the next run
         # overwrites them), append its member and mean trajectories to the chain's (only the new
         # rows, so the cost does not grow with the chain), and only then commit its restart.
-        start_day = simstrat_time(ensemble_raw["start_date"])
+        start_day = binding.model_time(ensemble_raw["start_date"])
         arch = restart_chain.archive_cycle(openda_dir, ensemble_raw["end_date"], [
             os.path.join(openda_dir, "Results", results_filename(filter_type)),
             os.path.join(openda_dir, "log", "openda_logfile.txt")] + [
-            (os.path.join(openda_dir, "Results", f"work{k}", "simstrat_wrapper_enkf.log"), f"wrapper_work{k}.log")
+            (os.path.join(openda_dir, "Results", f"work{k}", binding.wrapper_log), f"wrapper_work{k}.log")
             for k in range(n_members + 1)])
-        chain_files = openda_chain_member_files(openda_dir, n_members, results_dir)
+        chain_files = openda_chain_member_files(openda_dir, n_members, model, results_dir)
         counts = [restart_chain.append_trajectory(dst, src, start_day)
                   for src, dst in zip(member_files, chain_files)]
         run_mean = mean_path + ".run"
-        accumulate_mean(member_files, run_mean)
+        model.accumulate_mean(member_files, run_mean)
         restart_chain.append_trajectory(mean_path, run_mean, start_day)
         os.remove(run_mean)
         member_files = chain_files
@@ -763,22 +659,22 @@ def run_openda(cfg, ensemble_raw, ensemble_base, n_members, skip_oda=False,
                                      extra={"start": str(ensemble_raw["start_date"]), "seed": seed,
                                             "started_from": restart_in or None})
         restart_chain.prune(restart_dir, restart_chain.settings(cfg)["keep"])
-        logger.info(f"      appended this run to ensemble{{1..{n_members}}}/{results_dir}/T_out.dat and "
+        logger.info(f"      appended this run to the chain's member trajectories and "
                     f"{os.path.basename(mean_path)} ({counts[0][1]} rows per member); outputs archived -> "
                     f"{os.path.relpath(arch, openda_dir)}")
     else:
         for i, member_file in enumerate(member_files, start=1):
             if os.path.exists(member_file):
-                dst_dir = os.path.join(openda_dir, f"ensemble{i}", results_dir)
-                os.makedirs(dst_dir, exist_ok=True)
-                shutil.copy2(member_file, os.path.join(dst_dir, "T_out.dat"))
-        accumulate_mean(member_files, mean_path)
-        logger.info(f"      mirrored member trajectories -> ensemble{{1..{n_members}}}/{results_dir}/T_out.dat "
+                dst = model.member_output_file(openda_dir, i, results_dir)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(member_file, dst)
+        model.accumulate_mean(member_files, mean_path)
+        logger.info(f"      mirrored member trajectories -> ensemble{{1..{n_members}}}/ "
                     f"+ {os.path.basename(mean_path)}")
 
     obs_csv = resolve_obs_path(ensemble_raw)
     out_csv, skill = report_summary("openda", filter_type, member_files, ensemble_raw["lake"], obs_csv,
-                                    openda_dir, get_model(model_name))
+                                    openda_dir, model)
     # updates=None: OpenDA has no separate update count distinct from its analysis steps.
     log_run_footer(cfg, skill, n_analysis, None, elapsed, out_csv)
 

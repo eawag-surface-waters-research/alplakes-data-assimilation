@@ -238,7 +238,7 @@ if __name__ == '__main__':
     if result.returncode != 0:
         logger.error("Simstrat stderr: %s", result.stderr)
         sys.exit(result.returncode)
-    logger.info("Simstrat finished (exit %d)", result.returncode)
+    logger.info("Model finished (exit %d)", result.returncode)   # the OpenDA engine counts these
 
     # ------------------------------------------------------------------
     # 6. Predictors: the model at each observation depth at the END of the window
