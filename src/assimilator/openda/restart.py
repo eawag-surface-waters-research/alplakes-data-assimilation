@@ -100,6 +100,25 @@ def plan_cycles(start, end, max_days):
     return cycles
 
 
+def merge_empty_cycles(cycles, obs_times):
+    """Merge each run whose window (start, end] holds no observation into the next, and drop
+    trailing runs without one: OpenDA then always has something to analyse, and a gap at the end
+    of the record leaves the chain where it is until the next observation."""
+    times = sorted(utc(t) for t in obs_times)
+
+    def has_obs(a, b):
+        return any(a < t <= b for t in times)
+    merged, pending = [], None
+    for a, b in cycles:
+        a = pending if pending is not None else a
+        if has_obs(a, b):
+            merged.append((a, b))
+            pending = None
+        else:
+            pending = a
+    return merged
+
+
 def cycle_seed(rng_seed, end):
     """The OpenDA random seed of the run ending at `end`, from (rng_seed, "openda_obs", unix s of
     the end). Without it every run perturbs its observations with the same draws. 31 bits: Java int."""

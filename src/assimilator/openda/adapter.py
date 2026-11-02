@@ -543,11 +543,18 @@ def run_openda_chain(cfg, model, params, skip_oda=False, max_cycles=None):
                          f"the run's warm start is newer than the chain. Empty the chain folder to start a "
                          f"new chain from the warm start.")
     cycles = restart_chain.plan_cycles(reached or start, end, restart_chain.settings(cfg)["cycle_max_days"])
+    # OpenDA is never started on a window without observations (whether it accepts one is not
+    # established): an empty run is merged into the next, and a gap at the end leaves the chain
+    # where it is until the next observation arrives. The caller sees that in the returned instant.
+    times = load_obs(resolve_obs_path(cfg))["time"]
+    cycles = restart_chain.merge_empty_cycles(cycles, times)
     if max_cycles:
         cycles = cycles[:max_cycles]
     if not cycles:
-        logger.info(f"[restart] nothing to do: the chain already reaches {reached}")
-        return reached
+        here = reached or start
+        logger.info(f"[restart] nothing to do: the chain is at {here} and there is no observation "
+                    f"after it up to {end}")
+        return here
     for i, (s, e) in enumerate(cycles, 1):
         logger.info(f"=== OpenDA run {i}/{len(cycles)} of the restart chain: {s} -> {e} ===")
         run_cfg = {**cfg, "start_date": s.isoformat(), "end_date": e.isoformat()}

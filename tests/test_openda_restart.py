@@ -101,10 +101,12 @@ class _Model:
         return {}
 
 
-def _chain_cfg(tmp_path, start, end, **restart):
+def _chain_cfg(tmp_path, start, end, obs_times, **restart):
+    pd.DataFrame({"time": obs_times, "depth": 1.0, "value": 5.0}).to_csv(tmp_path / "obs.csv", index=False)
     return {"lake": "x", "model": "simstrat", "algorithm": "EnKF", "n_members": 4,
             "start_date": start, "end_date": end, "openda_dir": str(tmp_path / "oda"),
-            "ensemble_base": str(tmp_path / "run"), "openda_restart": restart}
+            "ensemble_base": str(tmp_path / "run"), "obs_file": str(tmp_path / "obs.csv"),
+            "openda_restart": restart}
 
 
 def test_chain_runs_from_its_end_in_chunks(tmp_path, monkeypatch):
@@ -113,7 +115,9 @@ def test_chain_runs_from_its_end_in_chunks(tmp_path, monkeypatch):
         (run_cfg["start_date"][:10], run_cfg["end_date"][:10])))
     monkeypatch.setattr("assimilator.perturbate.perturbator", lambda *a, **k: None)
 
-    cfg = _chain_cfg(tmp_path, "2026-01-01", "2026-03-15", cycle_max_days=31)
+    cfg = _chain_cfg(tmp_path, "2026-01-01", "2026-03-15",
+                     ["2026-01-10 06:00", "2026-02-20 06:00", "2026-03-10 06:00", "2026-03-14 06:00"],
+                     cycle_max_days=31)
     assert adapter.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-15")
     assert runs == [("2026-01-01", "2026-02-01"), ("2026-02-01", "2026-03-04"), ("2026-03-04", "2026-03-15")]
 
@@ -164,3 +168,20 @@ def test_forcing_is_continuous_when_a_boundary_falls_between_rows(tmp_path):
             np.testing.assert_allclose(part.to_numpy(), whole.loc[part.index].to_numpy())
     finally:
         MODELS.pop("toy", None)
+
+
+def test_openda_is_never_started_on_a_window_without_observations(tmp_path, monkeypatch):
+    runs = []
+    monkeypatch.setattr(adapter, "run_openda", lambda run_cfg, *a, **k: runs.append(
+        (run_cfg["start_date"][:10], run_cfg["end_date"][:10])))
+    monkeypatch.setattr("assimilator.perturbate.perturbator", lambda *a, **k: None)
+
+    # an empty first chunk is merged into the next; the gap after the last observation is left
+    cfg = _chain_cfg(tmp_path, "2026-01-01", "2026-04-15", ["2026-02-20 06:00"], cycle_max_days=31)
+    assert adapter.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-04")
+    assert runs == [("2026-01-01", "2026-03-04")]
+
+    # nothing at all after the start: the chain stays put
+    runs.clear()
+    cfg = _chain_cfg(tmp_path, "2026-03-04", "2026-04-15", ["2026-02-20 06:00"])
+    assert adapter.run_openda_chain(cfg, _Model(), params={}) == t("2026-03-04") and runs == []
