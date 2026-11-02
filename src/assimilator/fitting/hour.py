@@ -1,5 +1,4 @@
-"""Pick the analysis hour (ported from feat/da-combi notebooks/generate_assimilation_series.py,
-stage 1; the numbers are unchanged).
+"""Pick the analysis hour.
 
 WHY THE HOUR MATTERS. Assimilating at a fixed hour aliases that hour's model-obs mismatch into a
 persistent bias. Split the FREE RUN's surface error per hour into the mean over days (the model's
@@ -19,8 +18,7 @@ The free run must not have assimilated anything, or the hours it was nudged at l
 """
 import numpy as np
 
-from ..observations import bin_hourly
-from ..observations import FILTER_DEFAULTS
+from ..observations import bin_hourly, FILTER_DEFAULTS
 
 # Surface zone: where the diurnal cycle lives and the hour choice is decided. Upper bound is the
 # filter's THERMO_DEPTH_MIN: above it the diurnal cycle survives into the assimilated series.

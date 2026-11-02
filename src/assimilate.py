@@ -55,8 +55,6 @@ def _load_json(path):
         return json.load(f)
 
 
-# ---------------------------------------------------------------------------------------- run --
-
 RUN_FLAGS = {   # CLI flag dest -> config key
     "sim_dir": "model_inputs_path", "obs": "obs_file", "out": "ensemble_base",
     "start": "start_date", "end": "end_date", "lake": "lake", "engine": "engine",
@@ -102,8 +100,6 @@ def cmd_summarize(cli):
     summarize_from_config(_load_json(cli.config))
 
 
-# --------------------------------------------------------------------------------- preprocess --
-
 def _floats(s):
     return [float(x) for x in s.split(",")] if s else None
 
@@ -133,8 +129,6 @@ def cmd_preprocess(cli):
     logger.info(f"{len(out)} rows, {out['time'].nunique()} instants, {out['depth'].nunique()} depths "
                 f"-> {cli.output}")
 
-
-# ---------------------------------------------------------------------------------------- fit --
 
 def cmd_fit(cli):
     from assimilator import fitting
@@ -176,8 +170,6 @@ def cmd_fit(cli):
     else:
         print(text)
 
-
-# --------------------------------------------------------------------------------------- main --
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],

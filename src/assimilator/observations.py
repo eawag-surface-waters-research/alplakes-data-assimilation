@@ -75,8 +75,6 @@ def obs_window_boundaries(obs_df, start_date, end_date):
     return bounds
 
 
-# ------------------------------------------------------------------------------------- filter --
-
 FILTER_DEFAULTS = {
     "W_SEICHE":        24.0,    # h   - trailing window; placeholder for a lake not yet calibrated
     "THERMO_DEPTH_MIN": 4.0,    # m   - above this the observations are passed through untouched
@@ -227,8 +225,6 @@ def filter_lookback(params):
         + pd.Timedelta(days=1)
 
 
-# -------------------------------------------------------------------------------- depth grid --
-
 def select_depths(obs, depths, tol=0.5, strict=True):
     """Keep only the observation depths nearest each requested one.
 
@@ -253,8 +249,6 @@ def select_depths(obs, depths, tol=0.5, strict=True):
         logger.warning(msg + " — those targets are skipped")
     return obs[obs["depth"].isin(sorted(set(keep)))]
 
-
-# ---------------------------------------------------------------------------------- thinning --
 
 _CADENCE_EPOCH = pd.Timestamp("1970-01-01", tz="UTC")
 
@@ -297,8 +291,6 @@ def thin_daily(obs, hour=None, hour_window=None, max_offset=1.5, every_days=1):
             & cadence
     return obs[keep].drop(columns="_t")
 
-
-# ------------------------------------------------------------------------------- the pipeline --
 
 def lookback(cfg):
     """Record needed before `since` for preprocess(cfg, since) to match a full reprocess."""

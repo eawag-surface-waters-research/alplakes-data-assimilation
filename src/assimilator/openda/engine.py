@@ -19,12 +19,12 @@ from .launch import openda_environment, run_oda
 logger = logging.getLogger(__name__)
 
 
-def openda_member_files(openda_dir, n_members, binding):
+def _work_files(openda_dir, n_members, binding):
     """Members 1..N's trajectories in their work dirs: this OpenDA run only."""
     return [binding.work_output(openda_dir, i) for i in range(1, n_members + 1)]
 
 
-def openda_chain_member_files(openda_dir, n_members, model, results_dir="Results"):
+def _member_files(openda_dir, n_members, model, results_dir="Results"):
     """Members 1..N's trajectories over every run so far, kept as members of the OpenDA dir."""
     return [model.member_output_file(openda_dir, i, results_dir) for i in range(1, n_members + 1)]
 
@@ -120,7 +120,7 @@ def run_openda(cfg, model, skip_oda=False):
 def _keep_members(cfg, model, binding):
     """Copy the members' trajectories out of the work dirs and write the ensemble mean."""
     openda_dir, results_dir = cfg["openda_dir"], cfg.get("results_dir", "Results")
-    member_files = openda_member_files(openda_dir, cfg["n_members"], binding)
+    member_files = _work_files(openda_dir, cfg["n_members"], binding)
     for i, src in enumerate(member_files, start=1):
         if os.path.exists(src):
             dst = model.member_output_file(openda_dir, i, results_dir)
@@ -136,13 +136,13 @@ def _append_to_chain(cfg, model, binding, restart_dir, restart_in, identity, see
     anywhere adds nothing to the chain. Returns the chain's member trajectories."""
     openda_dir, n_members = cfg["openda_dir"], cfg["n_members"]
     start_day = binding.model_time(cfg["start_date"])
-    work_files = openda_member_files(openda_dir, n_members, binding)
+    work_files = _work_files(openda_dir, n_members, binding)
     restart_chain.archive_cycle(openda_dir, cfg["end_date"], [
         os.path.join(openda_dir, "Results", results_filename(cfg["algorithm"])),
         os.path.join(openda_dir, "log", "openda_logfile.txt")] + [
         (os.path.join(openda_dir, "Results", f"work{k}", binding.wrapper_log), f"wrapper_work{k}.log")
         for k in range(n_members + 1)])
-    chain_files = openda_chain_member_files(openda_dir, n_members, model, cfg.get("results_dir", "Results"))
+    chain_files = _member_files(openda_dir, n_members, model, cfg.get("results_dir", "Results"))
     for src, dst in zip(work_files, chain_files):
         restart_chain.append_trajectory(dst, src, start_day)
     mean_path = model.mean_traj_path(openda_dir, cfg["algorithm"])

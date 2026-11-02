@@ -1,5 +1,4 @@
-"""Derive the seiche filter's window W_SEICHE for one lake (ported from feat/da-combi
-notebooks/calibrate_filter.py; the numbers are unchanged).
+"""Derive the seiche filter's window W_SEICHE for one lake.
 
 THE MODEL. Merian's formula for the fundamental (V1H1) mode of a two-layer basin:
 

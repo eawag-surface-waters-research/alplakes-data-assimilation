@@ -1,6 +1,5 @@
-"""Fit the AR(1) forcing perturbation (the math of notebooks/generate_perturbation.py; the numbers
-are unchanged). Getting the data -- the reanalysis lake mean and the control forcing -- is the
-host's job; everything here takes frames.
+"""Fit the AR(1) forcing perturbation. Getting the data -- the reanalysis lake mean and the
+control forcing -- is the host's job; everything here takes frames.
 
 The calibration is TWO things, fitted from different data and kept strictly separate:
 
@@ -38,8 +37,6 @@ CAVEAT = ("phi is bracketed, not measured. lower is a floor (the reanalysis resi
           "tau per channel. The honest number needs the ACF of (forecast - station obs), which "
           "requires archived forecasts.")
 
-
-# ------------------------------------------------------------------------------ persistence --
 
 def acf(x, maxlag=MAXLAG):
     """Sample autocorrelation to `maxlag`. NaNs dropped (the clearness index is night-masked)."""
@@ -158,8 +155,6 @@ def migrate(base):
     base.pop("source", None)
     return base
 
-
-# -------------------------------------------------------------------------------- amplitude --
 
 def fit_ar1(residuals):
     """Moment (Yule-Walker-type) AR(1) fit: lag-1 correlation and the implied innovation std."""

@@ -22,7 +22,6 @@ from abc import ABC, abstractmethod
 
 
 class OpenDABinding(ABC):
-    # --- names ---------------------------------------------------------------------------------
     name           = None   # prefix of the generated model configs (<name>Model.gen.xml, ...)
     config_file    = None   # the model's run configuration in a work dir (wrapper alias configFile)
     state_file     = None   # the state vector file (wrapper alias stateFile)
@@ -37,7 +36,6 @@ class OpenDABinding(ABC):
     shared_inputs  = ()     # long read-only inputs a restart chain keeps once in <openda_dir>/shared
     time_axis      = None   # how the time axis is described in the generated files
 
-    # --- files ---------------------------------------------------------------------------------
     @abstractmethod
     def wrapper_files(self):
         """[(source path, path under stochModel/)]: the hand-maintained wrapper files."""
@@ -46,7 +44,6 @@ class OpenDABinding(ABC):
     def is_template_input(self, name):
         """Whether an entry of the model inputs belongs in the template (not outputs or archives)."""
 
-    # --- time ----------------------------------------------------------------------------------
     @abstractmethod
     def model_time(self, t):
         """The model-day time of an instant (ISO string, date, datetime or Timestamp; naive = UTC)."""
@@ -55,7 +52,6 @@ class OpenDABinding(ABC):
     def model_epoch(self):
         """The naive UTC datetime of model day 0."""
 
-    # --- the template's starting state ---------------------------------------------------------
     @abstractmethod
     def seed_template(self, model_inputs, template_dir):
         """Put the warm start into the template and write its state file from it. Returns
@@ -66,7 +62,6 @@ class OpenDABinding(ABC):
         """Restart chain: remove the template's starting state and fill its state file with
         `sentinel`, so a member that was not restored is caught. Returns the number of values."""
 
-    # --- forcing -------------------------------------------------------------------------------
     @abstractmethod
     def member_forcing(self, ensemble_base, i):
         """Path of member i's perturbed forcing (0 = the unperturbed control)."""
@@ -84,7 +79,6 @@ class OpenDABinding(ABC):
     def point_config_at_shared(self, template_dir, rel):
         """Restart chain: point the template's model configuration at the shared inputs in `rel`."""
 
-    # --- outputs and running -------------------------------------------------------------------
     @abstractmethod
     def output_depths(self, model_inputs):
         """Depths (positive metres) the model outputs; [] if unknown (no filtering)."""

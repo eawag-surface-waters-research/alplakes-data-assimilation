@@ -1,29 +1,14 @@
-"""Unified post-run summary of the assimilated temperature field + skill report.
+"""A run's summary: the posterior ensemble mean and spread, and its skill against the observations.
 
-Both engines -- the native EnKF/PF and the OpenDA black-box -- leave one output trajectory per
-member, read through the model's `read_output` (time in days since `output_epoch`, then one
-column per model column coordinate).
+From members 1..N (not the control), written to the run's folder:
 
-For each run this reads ensemble members 1..N (the control, member 0, is
-excluded) and writes two files into the run's own folder (`out_dir`: the native engines use
-ensemble_base, OpenDA its openda_dir):
-
-  <lake>_<engine>_<label>.csv   posterior ensemble mean + std per (time, depth):
-                                time,depth,T_mean,T_std  (hourly, full column)
-
-  <lake>_<engine>_<label>.json  skill/bias report, scoring the posterior mean
-                                against the run's observation file (obs_file)
-                                at the model-output depths (obs below the grid bed are
-                                dropped — the same set the engines assimilate; model
-                                interpolated in depth to each obs depth, matched to the
-                                nearest model output time).  The
-                                same reference is used for both engines so the
-                                numbers are directly comparable.  bias = model - obs
-                                (+ = model too warm).  Not a withheld set — both
-                                engines assimilate these obs in some reduced form —
-                                so it is an "analysis fit", labelled as such.
+  <lake>_<engine>_<label>.csv    time, depth, T_mean, T_std
+  <lake>_<engine>_<label>.json   the mean scored against the run's observations, binned as the
+                                 engines assimilate them, at the depths the model outputs (model
+                                 interpolated in depth, nearest output time). bias = model - obs.
+                                 These observations were assimilated: an analysis fit, not a
+                                 withheld test. Both engines are scored the same way.
 """
-
 import os
 import json
 import logging
@@ -87,16 +72,10 @@ def _agg(err, spread):
 
 def _score(times, depths, mean, std, obs_csv, model):
     """Score posterior mean vs the obs at model-output depths; returns (overall, by_depth) or None."""
-    # Score against the SAME obs the engines assimilate (and visualize plots): the centered
-    # hourly mean (load_obs), not the raw samples — so the JSON skill numbers line up with the
-    # plot's pooled RMSE.
     obs = load_obs(obs_csv).dropna(subset=["value"])
     if obs.empty:
         return None
 
-    # Same depth set the engines assimilate: drop obs with no model-output depth (e.g. deeper than
-    # the grid bed). The members output the obs-depth superset (pipeline step 2b), so every
-    # in-grid obs depth lands on an exact model column.
     obs = filter_obs_to_model_depths(obs, [abs(float(d)) for d in depths])
     if obs.empty:
         return None
@@ -131,71 +110,37 @@ def _score(times, depths, mean, std, obs_csv, model):
     return overall, by_depth
 
 
-def summarize_run(final_dir, lake, engine, label, member_files, model, obs_csv=None):
-    """Write <final_dir>/<lake>_<engine>_<label>.{csv,json} from members 1..N.
-
-    The CSV is always written; the JSON skill report is written when `obs_csv`
-    exists.  Returns (csv_path, n_members, n_timesteps, n_depths, overall_skill)
-    where overall_skill is the scored dict (rmse/bias/n/...) or None."""
-    os.makedirs(final_dir, exist_ok=True)
-    base = f"{lake}_{engine}_{label}"
+def report_summary(engine, label, member_files, lake, obs_csv, out_dir, model):
+    """Write the summary of members 1..N into `out_dir`. Returns (csv path, overall skill or None)."""
+    os.makedirs(out_dir, exist_ok=True)
+    base = os.path.join(out_dir, f"{lake}_{engine}_{label}")
     times, depths, mean, std = _load_members(member_files, model)
-
-    out_csv = os.path.join(final_dir, base + ".csv")
-    _write_csv(times, depths, mean, std, out_csv)
+    _write_csv(times, depths, mean, std, base + ".csv")
 
     overall = None
-    if obs_csv and os.path.isfile(obs_csv):
-        scored = _score(times, depths, mean, std, obs_csv, model)
-        if scored is not None:
-            overall, by_depth = scored
-            report = {
-                "lake": lake, "engine": engine, "filter": label,
-                "n_members": len(member_files),
-                "period": {"start": _r(times[0]), "end": _r(times[-1])},
-                "scored_against": "obs at model-output depths (model interpolated to obs depth, "
-                                  "nearest output time); analysis fit, not withheld",
-                "bias_sign": "model - obs (+ = model too warm)",
-                "n_obs": overall["n"],
-                "overall": overall,
-                "by_depth": by_depth,
-            }
-            with open(os.path.join(final_dir, base + ".json"), "w") as f:
-                json.dump(report, f, indent=2)
-
-    return out_csv, len(member_files), mean.shape[0], mean.shape[1], overall
-
-
-def report_summary(engine, label, member_files, lake, obs_csv, out_dir, model):
-    """Write the posterior summary + skill report into `out_dir` (the run's own folder) and log a
-    one-line recap. Shared by the native and OpenDA engines.
-    Returns (csv_path, overall_skill) for the caller's run footer."""
-    out_csv, n_mem, T, D, overall = summarize_run(out_dir, lake, engine, label, member_files, model,
-                                                  obs_csv=obs_csv)
-    logger.info(f"[summary] {n_mem} members, {T} steps x {D} depths -> {display_path(out_csv)}")
-    return out_csv, overall
+    scored  = _score(times, depths, mean, std, obs_csv, model) if obs_csv and os.path.isfile(obs_csv) else None
+    if scored is not None:
+        overall, by_depth = scored
+        with open(base + ".json", "w") as f:
+            json.dump({"lake": lake, "engine": engine, "filter": label, "n_members": len(member_files),
+                       "period": {"start": _r(times[0]), "end": _r(times[-1])},
+                       "scored_against": "obs at model-output depths (model interpolated to obs depth, "
+                                         "nearest output time); analysis fit, not withheld",
+                       "bias_sign": "model - obs (+ = model too warm)",
+                       "n_obs": overall["n"], "overall": overall, "by_depth": by_depth}, f, indent=2)
+    logger.info(f"[summary] {len(member_files)} members, {mean.shape[0]} steps x {mean.shape[1]} depths "
+                f"-> {display_path(base + '.csv')}")
+    return base + ".csv", overall
 
 
 def summarize_from_config(cfg):
-    """Rebuild the summary for the run described by `cfg` (a run config, see assimilator.config)
-    from the member outputs already on disk, without rerunning the assimilation."""
+    """Rebuild a finished run's summary from its member outputs on disk."""
     from .config import build_config
     from .models import get_model
-    cfg       = build_config(cfg)
-    model     = get_model(cfg["model"])
-    lake      = cfg["lake"]
-    n_members = cfg["n_members"]
-    obs_csv   = cfg["obs_file"]
-    label     = cfg["algorithm"]
-    if cfg["engine"] == "python":
-        ensemble_base = cfg["ensemble_base"]
-        member_files  = [model.member_output_file(ensemble_base, i, cfg["results_dir"])
-                         for i in range(1, n_members + 1)]
-        return report_summary("python", label, member_files, lake, obs_csv, ensemble_base, model)
-    from .openda.engine import openda_member_files, openda_chain_member_files
-    if cfg.get("openda_restart"):
-        # restart chain: the work dirs hold only the latest run; the chain's files hold all of it
-        member_files = openda_chain_member_files(cfg["openda_dir"], n_members, model, cfg.get("results_dir", "Results"))
-    else:
-        member_files = openda_member_files(cfg["openda_dir"], n_members, model.openda_binding())
-    return report_summary("openda", label, member_files, lake, obs_csv, cfg["openda_dir"], model)
+    cfg   = build_config(cfg)
+    model = get_model(cfg["model"])
+    out_dir = cfg["ensemble_base"] if cfg["engine"] == "python" else cfg["openda_dir"]
+    member_files = [model.member_output_file(out_dir, i, cfg.get("results_dir", "Results"))
+                    for i in range(1, cfg["n_members"] + 1)]
+    return report_summary(cfg["engine"], cfg["algorithm"], member_files, cfg["lake"], cfg["obs_file"],
+                          out_dir, model)

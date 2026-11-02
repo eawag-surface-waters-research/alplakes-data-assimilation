@@ -1,5 +1,4 @@
-"""Fit sigma_obs from the free-run-minus-observation gap (ported from notebooks/generate_sigma.py;
-the numbers are unchanged).
+"""Fit sigma_obs from the free-run-minus-observation gap.
 
     1  gap(t,z) = free_run(t,z) - obs(t,z)   at the observed hours, split by season
     2  per (depth, season): std about THAT season's own mean
@@ -10,8 +9,8 @@ sigma is a property of the series, not of the lake.
 
 AN UPPER BOUND: the gap carries model error as well as observation error.
 
-ASSUMES the "linear" observation operator: the gap is taken against the model's output at the
-observed depths, which Simstrat writes by interpolating the state.
+The gap is taken against the model's output at the observed depths, which Simstrat writes by
+interpolating the state, as the EnKF's observation operator does.
 """
 from datetime import date
 

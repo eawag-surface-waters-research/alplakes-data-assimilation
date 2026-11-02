@@ -16,16 +16,10 @@ from typing import Optional, Tuple
 import numpy as np
 
 
-# --- Fortran unformatted record I/O --------------------------------------
-# Minimal drop-in for scipy.io.FortranFile, supporting exactly the calls the snapshot helpers make
-# (read_ints / read_reals / write_record of a single array). It exists so snapshot I/O does NOT
-# import scipy: `from scipy.io import FortranFile` costs ~2 s per interpreter, which the OpenDA
-# wrapper paid on every member every step (a fresh process each time) — the bulk of the per-step
-# "snapshot inject" storm. The native engine paid it once. numpy + struct only here.
-#
-# A Fortran sequential unformatted record is  [int32 nbytes][data][int32 nbytes]  with the marker in
-# native byte order and 4-byte width (gfortran default) — matching scipy's defaults, so files stay
-# byte-identical. read_* return writable copies (scipy semantics: callers mutate model['T'] in place).
+# The calls of scipy.io.FortranFile the snapshot needs, without scipy: importing it costs ~2 s per
+# process, and every OpenDA wrapper process reads a snapshot. A record is [uint32 nbytes][data]
+# [uint32 nbytes] in native byte order (gfortran's and scipy's default), so files stay byte-identical.
+# Reads return writable copies, as scipy's do: callers change model["T"] in place.
 class FortranFile:
     _MARK = np.dtype(np.uint32)   # record-length marker: uint32, native byte order (scipy default)
 
@@ -65,8 +59,6 @@ class FortranFile:
         self._f.write(b)
         self._f.write(marker)
 
-
-# --- low-level record helpers --------------------------------------------
 
 def _read_array(f: FortranFile) -> Tuple[np.ndarray, Tuple[int, int]]:
     lb, ub = f.read_ints(np.int32)
@@ -171,8 +163,6 @@ def _write_logical_array(f: FortranFile, data: np.ndarray, bounds: Tuple[int, in
     f.write_record(np.asarray(data, dtype=bool).astype(np.int32))
 
 
-# --- snapshot container --------------------------------------------------
-
 @dataclass
 class Snapshot:
     couple_aed2: bool = False
@@ -184,8 +174,6 @@ class Snapshot:
     lateral: "OrderedDict[str, object]" = field(default_factory=OrderedDict)
     logger: "OrderedDict[str, object]" = field(default_factory=OrderedDict)
 
-
-# --- model state ---------------------------------------------------------
 
 # Mirror src/strat_simdata.f90:370-433. Three groups of fields:
 #   - 1D arrays written via save_array / save_array_pointer (bounds + data)
@@ -307,8 +295,6 @@ def _write_model_state(f: FortranFile, snap: Snapshot) -> None:
         _write_array(f, m["Q_vert"], m["Q_vert_bounds"])
 
 
-# --- grid ----------------------------------------------------------------
-
 # Mirror src/strat_grid.f90:110-129
 _GRID_ARRAYS_BEFORE_VOLUME = ["h", "z_face", "z_volume", "Az", "dAz", "meanint"]
 _GRID_ARRAYS_AFTER_VOLUME = [
@@ -363,8 +349,6 @@ def _write_grid(f: FortranFile, snap: Snapshot) -> None:
     ))
 
 
-# --- absorption ----------------------------------------------------------
-
 # Mirror src/strat_absorption.f90:81-91
 def _read_absorption(f: FortranFile, snap: Snapshot) -> None:
     a = snap.absorption
@@ -389,8 +373,6 @@ def _write_absorption(f: FortranFile, snap: Snapshot) -> None:
     _write_array(f, a["absorb_start"], a["absorb_start_bounds"])
     _write_array(f, a["absorb_end"], a["absorb_end_bounds"])
 
-
-# --- lateral (optional) --------------------------------------------------
 
 # Mirror src/strat_lateral.f90:154-185
 _LATERAL_INT_ARRAYS = [
@@ -435,8 +417,6 @@ def _write_lateral(f: FortranFile, snap: Snapshot) -> None:
         _write_matrix(f, lat[name], lat[f"{name}_bounds"])
 
 
-# --- logger --------------------------------------------------------------
-
 def _read_logger(f: FortranFile, snap: Snapshot) -> None:
     snap.logger["last_iteration_data"], snap.logger["last_iteration_data_bounds"] = (
         _read_matrix(f)
@@ -450,8 +430,6 @@ def _write_logger(f: FortranFile, snap: Snapshot) -> None:
         snap.logger["last_iteration_data_bounds"],
     )
 
-
-# --- top-level read/write ------------------------------------------------
 
 def flags_from_par(par_path: str) -> dict:
     """Read CoupleAED2 and InflowMode from a Simstrat .par (JSON) config.
@@ -517,26 +495,17 @@ def write_snapshot(path: str, snap: Snapshot) -> None:
         _write_logger(f, snap)
 
 
-# --- snapshot T-column round-trip: single source of truth for BOTH engines ------------------------
-# The native engine (read_snapshot_T/write_snapshot_T, keyed by member_id) and the OpenDA wrapper
-# (keyed by an explicit instance path) both read/inject the analysed temperature column. These two
-# path-based helpers are that shared core; the member-id wrappers below just build the paths.
-
 def read_snapshot_T_at(snap_path, par_path):
     """Read a snapshot's temperature column + grid geometry -> (T, z_volume, lake_level)."""
     snap  = read_snapshot(snap_path, par_path=par_path)
     T     = snap.model["T"]
-    # VERIFIED: there is a vertical-alignment assumption. This takes the TOP len(T) cells of
-    # z_volume, i.e. it assumes T is surface-aligned (z_volume[-1] == surface). If T is
-    # bottom-aligned in the Fortran grid this silently maps every obs to the wrong depth.
-    # Verified on inputs/upperlugano
+    # T fills the top len(T) cells of the grid (surface-aligned), checked on upperlugano.
     z_vol = snap.grid["z_volume"][-len(T):]
     return T.copy(), z_vol.copy(), float(snap.grid["lake_level"])
 
 
 def write_snapshot_T_at(snap_path, par_path, T_new):
-    """Inject an analysed temperature column into a snapshot (atomic via tmp + os.replace).
-    Raises if T_new's length doesn't match the snapshot grid (caller guards/handles)."""
+    """Replace a snapshot's temperature column, atomically. Raises if the length differs."""
     snap = read_snapshot(snap_path, par_path=par_path)
     if len(T_new) != len(snap.model["T"]):
         raise ValueError(f"T length {len(T_new)} != snapshot grid {len(snap.model['T'])}")

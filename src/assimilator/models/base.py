@@ -25,12 +25,10 @@ from abc import ABC, abstractmethod
 class ForwardModel(ABC):
     name = None
 
-    # --- runtime -----------------------------------------------------------------------------
     @abstractmethod
     def run_config(self):
         """Runtime defaults merged into the run args (e.g. a Docker image version)."""
 
-    # --- inputs and members --------------------------------------------------------------------
     @abstractmethod
     def model_inputs_ready(self, model_inputs):
         """True if `model_inputs` holds a runnable setup with a warm-start state."""
@@ -57,7 +55,6 @@ class ForwardModel(ABC):
     def model_output_depths(self, ensemble_base):
         """Depths (positive metres) the members output; [] if unknown."""
 
-    # --- forcing (for the AR(1) perturbation) ---------------------------------------------------
     @abstractmethod
     def read_forcing(self, model_inputs, ref_year=None):
         """The control forcing as a DataFrame with at least: 'time' (tz-aware UTC), 'step'
@@ -69,7 +66,6 @@ class ForwardModel(ABC):
     def write_forcing(self, member_dir, df):
         """Write a (perturbed) forcing frame, as returned by read_forcing, into a member."""
 
-    # --- running ------------------------------------------------------------------------------
     @abstractmethod
     def start_containers(self, args, max_workers=None):
         """Acquire whatever the members run in (called once per run)."""
@@ -83,7 +79,6 @@ class ForwardModel(ABC):
         """Advance every member in args['member_ids'] from window_start to window_end, each from
         its own current state. Returns the list of member ids that failed."""
 
-    # --- time and output ----------------------------------------------------------------------
     @abstractmethod
     def read_ref_date(self, ensemble_base):
         """The model's time origin (tz-aware datetime) for its day-based time axis."""
@@ -125,7 +120,6 @@ class ForwardModel(ABC):
     def mean_traj_path(self, ensemble_base, algorithm):
         """Where the ensemble-mean trajectory is written."""
 
-    # --- state ----------------------------------------------------------------------------------
     @abstractmethod
     def read_snapshot_T(self, member_id, args):
         """A member's current state -> (state column, column heights, lake level)."""
@@ -147,7 +141,6 @@ class ForwardModel(ABC):
         """Write the ensemble-mean analysis state of members 1..N as a warm start at `out_path`
         (the deterministic forecast's initial condition)."""
 
-    # --- OpenDA ---------------------------------------------------------------------------------
     def openda_binding(self):
         """The model as an OpenDA black box (assimilator.openda.binding.OpenDABinding), or None if
         it cannot run under the OpenDA engine. Not needed for the native engines."""
