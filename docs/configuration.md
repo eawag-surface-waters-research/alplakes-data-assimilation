@@ -68,6 +68,7 @@ result = assimilator.run(cfg)          # cfg: the same keys as the JSON
 | `sigma_obs` | `sigma_default` | Observation error in °C: a number, or `{"mixed": .., "stratified": ..}` with stratified = May to October. Fitted with `assimilator.fitting.sigma` (`python src/assimilate.py fit sigma`); it is only valid for the `obs_file` it was fitted on ([Workblog](workblog.md) §5.4 to §5.5). |
 | `sigma_default` | `0.5` | Fallback when `sigma_obs` is not set. The log says when it is used. |
 | `obs_min_days` | `1` | OpenDA only. Drops depths with fewer days of data than this. |
+| `openda_restart` | unset | OpenDA only. A restart chain: each run continues from the ensemble the previous run saved, so an ensemble run in daily slices keeps its spread. `{"dir": ..., "keep": 7, "cycle_max_days": 31}`, all optional: the chain folder (default `<openda_dir>/restart`), how many restart files to keep, and the longest single OpenDA run of a catch-up. A call runs from the chain's end to `end_date`, every observation analysed at its own time; OpenDA is not started on a window without observations. See `assimilator/openda/restart.py`. |
 
 ## Forcing perturbation
 
