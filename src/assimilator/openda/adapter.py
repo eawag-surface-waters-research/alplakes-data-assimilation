@@ -215,7 +215,12 @@ def adapt(raw):
     #    (the only non-generated OpenDA pieces; everything else is rendered/synced)
     # ------------------------------------------------------------------
     for src, rel in binding.wrapper_files():
-        _copy(src, os.path.join(openda_dir, "stochModel", rel))
+        dst = os.path.join(openda_dir, "stochModel", rel)
+        _copy(src, dst)
+        if rel.startswith("bin" + os.sep):
+            # OpenDA runs the wrapper directly (wrapper XML linuxExe): it must be executable,
+            # whatever mode the source file has in the repository.
+            os.chmod(dst, os.stat(dst).st_mode | 0o111)
     logger.info(f"[adapter] wrapper -> stochModel/: {[rel for _, rel in binding.wrapper_files()]}")
 
     # ------------------------------------------------------------------
@@ -345,6 +350,7 @@ def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled
     instances = 0                     # count of "Creating model instance" (members initialized)
     pending   = None                  # the current step's Forecast line, awaiting its member tally
     step_ok = step_fail = 0           # model exits seen since `pending` (this step's instances)
+    crash   = []                      # Java exception lines: oda_run.sh exits 0 even when OpenDA dies
 
     # The instances run AFTER their step's Forecast line and BEFORE the next one, so a step's
     # member tally is only complete when the next Forecast (or "Application Done") arrives. We hold
@@ -396,6 +402,8 @@ def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled
                               or b"Selected localization method" in raw_line):
                             logger.info("OpenDA: " + raw_line.decode("utf-8", "replace").strip(),
                                         extra={"file_only": True})   # Tier A: run provenance/config
+                        elif b"Exception in thread" in raw_line or (crash and b"Caused by:" in raw_line):
+                            crash.append(raw_line.decode("utf-8", "replace").strip())
                         elif b"Application Done" in raw_line:
                             _flush_pending()              # close out the final step
                             logger.info("OpenDA: application done", extra={"file_only": True})  # Tier D
@@ -410,6 +418,8 @@ def _launch_oda_with_progress(oda_exe, oda_file, openda_dir, env, total, enabled
 
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, [oda_exe, oda_file])
+    if crash:
+        raise RuntimeError("OpenDA failed: " + " | ".join(crash[-2:]) + " (see log/openda_logfile.txt)")
     return proc.returncode
 
 
@@ -439,8 +449,8 @@ def run_openda_chain(cfg, model, params, skip_oda=False, max_cycles=None):
                          f"the run's warm start is newer than the chain. Empty the chain folder to start a "
                          f"new chain from the warm start.")
     cycles = restart_chain.plan_cycles(reached or start, end, restart_chain.settings(cfg)["cycle_max_days"])
-    # OpenDA is never started on a window without observations (whether it accepts one is not
-    # established): an empty run is merged into the next, and a gap at the end leaves the chain
+    # OpenDA is never started on a window without observations: it refuses one ("No analysisTimes
+    # found in OBSERVER"). An empty run is merged into the next, and a gap at the end leaves the chain
     # where it is until the next observation arrives. The caller sees that in the returned instant.
     times = load_obs(resolve_obs_path(cfg))["time"]
     cycles = restart_chain.merge_empty_cycles(cycles, times)
