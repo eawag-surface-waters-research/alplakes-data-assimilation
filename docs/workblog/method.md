@@ -257,4 +257,4 @@ On Upper Lugano GLOB that gives `1.39 h < τ_err < 7.17 h`.
 
 **σ is not the perturbation's size:** it is the size of one hourly kick. The spread is `σ/√(1−φ²)`, because a persistent process accumulates its past kicks. Raising φ at fixed σ therefore also raises the amplitude, which confounds persistence with amplitude and makes the comparison uninterpretable. So σ is always re-derived to hold the stationary std at the ICON-fitted value, `σ = s·√(1−φ²)`. Note that σ *falls* as the perturbation becomes more persistent: smaller kicks, but they accumulate further.
 
-Both bounds live in `perturbations/<lake>.json` under `persistence.bounds`; `stationary_std` is stored once and both bounds derive their σ from it, so the two ends cannot drift apart in amplitude.
+Both bounds are stored with the lake's perturbation (operational-simstrat `static/assimilation/<lake>.json`, `perturbations.persistence`; `perturbations/<lake>.json` at `20564a9`); `stationary_std` is stored once and both bounds derive their σ from it, so the two ends cannot drift apart in amplitude.

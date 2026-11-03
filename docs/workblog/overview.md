@@ -49,16 +49,16 @@ It is currently designed for lakes with high-resolution in-situ profiles at sub-
 
 ## Status
 
-The operational setup is the one we call `simplified_final`: native EnKF, 20 members, a fixed seasonal σ per lake, daily assimilation at a per-lake night hour. Its σ values are the ones in `args/run_enkf.json`, and every number in [Results](results.md) comes from it.
+The operational setup is the one we call `simplified_final`: native EnKF, 20 members, a fixed seasonal σ per lake, daily assimilation at a per-lake night hour. Every number in [Results](results.md) comes from it, run with the code at commit `20564a9` (σ values in `args/run_enkf.json` there). Operationally, each lake's settings now live in [operational-simstrat](https://github.com/eawag-surface-waters-research/operational-simstrat), `static/assimilation/<lake>.json`.
 
 | Component | Status | Where |
 |---|---|---|
 | Forcing perturbation (AR(1) on wind U, V and solar radiation) | ✅ Operational | `master`: `src/assimilator/perturbate.py` |
-| EnKF, native engine | ✅ Operational | `master`: `args/run_enkf.json` |
-| EnKF, OpenDA engine | ⚙️ Optional (same result ~0.04 °C) | `master`: `args/run_openda.json` |
-| OpenDA as a chain of restart cycles for future integration| ⚙️ Optional | `operational_openda-restart` |
-| Seiche filtering, depth thinning, night-time assimilation hour | ✅ Operational | observation files on `master`; scripts on `feat/da-combi` and will be restructured for operational use|
-| Seasonal fixed σ (`simplified_final`) | ✅ Operational | `args/run_enkf.json` |
+| EnKF, native engine | ✅ Operational | `master`: one flat config per run, `examples/enkf.json` |
+| EnKF, OpenDA engine | ⚙️ Optional (same result ~0.04 °C) | `master`: `"engine": "openda"` in the run config |
+| OpenDA as a chain of restart cycles for future integration| ⚙️ Optional | `master`: `openda_restart` (one run per day); full chain on `operational_openda-restart` |
+| Seiche filtering, depth thinning, night-time assimilation hour | ✅ Operational | `master`: `src/assimilator/observations.py`, `fitting/` (`assimilate.py preprocess`, `fit filter`, `fit hour`); first developed on `feat/da-combi` |
+| Seasonal fixed σ (`simplified_final`) | ✅ Operational | `master`: `assimilate.py fit sigma`; values per lake in operational-simstrat |
 | Vertical localization | (✅) Positive, potentially to be adopted | available in `feat/da-combi` |
 | Adaptive σ | (✅) Positive, potentially to be adopted (needs limits) | `adaptive_sigma` branch |
 | Parameter perturbation (at longer assimilation steps), 3D | (✅) Positive, potentially to be adopted | scripts available by request |

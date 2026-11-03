@@ -236,7 +236,7 @@ Every lake ends up with NIS near 1, as expected by construction. Upper Lugano is
 
 **Verdict:** Where it can be tested, **the choice of fitting year matters much less than one might think and the recipe itself**. Two caveats: the test covers three lakes and one scored year, and the forcing perturbation is still the one fitted on 2025, because the ICON reanalysis it needs does not reach back to 2024.
 
-**Reproduce:** `master`: `notebooks/generate_sigma.py`, fitted on 2023–24.
+**Reproduce:** `master` at `20564a9`: `notebooks/generate_sigma.py`, fitted on 2023–24 (now `assimilate.py fit sigma`).
 
 ---
 
