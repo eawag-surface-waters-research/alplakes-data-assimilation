@@ -1,11 +1,11 @@
 # Experiments
 
-*Last updated: October 2026. Unless stated otherwise: 2025, 20 members, native EnKF, operational setup apart from the one thing each experiment changes.*
+*Last updated: November 2026. Unless stated otherwise: 2025, 20 members, native EnKF, operational setup apart from the one thing each experiment changes.*
 
 !!! abstract "In short"
     Every experiment we ran, what it asked, and what came of it. Daily assimilation, seiche filtering and profile data pay off. Making σ more refined makes the filter better calibrated, not more accurate. Surface-only assimilation damages the layers below. Extra spread from model parameters helps a little at daily steps, but only at amplitudes we cannot defend; at longer steps it pays off. Assimilation leaves the model's natural variability intact.
 
-    The more recent work is promising: oxygen can be assimilated together with temperature, with large gains where the profiler covers the column; centring the forcing ensemble removes a systematic windiness of the members; and process noise gives an honest forecast uncertainty band. Deep mixing remains open.
+    The more recent work is promising: oxygen can be assimilated together with temperature, with large gains where the profiler covers the column; centring the forcing ensemble removes a systematic windiness of the members; and an adaptive, bounded process noise makes the ensemble honest. Over 7-day forecasts, a more realistic wind perturbation (lake wind, slow wind noise) pays off where it does not in daily assimilation. Deep mixing remains open.
 
 ✅ Operational · (✅) Positive, potentially to be adopted · ⚙️ Optional · ❌ Tested, not adopted · 🔬 Open
 
@@ -27,7 +27,7 @@
 | [Natural variability](#variability) | Does DA disturb the model's own oscillations? | No: same spectral shape, one clean step per update | ✅ passes |
 | Oxygen: [assimilation](#to2-profiler), [depth thinning](#depth-thinning) & [CTD interpolation](#ctd-interpolation) | Can O₂ be assimilated with T, from how few depths, and from casts alone? | Profilers: Ägeri O₂ −45 %, Murten −18 %; the bottom boundary is a model problem. 5 of 23 depths keep ~35–40 % of the T gain, ~70 % of the O₂ gain. Monthly casts: good between casts in the deep water only | (✅) |
 | [Centred forcing](#centred-forcing) | Does the forcing noise bias the ensemble mean? | Yes: mean wind speed +31 to +63 %; centring removes it | (✅) |
-| [Uncertainty band](#uncertainty-band) | Can process noise give an honest forecast band? | Yes: 83 % (2025, in sample) and 80 % (2026, out of sample) inside the 90 % band, against ~25 %; RMSE −22 % / −17 % | (✅) |
+| [Upper Lugano: adaptive noise and 7-day forecasts](#uncertainty-band) | Can an adaptive process noise make the ensemble honest, and what improves 7-day forecasts? | Analysis RMSE 0.361 → 0.278 °C, CRPS 0.203 → 0.121, spread/RMSE 0.26 → 0.74. Forecasts: lake wind + slow wind noise, surface CRPS at day 7 0.33 → 0.29, coverage 0.79 → 0.92; a bias band where there is no lake wind | 🔬 |
 
 ---
 
@@ -563,45 +563,156 @@ Most of that 0.25 °C is model uncertainty that σ has to carry because the ense
 
 **Reproduce:** Not in the repository; scripts available from the author on request.
 
-### Forecast uncertainty band { #uncertainty-band }
+### Upper Lugano: adaptive process noise and 7-day forecasts { #uncertainty-band }
 
-**Status:** (✅) Positive, potentially to be adopted · **Lakes:** Upper Lugano
+**Status:** 🔬 Open, ready to pick up · **Lakes:** Upper Lugano, 2025 (March–July 2026 out of sample)
 
-**Question:** The ensemble spread is far smaller than the error, so a band built from it would be far too narrow. Can a simple process noise on the temperature profile give an honest band for the Alplakes forecasts?
+!!! abstract "In short"
+    - **The operational setup is too confident.** In `simplified_final` the ensemble spread is a quarter of the error (spread/RMSE 0.26), so the ensemble band holds only about a quarter of the observations.
+    - **An adaptive, bounded process noise fixes the analysis.** RMSE drops from 0.361 to 0.278 °C and CRPS from 0.203 to 0.121 °C (2025). A first, fixed version of the noise also held out of sample in 2026 (0.428 → 0.357 °C).
+    - **Adaptive Q and R are fair, convenient and safe.** Each is estimated from its own evidence, nothing has to be fitted offline per lake, and every feedback loop we found has a safeguard.
+    - **In daily DA, a better forcing perturbation brings little.** Correcting the wind with the buoy gives an RMSE of 0.363 °C against 0.361, because the daily analysis corrects the state anyway.
+    - **Over 7-day forecasts, the perturbation matters.** Lake wind plus a slow wind noise bring the surface CRPS at day 7 from 0.33 to 0.29 °C, and the 90 % coverage from 0.79 to 0.92, with no bias band. Where a lake has no lake wind, a bias band gives honest coverage instead.
 
-**Setup:** Following the idea of FLARE ([Thomas et al., 2020](../literature-review.md#thomas-2020)), where process uncertainty dominates the forecast variance at depth, but simplified: forcing taken as given, parameters fixed. Every day, a noise drawn from the model's typical daily error is added to each member's profile at the analysis hour. Its covariance comes from the free run alone: an AR(1) fit to the free-run residuals at 06 UTC gives the daily "new error" per depth, with one yearly depth correlation and a monthly amplitude. Since the model error now has its own term, σ is lowered accordingly. The noise is fitted on 2025 and the run is scored on 2026, out of sample.
+**Question:** The ensemble spread is far smaller than the error ([Open problems](open-problems.md)). Can a process noise on the temperature profile make the ensemble honest without hand tuning? And what, beyond an honest band, improves 7-day forecasts?
+
+**Method:** Following FLARE ([Thomas et al., 2020](../literature-review.md#thomas-2020)), with the forcing taken as given and the parameters fixed. Every day at the 06 UTC analysis, each member's profile gets a noise with covariance Σ = D C D:
+
+- C is a fixed depth correlation, taken from the free run.
+- D holds the daily amplitude q at each depth.
+
+R and q are estimated during the run, causally, over the previous 30 days:
+
+| Term | How it is estimated |
+|---|---|
+| **R** (observation error) | From the observations only. At 0.5–1 m: the sensor error. At 3 m: the sensor plus the swing within the day (hourly values minus a 24 h centred mean). At 5 m and below: the 2–10-day internal-wave band of the 06 UTC observations (their variance around a 10-day mean). |
+| **p** (target prior variance) | p = mean(d² − R²) over the last 30 analyses, where d is the innovation. |
+| **q** (daily noise) | q = √(p² / (p + R²)), the steady-state noise that brings the prior variance back to p after each analysis. |
+| **Bounds on q** | Below: the free run's random error growth per day. Above: the free run's anomaly spread. |
+| **Forecasts** | q stays at its value on the start day, the boost decays, and no observation is rejected. |
+
+The [adaptive σ](#adaptive-sigma) showed that an unbounded self-tuning error model can feed back on itself. These are the loops we found here, and how each is closed:
+
+| Risk | Safeguard |
+|---|---|
+| R and Q absorb each other's error | R comes from the observations only, never from the innovations |
+| Spread and Q drive each other up | Q targets the spread p, with a 30-day memory |
+| Q drifts to zero or explodes | Bounds from the free run |
+| One bad day inflates Q | When NIS > 4, q is boosted temporarily: q × min(3, √NIS), with a half-life of 2 days. Gross errors (NIS > 25) are rejected and do not feed Q. |
+| The noise creates unstable profiles | Inversions are removed between 0 and 50 m, and heat is conserved |
+| Sudden jumps at depth | Each correction is capped at 0.5 °C below 4 m: corrections over 0.5 °C drop from 78 to 21 over the year. Rejecting the observations instead (`pn_adaptive5`) lagged in spring, with 54–61 % coverage. |
+| The noise shifts the ensemble mean | The noise is centred across members |
+
+**Result, analysis (daily DA, 2025):**
+
+| Run | RMSE (°C) | CRPS (°C) | spread / RMSE | buoy inside the 90 % band (with R) |
+|---|---|---|---|---|
+| Free run | 0.670 | – | – | – |
+| `simplified_final` (fixed σ, no noise) ✅ | 0.361 | 0.203 | 0.26 | 0.95 |
+| Fixed noise, fitted on the free run | 0.278 | 0.133 | 1.00 | – |
+| **Adaptive noise (`pn_adaptive6`)** | **0.278** | **0.121** | 0.74 | 0.91 |
+| Adaptive, with rejection instead of the cap (`pn_adaptive5`) ❌ | 0.290 | 0.127 | 0.58 | 0.88 |
+
+*Upper Lugano 2025, scored against the hourly filtered buoy observations.*
+
+The adaptive run matches the RMSE of the fixed noise and has the best CRPS, with no fitting step. It still has 125 analyses with NIS > 9.
+
+The fixed noise (monthly amplitude, fitted on 2025) also held out of sample, in March–July 2026:
+
+- RMSE 0.428 → 0.357 °C and CRPS 0.248 → 0.175 °C.
+- Spread/RMSE 0.25 → 0.97.
+- At 1 m from May to July, 78 % of the observations fall inside the ensemble band, against 35 % without the noise (Figure 23).
+
+The adaptive version has not been run on 2026 yet.
 
 ![Upper Lugano, May–July 2026, 1 m: observations, free run, current DA and DA + process noise with their 90 % bands](../images/38_uncertainty_band.png){ width="880" .center }
 /// figure-caption
-Upper Lugano, 1 m, May–July 2026 (out of sample): observations, free run, current DA and DA + process noise with their 90 % bands.
+Upper Lugano, 1 m, May–July 2026 (out of sample): observations, free run, `simplified_final` and DA with the fixed monthly process noise, with their 90 % bands.
 ///
 
-**Result so far:** The mechanism works, with good results and a more honest spread, both in sample and out of sample.
+**Forecast setup:** We ran 47 weekly reforecasts (starts from 1 February to 20 December 2025). Each starts from the saved daily analysis state of `pn_adaptive6` and runs 7 days with no assimilation. The forecasts are driven by the observed weather, which makes them optimistic near the surface.
 
-| | In sample: 2025 | Out of sample: March–July 2026 |
-|---|---|---|
-| noise | fitted on 2025, seasonal | fitted on 2025, monthly |
-| RMSE, free run | 0.67 °C | 0.91 °C |
-| RMSE, current setup → with noise | 0.36 → 0.28 °C | 0.43 → 0.36 °C |
-| bias, current setup → with noise | 0.10 → 0.01 °C | 0.06 → 0.03 °C |
-| CRPS, current setup → with noise | 0.20 → 0.13 °C | 0.25 → 0.18 °C |
-| spread / RMSE | 0.26 → 1.00 | 0.25 → 0.97 |
-| observations inside the 90 % band (ensemble) | 27 → 83 % | 24 → 80 % |
-| same, band including σ | 95 → 97 % | 92 → 97 % |
-| NIS/n | 0.64 / 0.47 → 0.52 / 0.26 (mixed / stratified) | 0.77 → 0.50 |
+- Scores: CRPS, RMSE, and the coverage of the 90 % band, mean ± 1.645 √(spread² + R² + b²), where b is the bias term of step 1 (0 without it).
+- Differences are tested with a paired bootstrap.
+- The table uses 43 starts with surface data.
 
-*Upper Lugano, scored against the hourly filtered observations. The two columns use slightly different noise: the 2025 run was the first, seasonal version; the monthly amplitude was introduced for the 2026 test, after the seasonal one was found too small in spring (April spread 0.21 against an error of 0.39 °C).*
+Against simpler forecasts, `pn_adaptive6` wins clearly. CRPS (°C) at days 1, 3 and 7:
 
-In sample, the noise improves every depth from 0.5 to 30 m. Out of sample, the gain holds at 0.5–15 m and is level at 17–40 m, and spread ≈ RMSE in every month. At 1 m from May to July, 78 % of the observations fall inside the band against 35 % (Figure 23).
-- **As a forecast, 1–7 days:** a reforecast with an analysis only every 7th day, the ensemble running free with the daily noise in between (about 30 forecasts per lead, January–July 2026). Pooled over depths, the band stays roughly honest at every lead: 80–86 % coverage of the 90 % band, spread/RMSE 0.87–1.21, and the forecast beats the free run at every lead (0.54 against 0.81 °C on day 7). By depth it is too narrow at 0.5–3 m at every lead (61–84 %), and too wide at 7–21 m from about day 4, where the noise accumulates faster than the real error grows. In May–July at 15–25 m the forecast is also worse than the free run at most leads (e.g. 0.65 against 0.45 °C at 15 m on day 7), while the daily run beats the free run there. The error is mostly random, not a bias that grows with lead, so it most likely comes from the weaker weekly start states and the large summer noise at the thermocline rather than from the uncentred forcing, though a centred run has not been tried.
-- **Stability:** the noise creates new unstable cells only in February–March below about 15 m (5–7 % of the cells right after the update in March), with a burst of mixing for 6–12 h; they are mixed out by the next morning. From April to July the stratification absorbs it, and near the surface the daily convection dominates anyway.
+| Layer | `pn_adaptive6` | Persistence | Free run |
+|---|---|---|---|
+| Surface | 0.18 / 0.23 / 0.31 | 0.29 / 0.50 / 1.10 | 0.84 / 0.79 / 0.80 |
+| Thermocline | 0.19 / 0.25 / 0.29 | 0.21 / 0.47 / 0.73 | 0.63 / 0.64 / 0.64 |
+| Deep | 0.08 / 0.11 / 0.11 | 0.09 / 0.17 / 0.18 | 0.25 / 0.25 / 0.26 |
 
-**Open:**
+The surface error at day 7 is mostly a seasonal bias: +0.57 °C in summer, −0.41 °C in spring. Its band is too narrow (0.79 at day 7). We tried four ways to improve it:
 
-- Parameter uncertainty is not included.
-- σ is still too large once the noise is added (NIS ≈ 0.4–0.5): it needs a more consistent definition.
-- The noise is zero-mean, but the analysis also corrects a systematic tendency of up to about 0.15 °C per day near the surface (warming in spring, cooling in summer). A forecast needs a correction for it, or a stated bias.
-- Avoid the spurious mixing: either taper the noise below 15 m in February–March, or, more generally, constrain each perturbation to physical profiles, so that it can change the vertical gradient but never invert it.
-- The forecast test is only an approximation of the real use. It is driven by the observed weather instead of a weather forecast, which makes it optimistic near the surface. And since the same ensemble cannot both assimilate every day and run free for 7 days, the test assimilated only every 7th day, so each forecast starts from a less accurate state than the operational daily analysis would give, which makes it pessimistic. A faithful test would start each 7-day forecast from a copy of the daily-assimilated ensemble, while the original keeps assimilating. The module cannot do this yet: it does not save the analysis states.
+1. **Uncertainty only: a bias band.** The band is widened by b, the mean error of the last 4 forecasts, applied at all depths. At 0.5–3 m b is set per lead day (smoothed, interpolated at mid-day); from 4 m down it is one value for all 7 days. Coverage becomes honest (0.92 at day 7), but the forecast itself does not change (same CRPS). It needs no lake data.
+2. **A better meteo perturbation: not enough alone.** Checked against the buoy, the members' daily-mean wind is too uniform: only 52 % of buoy days fall inside the members (59 % centred), and their mean wind is 37 % too high (2.20 against 1.71 m/s).
+    - We added a slow wind noise: each member's wind speed is multiplied by exp(η), where η is an AR(1) with log-sd 0.33 and τ = 29 h. The noise is re-centred, so the ensemble-mean speed is unchanged.
+    - With it, 87 % of buoy days fall inside the members (Figure 25).
+    - σ and τ can be fitted without a buoy: ICON against the station forcing gives a log-sd of 0.33 (lake mean) and 0.34 (cell at the buoy), against 0.31–0.32 from the buoy. τ is 1.2 and 1.1 days, against 1.4. The mean bias does not transfer (ICON lake 0.97 m/s against the station's 1.60), and the daily errors estimated from ICON and from the buoy correlate only at 0.56.
+    - In the `pn_adaptive6` forecasts, the slow noise raises the day-7 spread from 0.45 to 0.55 °C at the surface and from 0.43 to 0.50 °C at 5–13 m. CRPS improves a little: −0.006 °C at 5–13 m (90 % interval −0.011 … −0.003), −0.004 °C at the surface (borderline).
+    - Without process noise (`simplified_final`), it widens the forecast spread by ×1.35–1.45 at 1–9 m from day 3, by ×1.15–1.3 deeper, and hardly at all in winter. That covers only about 10 % of the error variance (about 6 % before), so Q is still needed.
+3. **Buoy wind: a big help where available.** The model's wind (station × `f_wind` 1.072) is too weak on the lake from June to October: buoy/model ratio 1.12–1.25, around 1.0 from November to May (Figure 24).
+    - Correction: the forecast wind is multiplied by exp(mean daily log(buoy/model)) over the 30 days before the start. This needs at least 20 days with at least 18 hours of data.
+    - Data: Castagnola buoy (OASI auto_52), wind speed only.
+    - Over the year, surface CRPS improves by 0.020 °C (90 % interval −0.028 … −0.012).
+    - From June to October at day 7, the surface CRPS drops from 0.36 to 0.29 °C and coverage rises from 0.70 to 0.82 (Figure 26).
+4. **All together: the ideal case.** With buoy wind plus slow noise, from June to October at day 7, surface CRPS drops to 0.27 °C and coverage rises to 0.96. At 5–13 m, CRPS goes 0.36 → 0.34 → 0.32 across steps 0, 3 and 4. Over the year the coverage is honest without the bias band.
 
-**Reproduce:** Will be added as a branch.
+| Forecast (0.5–3 m) | CRPS (°C), day 1 → 7 | 90 % coverage, day 1 → 7 | band half-width (°C), day 1 → 7 | coverage, all depths |
+|---|---|---|---|---|
+| 0. `pn_adaptive6` | 0.19 → 0.33 | 0.84 → 0.79 | 0.49 → 0.77 | 0.88 |
+| 1. + bias band | 0.19 → 0.33 | 0.90 → 0.92 | 0.59 → 1.02 | 0.92 |
+| 3. + buoy wind | 0.18 → 0.29 | 0.84 → 0.85 | 0.49 → 0.78 | 0.89 |
+| 3. + buoy wind + bias band | 0.18 → 0.29 | 0.90 → 0.95 | 0.59 → 0.95 | 0.92 |
+| **4. + buoy wind + slow noise** | **0.18 → 0.29** | **0.86 → 0.92** | 0.51 → 0.94 | 0.91 |
+| 4. + buoy wind + slow noise + bias band | 0.18 → 0.29 | 0.92 → 0.96 | 0.60 → 1.08 | 0.93 |
+
+*Upper Lugano 2025, 43 weekly 7-day reforecasts, observed weather.*
+
+![Upper Lugano 2025: buoy/model wind ratio by month and the 30-day factor used; the September cold front](../images/39_upperlugano_wind_buoy_vs_station.png){ width="880" .center }
+/// figure-caption
+Upper Lugano 2025: (a) buoy/model wind speed ratio by month, and the factor from the previous 30 days used in the forecasts; (b) hourly wind, buoy against model, around the 22–24 September cold front.
+///
+
+![Wind perturbation checked against the buoy, Upper Lugano 2025](../images/40_upperlugano_wind_noise_realism.png){ width="880" .center }
+/// figure-caption
+Upper Lugano 2025, 200 simulated members: (a) daily-mean wind, August–October, members 5–95 % with and without the slow wind noise, against the buoy; (b) share of buoy days inside the members, by month; (c, d) size (log-sd) and memory τ of the model's daily wind error, measured with the buoy and estimated from ICON.
+///
+
+![7-day reforecasts June–October 2025: CRPS and 90 % coverage by lead day](../images/41_upperlugano_forecast_ladder.png){ width="880" .center }
+/// figure-caption
+Upper Lugano, 21 weekly reforecasts June–October 2025: CRPS (left) and 90 % band coverage (right) by lead day at 0.5–3 m (top) and 5–13 m (bottom), for `pn_adaptive6`, + buoy wind, + buoy wind + slow noise.
+///
+
+**Limits:**
+
+- **One lake, one buoy, one year.** Only the 2026 test above is out of sample, and it used the fixed noise.
+- **Observed weather.** The forecasts were driven by observed weather, not a weather forecast, which makes them optimistic near the surface.
+- **The 22–24 September event at 15–17 m is beyond a 1D model.** The column heat is right (16.96 → 16.30 °C observed, 16.95 → 16.24 °C forecast). But with buoy wind the free run warms 13 m by +0.87 °C (observed +1.33, reference run +0.28), while 15–17 m do not change at all (observed +2.30 / +1.36 °C).
+- **More seiche mixing does not fix it.** `a_seiche` ×2 or ×4 adds only 0.1–0.3 °C there, and the deep RMSE gets worse ❌.
+
+**Verdict:** For the analysis, the adaptive bounded noise is the method to keep. It is fair, needs no per-lake fitting, and is stable under its safeguards. For forecasts, invest in the wind:
+
+- the slow noise everywhere, fitted from ICON;
+- the buoy factor where a lake measures wind;
+- the bias band only where a lake has no lake data.
+
+**Next step:**
+
+- Run the adaptive noise and the reforecasts on 2026, out of sample.
+- Add the slow wind noise to `src/assimilator/perturbate.py` as an option, with σ and τ fitted from ICON against the station for each lake.
+- Fade the step cap in over 3–5 m instead of switching it on at 4 m.
+- Quantify the side effects of the stabilization on mixing and heat.
+- Look into the September warming at 15–17 m (3D, or internal-wave mixing).
+
+**Reproduce:** Scripts are available from the author on request.
+
+| What | Where (`feat/da-combi`, `local/upperlugano_pn/`) |
+|---|---|
+| DA runs | `run_pn.py`, `pn_adaptive.py`; configs `pn_adaptive6.json`, `pn_adaptive5.json`, `pn_a1_budget.json`; buoy factor in the DA: `sf_buoyf.json`, `sf_buoyf_c.json` (centred) |
+| Reforecasts | `forecast_from_issue.py <run>/upperlugano [--buoy-wind] [--slow-wind 0.33,29]` |
+| Scores and bias band | `score_forecasts.py --bias-band 4 --bias-max-depth 100 --bias-common-from-m 4` |
+| Wind | `buoy_factor_forcing.py` (buoy factor, Castagnola, OASI auto_52), `get_icon_upperlugano.py` (ICON KENDA-CH1, needs the EAWAG VPN), `wind_noise_check.py` |
+| Figures | `compare_2025.py`, `wind_story_figs.py` |
