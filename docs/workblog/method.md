@@ -153,9 +153,9 @@ We tested three alternatives: σ resolved in depth, rescaled against the filter'
 
 !!! note "Decision: fixed seasonal σ per lake"
 
-    - **Alternatives:** depth-resolved σ, rescaled σ, adaptive σ ([Experiments](experiments.md#sigma)).
+    - **Alternatives:** depth-resolved σ, rescaled σ ([Experiments](experiments.md#sigma)); adaptive σ and the learned R and q ([Learning the errors online](experiments.md#online-errors)).
     - **Evidence:** as accurate or better on six of seven lakes, cannot enter a feedback loop, and the choice of fitting year barely matters ([Fitting year](experiments.md#fitting-year)).
-    - **Revisit if:** the ensemble spread at depth grows (σ would no longer have to fill the whole budget), the capped adaptive σ proves itself ([Open problems](open-problems.md#over-cautious)), or an observation file changes: σ is only valid for the file it was fitted on.
+    - **Revisit if:** the ensemble spread at depth grows (σ would no longer have to fill the whole budget), the [learned R and q](experiments.md#uncertainty-band) holds on more lakes and in forecasts, or an observation file changes: σ is only valid for the file it was fitted on.
 
 ---
 

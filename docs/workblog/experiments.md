@@ -311,9 +311,9 @@ Upper Lugano 2025, at 1, 9, 25 and 40 m: (top) observation error R, learned (blu
 - **Lake wind.** From June to October the station wind used as forcing is 12–25 % weaker than the wind measured on the lake (Castagnola buoy). Idea: scale the forecast wind by the buoy/model ratio of the previous weeks. Look for: a lower surface error at days 3–7 in summer, where the seasonal bias dominates.
 - **Wind spread.** The members' wind is too alike: the real wind fell inside the members on only about half of the days. Idea: give each member a fixed wind factor between ×0.7 and ×1.4 (spread evenly across members, mean ×1), the typical day-to-day mismatch between lake and station wind. Look for: surface coverage at longer leads, and that the band does not grow too wide (a member stays windier for the whole forecast, while the real mismatch changes within about a day). It should add to q, not replace it (earlier the wind spread explained only about 10 % of the forecast error variance).
 
-**Reproduce:** Scripts are available from the author on request.
+**Reproduce:** Not in the repository yet (to be ported to `master`); scripts available from the author on request. They live in the author's local folder `local/upperlugano_pn/`, run on `feat/da-combi`:
 
-| What | Where (`feat/da-combi`, `local/upperlugano_pn/`) |
+| What | Script |
 |---|---|
 | DA run | `run_pn.py pn_online.json`; the method is `pn_online.py` (hooks in `pn_enkf.py`) |
 | Scores and figures | `compare_2025.py`, `story_figs.py`, `plot_online_rq.py`, `plot_nis.py` |
@@ -352,7 +352,7 @@ Upper Lugano 2025, at 1, 9, 25 and 40 m: (top) observation error R, learned (blu
 
 **Verdict:** The same story as on Upper Lugano. Use the split: R then stays physical whatever the model does. Add q whenever the spread matters, which is always for a forecast band; without it the filter is over-confident. The old failure is the reason for the split, but on Ägeri the new settings had already removed most of it.
 
-**Reproduce:** `feat/da-combi`, `local/upperlugano_pn/`: `run_pn.py pn_online_aegeri_{sigma,R,Rq}.json`; the depth correlation from `build_process_noise.py --free inputs/aegeri/ref/T_out.dat --obs observations/aegeri/temperature_filtered_h23_1d.csv --name process_noise_aegeri`; scores `compare_2025.py --lake aegeri --depths-of observations/aegeri/temperature_filtered_h23_1d.csv`; figures `aegeri_figs.py`.
+**Reproduce:** Not in the repository yet; scripts available from the author on request (local folder `local/upperlugano_pn/`, run on `feat/da-combi`): `run_pn.py pn_online_aegeri_{sigma,R,Rq}.json`; the depth correlation from `build_process_noise.py --free inputs/aegeri/ref/T_out.dat --obs observations/aegeri/temperature_filtered_h23_1d.csv --name process_noise_aegeri`; scores `compare_2025.py --lake aegeri --depths-of observations/aegeri/temperature_filtered_h23_1d.csv`; figures `aegeri_figs.py`.
 
 ---
 

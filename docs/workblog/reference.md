@@ -14,7 +14,7 @@ The operational setup is called `simplified_final`. The numbers on these pages w
 - **Engines:** native Python EnKF and OpenDA, configured from identical inputs, perturbed forcings, warmup and observation series, so that residual differences are the algorithm alone.
 - **Observations:** causally filtered below 4 m with a per-lake seiche-derived window, thinned to a per-lake target vertical grid, retained at the assimilation hour.
 - **Observation error:** fixed per lake and season (mixed / stratified, stratified = May to October); Ägeri one value for the whole year.
-- **Scoring:** RMSE against hourly observations unless stated otherwise; the [surface-only](experiments.md#surface-only) comparison and the CTD table in [Adaptive σ](experiments.md#adaptive-sigma) are scored against CTD casts.
+- **Scoring:** RMSE against hourly observations unless stated otherwise; the [surface-only](experiments.md#surface-only) comparison and the CTD check of [adaptive σ](experiments.md#adaptive-sigma) are scored against CTD casts.
 
 ## The lakes { #lakes }
 
@@ -46,11 +46,11 @@ Where the values come from: the `simplified_final` runs at `20564a9` (observatio
 | [Filter comparison and diagnostics](results.md) | `master` | one flat config per run (`examples/enkf.json`); at `20564a9`: `args/run_enkf.json`, `run_pf.json`, `run_openda.json` |
 | [Surface-only assimilation](experiments.md#surface-only), σ from observations | `feat/multi-station-obs` | Lower Lugano and Lower Zürich setups, `notebooks/sigma_rep_from_obs.py` |
 | [Depth-resolved](experiments.md#sigma-depth) and [rescaled σ](experiments.md#sigma-scaled) | `feat/da-combi` | `src/assimilator/sigma_rep.py`, `notebooks/fit_sigma_gap.py`, `fit_scale_by_depth.py` |
-| [Adaptive σ](experiments.md#adaptive-sigma) | `adaptive_sigma` | the `adaptive_sigma` config block, native engine and OpenDA restart chain |
+| [Adaptive σ](experiments.md#adaptive-sigma) (first version, replaced) | `adaptive_sigma` | the `adaptive_sigma` config block, native engine and OpenDA restart chain. Replaced by the [learned R and q](experiments.md#uncertainty-band), whose "all to R" level does the same job |
 | OpenDA run as a chain of restart cycles | `master` (one run per day); full chain on `operational_openda-restart` | `src/assimilator/openda/restart.py`, the `openda_restart` config block |
 | [Vertical localization](experiments.md#localization) | `feat/da-combi` | `src/assimilator/localization.py`, `notebooks/localization.py` |
 | [Parameter spread, joint estimation, deep mixing, 3D](experiments.md#model-spread) | not in the repository | scripts available from the author on request |
-| [Ongoing work](experiments.md#ongoing) | `feat/da-combi` | `local/` (one folder per experiment, named in each block) |
+| Recent work: [learning the errors online](experiments.md#online-errors), [oxygen](experiments.md#to2-profiler), [Geneva CTD](experiments.md#geneva-ctd) | `feat/da-combi` | not in the repository: scripts available from the author on request (kept in the author's local folders, named in each block) |
 
 `feat/da-combi` combines many of the experimental features of the other branches.
 
