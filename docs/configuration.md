@@ -35,7 +35,7 @@ result = assimilator.run(cfg)          # cfg: the same keys as the JSON
 | Key | Description |
 |---|---|
 | `lake` | Run label: used in output file names and the Docker container name. |
-| `algorithm` | Native: `"EnKF"` or `"PF"`. OpenDA: `"EnKF"`, `"DEnKF"`, `"EnSR"` or `"PF"`. The native `"PF"` is best-member selection, not a Bayesian particle filter ([Workblog](workblog.md) App. A.3). |
+| `algorithm` | Native: `"EnKF"` or `"PF"`. OpenDA: `"EnKF"`, `"DEnKF"`, `"EnSR"` or `"PF"`. The native `"PF"` is best-member selection, not a Bayesian particle filter ([Workblog](workblog/method.md#selection)). |
 | `n_members` | Ensemble size, at least 2. The members are `ensemble1..N`. `ensemble0` is an unperturbed copy of the model inputs that the engines do not run. |
 | `start_date`, `end_date` | Run window, ISO instants read as UTC (a plain date is its 00:00). Both engines, native and OpenDA, assimilate the observations in (`start_date`, `end_date`], each at its own hour, and the members' final state is at `end_date`. `start_date` must be the time of the warm-start snapshot. |
 | `model_inputs_path` | The model setup with its dated warm start. **Only read**: everything the run writes goes under `ensemble_base`. |
@@ -62,7 +62,7 @@ result = assimilator.run(cfg)          # cfg: the same keys as the JSON
 
 | Key | Default | Description |
 |---|---|---|
-| `sigma_obs` | `sigma_default` | Observation error in °C: a number, or `{"mixed": .., "stratified": ..}` with stratified = May to October. Fitted with `assimilator.fitting.sigma` (`python src/assimilate.py fit sigma`); it is only valid for the `obs_file` it was fitted on ([Workblog](workblog.md) §5.4 to §5.5). |
+| `sigma_obs` | `sigma_default` | Observation error in °C: a number, or `{"mixed": .., "stratified": ..}` with stratified = May to October. Fitted with `assimilator.fitting.sigma` (`python src/assimilate.py fit sigma`); it is only valid for the `obs_file` it was fitted on ([Workblog](workblog/method.md#sigma)). |
 | `sigma_default` | `0.5` | Fallback when `sigma_obs` is not set. The log says when it is used. |
 | `obs_min_days` | `1` | OpenDA only. Drops depths with fewer days of data than this. |
 | `openda_restart` | unset | OpenDA only. A restart chain: each run continues from the ensemble the previous run saved, so an ensemble run in daily slices keeps its spread. `{"dir": ..., "keep": 7, "cycle_max_days": 31}`, all optional: the chain folder (default `<openda_dir>/restart`), how many restart files to keep, and the longest single OpenDA run of a catch-up. A call runs from the chain's end to `end_date`, every observation analysed at its own time; OpenDA is not started on a window without observations. See `assimilator/openda/restart.py`. |

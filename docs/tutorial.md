@@ -71,11 +71,11 @@ Rows are only ever selected or averaged, never invented.
 2. **Choose the assimilation hour.** Using the free run, split the surface error at each hour of the day into its mean over days (bias the model repeats every day) and its day-to-day scatter (error the analysis can correct). Among hours the lake samples on at least 30 days, keep those whose bias is at most 0.2 times their scatter, then take the one with the largest scatter. Candidates are limited to 00 to 06 UTC by default (`--window`, which may wrap, e.g. `23-6`), so the analysis lands before the day it forecasts and every lake is corrected at a comparable point of its daily cycle. `python src/assimilate.py fit hour --raw raw.csv --free-run T_out.dat` does this.
 3. **Thin to one profile per day.** Each day, take the instant nearest the chosen hour and keep every depth at that instant. Drop the day if that instant is more than 1.5 h from the hour. For dense sensor chains, keep only the depths nearest a target grid (within 0.5 m): about 1 m spacing through the thermocline, opening to 5 m below it.
 
-The reasons behind each step, and their effect on the results, are in the [Workblog](workblog.md), §4 and §5.
+The reasons behind each step, and their effect on the results, are in the Workblog: [Method](workblog/method.md#timing) and [Experiments](workblog/experiments.md#observations).
 
 ### 2.4 Observation error: `sigma_obs`
 
-The observation error σ in °C, one value or one per season (`{"mixed": .., "stratified": ..}`, stratified = May to October). It stands for what the 1D model cannot represent, not for instrument error ([Workblog](workblog.md) §5.4 and §5.5). To fit it:
+The observation error σ in °C, one value or one per season (`{"mixed": .., "stratified": ..}`, stratified = May to October). It stands for what the 1D model cannot represent, not for instrument error ([Workblog](workblog/method.md#sigma)). To fit it:
 
 1. take the free run minus the observations at the assimilated times;
 2. per depth and season, take the standard deviation about that season's own mean;
@@ -85,7 +85,7 @@ The observation error σ in °C, one value or one per season (`{"mixed": .., "st
 
 ### 2.5 Forcing-perturbation calibration
 
-The AR(1) noise added to the forcing ([Workblog](workblog.md) §3 and App. B): `{"variables": {"U": {"phi", "sigma"}, "V": .., "GLOB": ..}}`, as a JSON file or inline in the configuration. The calibrations of the seven study lakes are kept by operational-simstrat (`static/assimilation/<lake>.json`, key `perturbations`); `examples/enkf.json` carries upperlugano's.
+The AR(1) noise added to the forcing ([Workblog](workblog/method.md#spread) and [calibration](workblog/method.md#perturbation-calibration)): `{"variables": {"U": {"phi", "sigma"}, "V": .., "GLOB": ..}}`, as a JSON file or inline in the configuration. The calibrations of the seven study lakes are kept by operational-simstrat (`static/assimilation/<lake>.json`, key `perturbations`); `examples/enkf.json` carries upperlugano's.
 
 The math is in `assimilator.fitting.perturbation`. The amplitude needs the ICON reanalysis lake mean (Eawag network), so that fit is run from operational-simstrat (`src/assimilation_tools/fit_perturbation.py`). The persistence ceiling needs only the control forcing:
 
