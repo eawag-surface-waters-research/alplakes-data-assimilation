@@ -1,6 +1,6 @@
 # Open problems
 
-*Last updated: October 2026.*
+*Last updated: November 2026.*
 
 !!! abstract "In short"
     The observation side is in good shape; the open problems are on the model side. The main one is that the ensemble is too narrow, especially at depth. Most of the other problems below follow from it.
@@ -11,7 +11,9 @@ The problems we tried to solve with the observation uncertainty all point to an 
 
 **What we know.** Parameter perturbation adds spread in the right place but only at amplitudes that cannot be justified ([Parameter perturbation](experiments.md#param-perturbation)). Perturbing air temperature adds nothing, particularly in winter where we were hoping to see an effect on the mixing structure ([Geneva CTD](experiments.md#geneva-ctd)).
 
-**Suggested next steps.** Parameter spread at lower assimilation frequency, where it already looks promising; justified random variability on the model state itself (process noise, see [Forecast uncertainty band](experiments.md#uncertainty-band)).
+**First answer: a learned model error.** A process noise q on the temperature profile, learned online together with the observation error R, makes the spread follow the error: spread/RMSE 0.26 → 0.98 on Upper Lugano and 0.22 → 0.76 on Ägeri, with lower RMSE on both ([Learned R and q](experiments.md#uncertainty-band), [Ägeri check](experiments.md#online-aegeri)).
+
+**Suggested next steps.** Port it to `master` and test it on the other lakes; 7-day reforecasts to see whether the band holds at longer leads; the deep water in summer, where q drops to 0 and the band is still too narrow. Parameter spread at lower assimilation frequency remains an option.
 
 ## 2. The forcing ensemble is not centred { #uncentred-forcing }
 
@@ -23,7 +25,9 @@ The perturbation noise on the wind components U and V has zero mean, but the win
 
 Most places where the analysis is worse than the free run sit at the thermocline in summer ([Results](results.md#time-depth)). The error there is structural: the model misplaces the thermocline, and a forcing-generated ensemble rarely contains the right profile. Every σ variant we tried either left it unchanged or made it worse ([Experiments](experiments.md#sigma)).
 
-**Suggested next steps.** Parameter spread at lower assimilation frequency, where it already looks promising; justified random variability on the model state itself (process noise, see [Forecast uncertainty band](experiments.md#uncertainty-band)).
+The learned model error helps here first: on Ägeri the 12–14 m error drops from 0.36–0.38 to 0.26–0.31 °C ([Ägeri check](experiments.md#online-aegeri)). The price is larger corrections at the thermocline (up to 1.4 °C on Ägeri and 2.0 °C on Upper Lugano).
+
+**Suggested next steps.** Check whether the large corrections at the thermocline are physical or shocks (the day after each), and whether a step cap is needed; parameter spread at lower assimilation frequency.
 
 ## 4. The filter is over-cautious { #over-cautious }
 
@@ -31,7 +35,7 @@ With the seasonal σ the filter is systematically too cautious (NIS ≈ 0.6): it
 
 **Suggested next step.** Revisit σ once the ensemble carries more spread; σ should then not have to fill the whole budget!
 
-A cheaper intermediate step is the adaptive σ with safeguards: bounded between the 0.05 °C floor and the seasonal value, so that it can only trust the observations *more* than the seasonal σ does, never less. That would keep its gain where the seasonal σ is too cautious and stop the runaway seen on Ägeri ([Adaptive σ](experiments.md#adaptive-sigma)). Not tested yet.
+This is now possible: with the [learned R and q](experiments.md#uncertainty-band) the model error is carried by the ensemble, and R takes only the misses that do not repeat from day to day. Without q (R split only) R stays physical and there is no runaway as with [adaptive σ](experiments.md#adaptive-sigma), but the filter swings to over-confident (NIS 1.76 on Ägeri). With q it is close to consistent (NIS 1.29 on Upper Lugano, 0.67 on Ägeri). Open: why Ägeri ends on the cautious side.
 
 ## 5. Lakes with surface data only { #surface-only }
 
@@ -49,7 +53,7 @@ Part of this may come from the uncentred forcing ensemble ([problem 2](#uncentre
 
 Twenty members is what the operational chain can afford, not a statistically defended choice. And every result is scored on 2025, the only year with profile observations on all seven lakes; the fitting-year check covers only three lakes ([Fitting year](experiments.md#fitting-year)).
 
-**Suggested next step.** Score each new year as it becomes available, with the σ fitted on the previous ones.
+**Suggested next step.** Score each new year as it becomes available, with the σ fitted on the previous ones. The learned R and q need no fitted σ; only the depth correlation of q comes from one year, and pooling more years would make it a lake property.
 
 ## 8. Physically defensible parameters { #parameters }
 
