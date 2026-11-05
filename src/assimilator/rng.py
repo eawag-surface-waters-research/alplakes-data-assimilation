@@ -12,6 +12,7 @@ RNG_STREAMS = {
     "forcing_GLOB": 2,
     "enkf_obs":     3,   # algorithms/enkf.py, per analysis (step = unix seconds)
     "openda_obs":   4,   # openda/restart.py, per OpenDA run (step = unix seconds of its end)
+    "process_noise": 5,  # online_errors.py, per analysis (step = unix seconds)
 }
 
 

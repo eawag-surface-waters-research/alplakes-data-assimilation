@@ -141,6 +141,10 @@ class ForwardModel(ABC):
         """Write the ensemble-mean analysis state of members 1..N as a warm start at `out_path`
         (the deterministic forecast's initial condition)."""
 
+    def state_cell_volumes(self, member_id, args):
+        """Volume of each cell of read_snapshot_T's column, or None (taken as equal)."""
+        return None
+
     def openda_binding(self):
         """The model as an OpenDA black box (assimilator.openda.binding.OpenDABinding), or None if
         it cannot run under the OpenDA engine. Not needed for the native engines."""

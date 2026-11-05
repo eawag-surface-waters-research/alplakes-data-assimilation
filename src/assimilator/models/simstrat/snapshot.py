@@ -504,6 +504,14 @@ def read_snapshot_T_at(snap_path, par_path):
     return T.copy(), z_vol.copy(), float(snap.grid["lake_level"])
 
 
+def read_cell_volumes_at(snap_path, par_path):
+    """Volume of each T cell (thickness x mean face area), in the order of read_snapshot_T_at."""
+    snap = read_snapshot(snap_path, par_path=par_path)
+    h, Az = np.asarray(snap.grid["h"], dtype=float), np.asarray(snap.grid["Az"], dtype=float)
+    k = np.arange(1, len(Az))
+    return (h[k] * 0.5 * (Az[k - 1] + Az[k]))[-len(snap.model["T"]):]
+
+
 def write_snapshot_T_at(snap_path, par_path, T_new):
     """Replace a snapshot's temperature column, atomically. Raises if the length differs."""
     snap = read_snapshot(snap_path, par_path=par_path)

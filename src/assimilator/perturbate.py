@@ -166,6 +166,23 @@ def perturbate(cfg, model, params=None):
             ensemble = np.clip(ensemble, 0.0, None)
         perturbed[name] = ensemble
 
+    if cfg.get("center_perturbations"):
+        # Wind speed is not linear in the zero-mean U/V noise, so the members are windier than the
+        # control. Rescale each row so the ensemble-mean speed (and mean GLOB) equals the control's.
+        # The chain state is untouched, so continuations still reproduce.
+        speed = np.hypot(perturbed["U"], perturbed["V"])
+        ctrl  = np.hypot(df["U"].values, df["V"].values)
+        mean  = speed.mean(axis=1)
+        k     = np.where((mean > 0) & (ctrl > 0), ctrl / np.where(mean > 0, mean, 1.0), 1.0)
+        perturbed["U"] = perturbed["U"] * k[:, None]
+        perturbed["V"] = perturbed["V"] * k[:, None]
+        gmean = perturbed["GLOB"].mean(axis=1)
+        kg    = np.where((gmean > 0) & (df["GLOB"].values > 0),
+                         df["GLOB"].values / np.where(gmean > 0, gmean, 1.0), 1.0)
+        perturbed["GLOB"] = perturbed["GLOB"] * kg[:, None]
+        logger.info(f"{lake}: center_perturbations — mean wind speed {ctrl.mean():.3f} (control) vs "
+                    f"{np.hypot(perturbed['U'], perturbed['V']).mean():.3f} (ensemble, was {speed.mean():.3f})")
+
     states[int(steps[i_end])] = end_state
     _save_state(state_path, params_echo, states)
     logger.info(f"{lake}: AR(1) chain {'cold start' if resume_step is None else f'resumed from step {resume_step}'}; "
