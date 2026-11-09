@@ -91,6 +91,9 @@ def build_config(cfg):
     if out.get("online_errors") is not None:
         from .online_errors import validate_online_errors
         out["online_errors"] = validate_online_errors(out["online_errors"], engine, out["algorithm"])
+    if out.get("localization") is not None:
+        from .localization import validate_localization
+        out["localization"] = validate_localization(out["localization"], engine, out["algorithm"])
 
     if engine == "python":
         # Per-algorithm outputs and par copy in each member, so an EnKF and a PF run can share members.

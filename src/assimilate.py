@@ -14,6 +14,7 @@ Examples:
     python src/assimilate.py preprocess raw.csv -o obs.csv --w-seiche 27.3 --hour 6
     python src/assimilate.py fit sigma --free-run T_out.dat --obs obs.csv
     python src/assimilate.py fit noise-correlation --free-run T_out.dat --obs obs.csv -o corr.json
+    python src/assimilate.py fit localization --ensemble /data/free_ensemble -o radius.json
 """
 
 import os
@@ -151,6 +152,10 @@ def cmd_fit(cli):
         result = fit_noise_correlation(_read_csv_obs(cli.obs),
                                        fitting.read_free_run(cli.free_run, cli.model),
                                        year=cli.year, max_depth=cli.max_depth)
+    elif cli.what == "localization":
+        from assimilator.fitting.localization import fit_localization
+        ensemble = fitting.read_ensemble(cli.ensemble, cli.n_members, cli.results_dir, cli.model)
+        result = fit_localization(*ensemble, **({} if cli.threshold is None else {"threshold": cli.threshold}))
     else:   # perturbation persistence (upper bound) from the control forcing alone
         import pandas as pd
         from assimilator.models import get_model
@@ -227,7 +232,8 @@ def main(argv=None):
     p.set_defaults(func=cmd_preprocess)
 
     f = sub.add_parser("fit", help="offline fits")
-    f.add_argument("what", choices=["filter", "hour", "sigma", "noise-correlation", "perturbation"])
+    f.add_argument("what", choices=["filter", "hour", "sigma", "noise-correlation", "localization",
+                                    "perturbation"])
     f.add_argument("--raw", help="filter/hour: raw sub-daily CSV")
     f.add_argument("--obs", help="sigma/noise-correlation: the ASSIMILATED series CSV")
     f.add_argument("--free-run", help="hour/sigma/noise-correlation: free-run output trajectory (e.g. T_out.dat)")
@@ -243,6 +249,10 @@ def main(argv=None):
     f.add_argument("--fit-start", default=f"{datetime.now().year - 1}-01-01")
     f.add_argument("--fit-end", default=f"{datetime.now().year - 1}-12-31")
     f.add_argument("--existing", help="perturbation: stored calibration to add the upper bound to")
+    f.add_argument("--ensemble", help="localization: a free ensemble run's folder (run with an empty obs file)")
+    f.add_argument("--n-members", type=int, default=20, help="localization: members in --ensemble")
+    f.add_argument("--results-dir", default="Results_EnKF", help="localization: the members' output folder")
+    f.add_argument("--threshold", type=float, help="localization: correlation cut-off (default 2/sqrt(20))")
     f.add_argument("--bound", default="envelope", choices=["lower", "upper", "envelope"])
     f.add_argument("-o", "--output", help="write the JSON here (default: print)")
     f.set_defaults(func=cmd_fit)

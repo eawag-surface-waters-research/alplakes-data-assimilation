@@ -10,6 +10,7 @@ from ..obs_operator import build_H
 from ..rng import time_keyed_rng
 from ..sigma import resolve_sigma_obs, log_sigma_summary
 from ..online_errors import OnlineRun, draw_noise, stabilize
+from ..localization import REACH_MIN, load_radii, taper, summarize
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +30,11 @@ def window_observations(obs_df, window_start, window_end, model):
     return nearest["value"].values, [model.obs_to_sim_col(d) for d in obs_depths], obs_depths
 
 
-def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
+def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None, loc_so=None, loc_oo=None):
     """Stochastic EnKF analysis of the forecast ensemble X_f (cells x members) with perturbed
-    observations. Returns (X_a, diagnostics), diagnostics None when no observation is valid."""
+    observations. Returns (X_a, diagnostics), diagnostics None when no observation is valid.
+    loc_so (cells x obs) and loc_oo (obs x obs) are the localization tapers over all observation
+    rows, given together or not at all."""
     if rng is None:
         rng = np.random.default_rng()
 
@@ -46,12 +49,20 @@ def enkf_update(X_f, y_obs, H, sigma_obs, inflation=1.0, rng=None):
 
     N     = X_f.shape[1]
     x_bar = X_f.mean(axis=1, keepdims=True)
-    A     = (X_f - x_bar) * inflation
+    infl  = inflation
+    if loc_so is not None:
+        # Inflate only the cells an observation can reach: out of reach the gain is 0 and nothing
+        # would pull the inflated spread back.
+        loc_so, loc_oo = loc_so[:, valid], loc_oo[np.ix_(valid, valid)]
+        infl = np.where(loc_so.max(axis=1) >= REACH_MIN, inflation, 1.0)[:, None]
+    A     = (X_f - x_bar) * infl
     X_inf = x_bar + A
 
     HA   = H_v @ A
     PHT  = A @ HA.T / (N - 1)
     HPHT = HA @ HA.T / (N - 1)
+    if loc_so is not None:
+        PHT, HPHT = PHT * loc_so, HPHT * loc_oo
     K    = np.linalg.solve((HPHT + R).T, PHT.T).T            # PHT (HPHT + R)^-1, without inverting
     eps  = rng.multivariate_normal(np.zeros(len(y)), R, size=N).T   # not recentred
     X_a  = X_inf + K @ ((y[:, None] + eps) - H_v @ X_inf)
@@ -134,9 +145,10 @@ def _online_after(args, model, online, members, X_f, X_a, y_obs, y_used, H, sigm
     return X_a, n_rej, n_stab
 
 
-def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when, online=None):
+def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when, online=None, loc=None):
     """Read the members' end-of-window states, update them with the window's observations and
-    write them back. Returns the number of members updated."""
+    write them back. `loc` ({"radii": (depths, radii), "logged": bool}) turns localization on.
+    Returns the number of members updated."""
     def read(i):
         try:
             return i, *model.read_snapshot_T(i, args)
@@ -162,7 +174,17 @@ def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when, online=N
         y_used = _nis_check(online, y_obs, H @ X_f, sigma, when)
     # Keyed on the analysis instant: a run continued in slices draws as one continuous run.
     rng = time_keyed_rng(args.get("rng_seed", 42), "enkf_obs", int(when.timestamp()))
-    X_a, diags = enkf_update(X_f, y_used, H, sigma, inflation=args["inflation"], rng=rng)
+    loc_so = loc_oo = None
+    if loc is not None:
+        # Rebuilt each analysis: the observed depths and the lake level move.
+        state_depths = lake_level - np.asarray(z_vol, dtype=float)
+        loc_so = taper(state_depths, obs_depths, *loc["radii"])
+        loc_oo = taper(obs_depths, obs_depths, *loc["radii"])
+        if not loc["logged"]:
+            logger.info(summarize(state_depths, obs_depths, *loc["radii"]))
+            loc["logged"] = True
+    X_a, diags = enkf_update(X_f, y_used, H, sigma, inflation=args["inflation"], rng=rng,
+                             loc_so=loc_so, loc_oo=loc_oo)
     if online is not None:
         X_a, n_rej, n_stab = _online_after(args, model, online, readable, X_f, X_a, y_obs, y_used,
                                            H, sigma, z_vol, lake_level, obs_depths, when)
@@ -190,14 +212,15 @@ def run_enkf_loop(args, model):
     online = OnlineRun(args, obs["depth"].unique()) if args.get("online_errors") else None
     if online is None:
         log_sigma_summary(args)
-    logger.info(f"EnKF inflation={args['inflation']}")
+    loc = {"radii": load_radii(args["localization"]), "logged": False} if args.get("localization") else None
+    logger.info(f"EnKF inflation={args['inflation']}, localization={'on' if loc else 'off'}")
 
     def update(window_start, window_end, failed):
         y_obs, sim_depths, obs_depths = window_observations(obs, window_start, window_end, model)
         if y_obs is None:
             return False, "no obs"
         good = [i for i in args["member_ids"] if i not in failed]
-        n_updated = _analyse(args, model, good, y_obs, sim_depths, obs_depths, window_end, online) if len(good) >= 2 else 0
+        n_updated = _analyse(args, model, good, y_obs, sim_depths, obs_depths, window_end, online, loc) if len(good) >= 2 else 0
         return n_updated > 0, f"n_obs={len(y_obs)}  n_updated={n_updated}"
 
     return step_windows(args, model, obs, update)
