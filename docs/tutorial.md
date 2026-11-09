@@ -142,7 +142,7 @@ Native engine, in `ensemble_base`:
 |---|---|
 | `<lake>_python_<algorithm>.csv` | Ensemble mean and standard deviation per time and depth. |
 | `<lake>_python_<algorithm>.json` | RMSE and bias (model minus observation) against the assimilated observations, overall and per depth. |
-| `T_out_<algorithm>_mean.dat` | Ensemble-mean trajectory in Simstrat's `T_out` format. |
+| `T_out_<algorithm>_mean.dat` | Ensemble-mean trajectory in Simstrat's `T_out` format; the algorithm in lower case, e.g. `T_out_enkf_mean.dat`. |
 | `enkf_diagnostics.csv`, `enkf_innov_by_depth.csv`, `enkf_kgain_by_depth.csv` | Native EnKF only. Innovations, spread, NIS and gain per analysis, tracked to analyse how the filter behaves; the run itself does not use them. |
 | `ensemble<i>/<results_dir>/` | Each member's Simstrat output. |
 

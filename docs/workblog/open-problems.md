@@ -11,7 +11,7 @@ The problems we tried to solve with the observation uncertainty all point to an 
 
 **What we know.** Parameter perturbation adds spread in the right place but only at amplitudes that cannot be justified ([Parameter perturbation](experiments.md#param-perturbation)). Perturbing air temperature adds nothing, particularly in winter where we were hoping to see an effect on the mixing structure ([Geneva CTD](experiments.md#geneva-ctd)).
 
-**First answer: a learned model error.** A process noise q on the temperature profile, learned online together with the observation error R, makes the spread follow the error: spread/RMSE 0.26 → 0.98 on Upper Lugano and 0.22 → 0.76 on Ägeri, with lower RMSE on both ([Learned R and q](experiments.md#uncertainty-band), [Ägeri check](experiments.md#online-aegeri)).
+**First answer: a learned model error.** A process noise q on the temperature profile, learned online together with the observation error R, makes the spread follow the error: spread/RMSE 0.26 → 0.98 on Upper Lugano and 0.22 → 0.76 on Ägeri (against the filtered observations), with slightly lower RMSE on both (−5 % and −8 % against the raw observations) ([Learned R and q](experiments.md#uncertainty-band), [Ägeri check](experiments.md#online-aegeri)).
 
 **Suggested next steps.** Port it to `master` and test it on the other lakes; 7-day reforecasts to see whether the band holds at longer leads; the deep water in summer, where q drops to 0 and the band is still too narrow. Parameter spread at lower assimilation frequency remains an option.
 
@@ -25,7 +25,7 @@ The perturbation noise on the wind components U and V has zero mean, but the win
 
 Most places where the analysis is worse than the free run sit at the thermocline in summer ([Results](results.md#time-depth)). The error there is structural: the model misplaces the thermocline, and a forcing-generated ensemble rarely contains the right profile. Every σ variant we tried either left it unchanged or made it worse ([Experiments](experiments.md#sigma)).
 
-The learned model error helps here first: on Ägeri the 12–14 m error drops from 0.36–0.38 to 0.26–0.31 °C ([Ägeri check](experiments.md#online-aegeri)). The price is larger corrections at the thermocline (up to 1.4 °C on Ägeri and 2.0 °C on Upper Lugano).
+The learned model error helps here first: on Ägeri the 12–14 m error drops from 0.45–0.60 °C with `simplified_final`, which at 12–12.4 m is even slightly worse than the free run, to 0.38–0.51 °C, below the free run at every level ([Ägeri check](experiments.md#online-aegeri)). The price is larger corrections at the thermocline (up to 1.4 °C on Ägeri and 2.0 °C on Upper Lugano).
 
 **Suggested next steps.** Check whether the large corrections at the thermocline are physical or shocks (the day after each), and whether a step cap is needed; parameter spread at lower assimilation frequency.
 

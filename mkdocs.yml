@@ -27,8 +27,6 @@ theme:
 
 nav:
   - Home: index.md
-  - Project Proposal: project-proposal.md
-  - Tutorial: tutorial.md
   - Documentation:
       - Overview: workblog/overview.md
       - Method: workblog/method.md
@@ -36,8 +34,10 @@ nav:
       - Experiments: workblog/experiments.md
       - Open problems: workblog/open-problems.md
       - Reference: workblog/reference.md
+  - Tutorial: tutorial.md
   - Configuration: configuration.md
   - Literature Review: literature-review.md
+  - Project Proposal: project-proposal.md
 
 markdown_extensions:
   - pymdownx.highlight:

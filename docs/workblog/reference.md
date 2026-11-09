@@ -1,6 +1,6 @@
 # Reference
 
-*Last updated: October 2026.*
+*Last updated: November 2026.*
 
 !!! abstract "In short"
     Look-up material: the run configuration behind the numbers, the settings of each lake, where the code for each part lives, a glossary, and frequent questions. Every configuration key is described in [Run configuration](../configuration.md).
@@ -14,7 +14,7 @@ The operational setup is called `simplified_final`. The numbers on these pages w
 - **Engines:** native Python EnKF and OpenDA, configured from identical inputs, perturbed forcings, warmup and observation series, so that residual differences are the algorithm alone.
 - **Observations:** causally filtered below 4 m with a per-lake seiche-derived window, thinned to a per-lake target vertical grid, retained at the assimilation hour.
 - **Observation error:** fixed per lake and season (mixed / stratified, stratified = May to October); Ägeri one value for the whole year.
-- **Scoring:** RMSE against hourly observations unless stated otherwise; the [surface-only](experiments.md#surface-only) comparison and the CTD check of [adaptive σ](experiments.md#adaptive-sigma) are scored against CTD casts.
+- **Scoring:** RMSE and CRPS against the raw observations (unfiltered, averaged into hourly bins centred on the full hour), at every observed depth within the model, over the hours all compared runs share. Consistency measures (band coverage, spread/RMSE) against the filtered observations at the assimilated depths, the series the observation error describes, with the raw value in brackets where both are given. NIS is computed by the filter at each analysis, against the observations it assimilates. The [surface-only](experiments.md#surface-only) comparison and the CTD check of [adaptive σ](experiments.md#adaptive-sigma) are scored against CTD casts.
 
 ## The lakes { #lakes }
 
@@ -50,7 +50,8 @@ Where the values come from: the `simplified_final` runs at `20564a9` (observatio
 | OpenDA run as a chain of restart cycles | `master` (one run per day); full chain on `operational_openda-restart` | `src/assimilator/openda/restart.py`, the `openda_restart` config block |
 | [Vertical localization](experiments.md#localization) | `feat/da-combi` | `src/assimilator/localization.py`, `notebooks/localization.py` |
 | [Parameter spread, joint estimation, deep mixing, 3D](experiments.md#model-spread) | not in the repository | scripts available from the author on request |
-| Recent work: [learning the errors online](experiments.md#online-errors), [oxygen](experiments.md#to2-profiler), [Geneva CTD](experiments.md#geneva-ctd) | `feat/da-combi` | not in the repository: scripts available from the author on request (kept in the author's local folders, named in each block) |
+| [Learned R and q](experiments.md#online-errors), [centred forcing](experiments.md#centred-forcing) | `feat/online_error` | the `online_errors` and `center_perturbations` config blocks |
+| [Oxygen](experiments.md#to2-profiler), [Geneva CTD](experiments.md#geneva-ctd) | not in the repository | scripts available from the author on request |
 
 `feat/da-combi` combines many of the experimental features of the other branches.
 

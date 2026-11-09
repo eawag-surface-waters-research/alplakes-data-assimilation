@@ -1,9 +1,9 @@
 # Overview
 
-*Last updated: October 2026. All results are for the 2025 calendar year unless stated otherwise.*
+*Last updated: November 2026. All results are for the 2025 calendar year unless stated otherwise.*
 
 !!! abstract "In short"
-    An ensemble Kalman filter corrects the Alplakes Simstrat models with in-situ temperature profiles. On seven lakes the operational setup lowers the hourly error by 25–50 %, at every depth on five of them. Most of the work went into the observation side; what is left is a model-spread problem: the ensemble is too narrow, especially at depth in the current setup.
+    An ensemble Kalman filter corrects the Alplakes Simstrat models with in-situ temperature profiles. On seven lakes the operational setup lowers the hourly error by 25–50 %, at every depth on five of them. Most of the work went into the observation side; what is left is a model-spread problem: the ensemble is too narrow, especially at depth in the current setup. We propose possible fixes, which need further testing and possibly more work ([Open problems](open-problems.md)).
 
 Alplakes runs one-dimensional Simstrat simulations for many lakes in the alpine region. The models are calibrated, and they can still be significantly wrong from time to time (errors of up to 2 °C, sustained for weeks, are common). Meanwhile, moored thermistor chains and profilers sit in several of those same lakes reporting temperature every few minutes/hours.
 
@@ -60,12 +60,15 @@ The operational setup is the one we call `simplified_final`: native EnKF, 20 mem
 | Seiche filtering, depth thinning, night-time assimilation hour | ✅ Operational | `master`: `src/assimilator/observations.py`, `fitting/` (`assimilate.py preprocess`, `fit filter`, `fit hour`); first developed on `feat/da-combi` |
 | Seasonal fixed σ (`simplified_final`) | ✅ Operational | `master`: `assimilate.py fit sigma`; values per lake in operational-simstrat |
 | Vertical localization | (✅) Positive, potentially to be adopted | available in `feat/da-combi` |
-| Adaptive σ | (✅) Positive, potentially to be adopted (needs limits) | `adaptive_sigma` branch |
-| Parameter perturbation (at longer assimilation steps), 3D | (✅) Positive, potentially to be adopted | scripts available by request |
+| Parameter perturbation (at longer assimilation steps), 3D | (✅) Positive, potentially to be adopted | scripts available on request |
+| Centred forcing perturbation | (✅) Positive, potentially to be adopted | `feat/online_error` (`center_perturbations`) |
+| Oxygen assimilation (temperature + O₂) | (✅) Positive, potentially to be adopted | scripts available on request |
 | Best-member selection, particle filter | ❌ Tested, not adopted (kept as reference) | `master` |
 | Depth-resolved and rescaled σ | ❌ Tested, not adopted | worked on in `feat/da-combi` |
 | Surface-only assimilation | ❌ Tested, not adopted | `feat/multi-station-obs` |
-| Parameter sensitivity, joint estimation, deep mixing | 🔬 Open | scripts available by request |
+| Adaptive σ | ❌ Replaced by learned R and q | `adaptive_sigma` branch |
+| Learned R and q (online errors) | 🔬 Promising, being ported | `feat/online_error` (`online_errors` config block) |
+| Parameter sensitivity, joint estimation, deep mixing | 🔬 Open | scripts available on request |
 
 ✅ Operational · (✅) Positive, potentially to be adopted · ⚙️ Optional · ❌ Tested, not adopted · 🔬 Open
 
@@ -77,6 +80,7 @@ The Upper Lugano BETA shown above is the earlier version of the setup: it assimi
 - **Every model level improves** on five of seven lakes.
 - **The EnKF beats best-member selection and the particle filter on every lake**; selection is worse than no assimilation on three ([Results](results.md#which-filter)).
 - **Native and OpenDA EnKF agree within 0.01–0.04 °C**, which validates the custom implementation.
+- 🔬 **Preliminary, two lakes:** learning the observation and model errors online is a possible fix for the narrow ensemble. First tests are slightly more accurate (−5 to −8 % RMSE) but need further testing ([Learning the errors online](experiments.md#online-errors)).
 
 ## What we can say so far
 
@@ -92,8 +96,8 @@ The Upper Lugano BETA shown above is the earlier version of the setup: it assimi
 
 **Surface assimilation improves the upper layers**, but it cannot satisfactorily correct the whole profile in a 1D model; against low-resolution CTD data we show evidence that it can significantly damage the layers just below.
 
-**Calibrating is useful for consistency, not so much for accuracy:** optimising calibration across seven lakes changed the RMSE by lttle overall. Estimating σ on the fly made every lake consistent but revealed a major problem related to internal feedback.
+**Calibrating is useful for consistency, not so much for accuracy:** optimising calibration across seven lakes changed the RMSE by little overall. Estimating σ on the fly made every lake consistent but could run away (Ägeri): it blamed every miss on the observations. Learning the observation and model errors separately avoids this in first tests on two lakes, but needs further testing (preliminary, [Learning the errors online](experiments.md#online-errors)).
 
-**The work described here is almost entirely on the observation side. What is left is a model-spread problem.**
+**The work described here is almost entirely on the observation side. What is left is a model-spread problem;** a learned model error q is one possible answer ([Open problems](open-problems.md#narrow-ensemble)).
 
-**When does the filter perform best?** It performs best in the stratified season, and mostly inside the mixed layer. The gain front follows the mixed layer down through autumn ([Results](results.md#time-depth)), because the spread is made at the surface by wind and radiation and can only reach depth by mixing. So the filter is most useful exactly where the model has a seasonal surface-energy bias; less useful in winter, because the model errors are smaller; and worst at the summer thermocline, because that error is structural and difficult to overcome completely. The next real gain may come more from the model side and the accurate description of its structural uncertainities, rather than from the observations ([Open problems](open-problems.md)).
+**When does the filter perform best?** It performs best in the stratified season, and mostly inside the mixed layer. The gain front follows the mixed layer down through autumn ([Results](results.md#time-depth)), because the spread is made at the surface by wind and radiation and can only reach depth by mixing. So the filter is most useful exactly where the model has a seasonal surface-energy bias; less useful in winter, because the model errors are smaller; and worst at the summer thermocline, because that error is structural and difficult to overcome completely. The next real gain may come more from the model side and the accurate description of its structural uncertainties, rather than from the observations ([Open problems](open-problems.md)).

@@ -70,8 +70,8 @@ assimilator.run(cfg)    # the same keys as the JSON config
 
 In `ensemble_base` (`--out`) for native, `openda_dir` for OpenDA:
 
-- **`<lake>_<engine>_<label>.csv`** — posterior mean ± 1σ per time and depth.
-- **`<lake>_<engine>_<label>.json`** — skill report (RMSE / bias) vs the assimilated obs.
+- **`<lake>_<engine>_<algorithm>.csv`** — posterior mean ± 1σ per time and depth (e.g. `upperlugano_python_EnKF.csv`).
+- **`<lake>_<engine>_<algorithm>.json`** — skill report (RMSE / bias) vs the assimilated obs.
 - **`z_out.dat`** — the setup's output depths plus the observation depths (the members use it).
 - **`logs/pipeline_<timestamp>.log`** — the full log (command line runs).
 
@@ -104,18 +104,9 @@ Another forward model is one `ForwardModel` subclass registered with
 `assimilator.register_model(...)`; the engines don't change (`tests/toy_model.py` is a minimal
 example).
 
-## Tuning a run
+## Configuration
 
-| Field | Controls |
-|---|---|
-| `n_members` | Ensemble size (more = better spread, slower) |
-| `start_date`, `end_date` | Simulation window |
-| `sigma_obs` | Observation error σ (°C), one value or `{"mixed", "stratified"}`; smaller = trust the data more |
-| `inflation` | Variance inflation (native EnKF only); `1.0` = off |
-| `sigma_scale` | Scales forcing-perturbation strength to widen spread (`1.0` = none) |
-| `rng_seed` | Seed for reproducible runs (drives the forcing AND the EnKF obs perturbations) |
-
-Every key: [docs/configuration.md](docs/configuration.md). Step by step: [docs/tutorial.md](docs/tutorial.md).
+Every key with its default: [docs/configuration.md](docs/configuration.md). Step by step: [docs/tutorial.md](docs/tutorial.md).
 
 ## Operational continuation
 

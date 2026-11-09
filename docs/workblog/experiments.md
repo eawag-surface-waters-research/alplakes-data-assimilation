@@ -18,13 +18,13 @@
 | [Rescaled σ](#sigma-scaled) | Can σ be fitted to the filter's own innovations iteratively? | NIS ≈ 1 everywhere, accuracy unchanged, even more complex and less generalizable | ❌ |
 | [Fitting year](#fitting-year) | Does fitting σ on 2025 bias our results? | Barely: gain within 1.5 points, the method is not very sensitive and can be used also on unseen years | ✅ passes |
 | [Adaptive σ](#adaptive-sigma) | Can σ follow the innovations on the fly? | NIS ≈ 1 by construction, but it blames every miss on the observations: six of seven lakes less accurate, Ägeri runs away. Replaced by the learned R and q | ❌ |
-| [Learned R and q](#uncertainty-band) | Can R and a model error be learned online instead, so the ensemble spread is honest? | Yes, with one parameter: RMSE 0.361 → 0.260 °C, CRPS 0.203 → 0.113, spread/RMSE 0.26 → 0.98. 7-day reforecasts from it are the next step | 🔬 |
-| [Ägeri check](#online-aegeri) | Does the method avoid the adaptive σ runaway, and what do the R split and q add? | Yes: all to R 0.230, split 0.214 (but over-confident, NIS 1.76), split + q 0.183 °C (free run 0.430, `simplified_final` 0.225) | ✅ |
+| [Learned R and q](#uncertainty-band) | Can R and a model error be learned online instead, so the ensemble spread is honest? | Yes, with one parameter: RMSE 0.612 → 0.584 °C, CRPS 0.313 → 0.246, spread/RMSE 0.26 → 0.98 (filtered observations). 7-day reforecasts from it are the next step | 🔬 |
+| [Ägeri check](#online-aegeri) | Does the method avoid the adaptive σ runaway, and what do the R split and q add? | Yes: all to R 0.301, split 0.290 (but over-confident, NIS 1.76), split + q 0.275 °C (free run 0.461, `simplified_final` 0.299) | ✅ |
 | [Vertical localization](#localization) | Are spurious correlations the problem at depth? | Small gains only, no clear advantage in using operationally for now, but potentially useful in the future on a different setup or application | (✅) |
 | [Parameter sensitivity](#param-sensitivity) | Could parameters add spread at depth? | Yes: ±1 °C at 11 m in summer | 🔬 |
 | [Parameter perturbation](#param-perturbation) | Does perturbing them help the filter? | Daily: only slightly, and at amplitudes we cannot defend. With a longer assimilation step, though, it helps: every 3 days, `p_lw` ±10 % brings the accuracy back to close to the daily result | (✅) |
-| [Joint estimation](#joint) | Can the filter estimate the parameters? | They don't converge; but they absorb the seasonal bias; it could be interesting fo studying model systematic weaknesses | 🔬 |
-| Deep mixing: [Lugano](#deep-mixing) & [Geneva](#geneva-ctd) | Can CTD assimilation fix deep mixing? | Temperature (and oxygen) improve (Lugano 30–100 m 0.29 → 0.16 °C; Geneva 1.02 → 0.62 °C, O₂ 105 → 38). Mixing no: more frequent on Lugano (uncentred forcing), unchanged and still too frequent on Geneva (tested centred) | 🔬 |
+| [Joint estimation](#joint) | Can the filter estimate the parameters? | They don't converge, but absorb the seasonal bias; that could be useful for studying the model's systematic weaknesses | 🔬 |
+| Deep mixing: [Lugano](#deep-mixing) & [Geneva](#geneva-ctd) | Can CTD assimilation fix deep mixing? | Temperature (and oxygen) improve (Lugano 30–100 m 0.29 → 0.16 °C; Geneva 1.19 → 0.87 °C, O₂ 105 → 38). Mixing no: more frequent on Lugano (uncentred forcing), unchanged and still too frequent on Geneva (tested centred) | 🔬 |
 | [3D model](#3d) | Does the layout transfer to Delft3D? | Yes, with promising first results | (✅) |
 | [Natural variability](#variability) | Does DA disturb the model's own oscillations? | No: same spectral shape, one clean step per update | ✅ passes |
 | Oxygen: [assimilation](#to2-profiler), [depth thinning](#depth-thinning) & [CTD interpolation](#ctd-interpolation) | Can O₂ be assimilated with T, from how few depths, and from casts alone? | Profilers: Ägeri O₂ −45 %, Murten −18 %; the bottom boundary is a model problem. 5 of 23 depths keep ~35–40 % of the T gain, ~70 % of the O₂ gain. Monthly casts: good between casts in the deep water only | (✅) |
@@ -48,7 +48,7 @@
 
 **Note:** With more model spread, lower frequencies may catch up: with `p_lw` ±10 %, 3-day assimilation almost matches the daily result ([Parameter perturbation](#param-perturbation)).
 
-**To reproduce:** `feat/da-combi`: `notebooks/generate_assimilation_series.py --every-days N`.
+**Reproduce:** `feat/da-combi`: `notebooks/generate_assimilation_series.py --every-days N`.
 
 ### Observation filtering { #filtering }
 
@@ -196,8 +196,10 @@ The σ fits above are made offline, on a reference year, and assume that year st
 | Observation error R | every excess miss: R² ← gap² − spread² | only the part of the miss that does not repeat from day to day | as R split |
 | Model error | none | none | q, learned from the misses, added as daily noise on the profile |
 | Ensemble spread | too small | too small | follows the error |
-| Ägeri 2025: RMSE / NIS (free run 0.430, `simplified_final` 0.225 / 0.98) | 0.230 / 0.91 (first version: 0.357) | 0.214 / 1.76 | **0.183** / 0.67 |
-| Upper Lugano 2025: RMSE (`simplified_final` 0.361) | first version: gain −27 % against −26 % | – | **0.260** |
+| Ägeri 2025: RMSE / NIS (free run 0.461, `simplified_final` 0.299 / 0.98) | 0.301 / 0.91 (first version: 0.398) | 0.290 / 1.76 | **0.275** / 0.67 |
+| Upper Lugano 2025: RMSE (`simplified_final` 0.612) | first version: gain −27 % against −26 % | – | **0.584** |
+
+RMSE against the raw hourly observations, NIS from the filter ([scoring](reference.md#run-config)).
 
 The first version of "all to R" is the [adaptive σ](#adaptive-sigma) experiment (14-day window, uncentred forcing, no gross-error check). The [learned R and q](#uncertainty-band) introduces the split and q on Upper Lugano; the [Ägeri check](#online-aegeri) runs all three levels on the lake where the first version failed.
 
@@ -229,7 +231,7 @@ Adaptive σ actually used, native EnKF vs OpenDA chain, against the seasonal σ,
 !!! abstract "In short"
     - **The operational setup is too confident.** In `simplified_final` the ensemble spread is a quarter of the error (spread/RMSE 0.26). Its band only looks right because of one large, fixed observation error (0.30 °C in winter, 0.59 °C in summer, at every depth).
     - **R and the model error q can be learned online** from the filter's own misses, with one parameter (a ~20-day memory) and no tables to fit per lake.
-    - **Better and honest:** RMSE 0.361 → 0.260 °C, CRPS 0.203 → 0.113 °C, and the spread follows the error every month (spread/RMSE 0.98).
+    - **Slightly more accurate, and honest:** RMSE 0.612 → 0.584 °C, CRPS 0.313 → 0.246 °C, and the spread follows the error every month (spread/RMSE 0.98 against the filtered observations).
     - **What it learns is physical:** R peaks at 0.4 °C at 9 m in summer (internal waves) and stays at the sensor error in winter and at depth; q is largest near the surface in summer.
 
 **Question:** [Adaptive σ](#adaptive-sigma) left two problems: it blames every miss on the observations, so a drifting model is answered by trusting the data less (the Ägeri runaway), and the ensemble spread stays far smaller than the error ([Open problems](open-problems.md)). Can R be learned so that it takes only what really is observation error, and the rest be carried by the ensemble as a model error q?
@@ -240,7 +242,7 @@ Adaptive σ actually used, native EnKF vs OpenDA chain, against the seasonal σ,
 |---|---|---|---|
 | **q** (daily model error) | Each day q² moves by 5 % of (d² − spread² − R²) | On average the miss must be as large as predicted, d² = spread² + R². Misses too large → q up, too small → q down | Innovation consistency (Mehra 1970; Li et al. 2009) |
 | **R** (observation error) | Each day R² moves by 5 % of (d_a·d − d·d_next), using yesterday's miss d, its post-analysis miss d_a and today's miss d_next, at the same depth | Observation noise is new every day, model error persists: if misses repeat from day to day, the filter trusts the observations too little. R is right when they stop repeating | Kailath 1968; Mehra 1970; Desroziers et al. 2005 |
-| **Memory** λ = 0.95 | Each day counts 5 %, about the last 20 days dominate | Longer than single events, shorter than the seasons. λ = 0.98 (~50 days) gives the same skill (RMSE 0.260, coverage 0.93) | – |
+| **Memory** λ = 0.95 | Each day counts 5 %, about the last 20 days dominate | Longer than single events, shorter than the seasons. λ = 0.98 (~50 days) gives the same skill (RMSE 0.585, coverage 0.93) | – |
 
 The rest of the setup, and how each part is done:
 
@@ -254,22 +256,22 @@ The rest of the setup, and how each part is done:
 
 | Run | RMSE (°C) | CRPS (°C) | spread / RMSE | 90 % band incl. R | spread only |
 |---|---|---|---|---|---|
-| Free run | 0.670 | – | – | – | – |
-| `simplified_final` (fixed σ, no noise) | 0.361 | 0.203 | 0.26 | 0.95 | 10–40 % |
-| **Learned R and q (`pn_online`)** | **0.260** | **0.113** | **0.98** | 0.94 | **80–90 %** (to 25 m) |
+| Free run | 0.831 | – | – | – | – |
+| `simplified_final` (fixed σ, no noise) | 0.612 | 0.313 | 0.26 (0.15) | 0.95 (0.88) | 10–40 % (10–40 %) |
+| **Learned R and q (`pn_online`)** | **0.584** | **0.246** | **0.98** (0.43) | 0.94 (0.79) | **80–90 %** (55–85 %) to 25 m |
 
-*Upper Lugano 2025, scored against the hourly filtered buoy observations. "Spread only": share of observations inside mean ± 1.645 × spread, the part of the band a forecast carries.*
+*Upper Lugano 2025. RMSE and CRPS against the raw hourly buoy observations; spread/RMSE and the bands against the filtered observations at the 16 assimilated depths, raw in brackets ([scoring](reference.md#run-config)). "Spread only": share of observations inside mean ± 1.645 × spread, the part of the band a forecast carries.*
 
-Both bands contain about 90 % of the observations, but for different reasons. The `simplified_final` band is almost all fixed observation error: ±1 °C at 25–40 m, where the lake changes by hundredths, and so large that the deep water is barely corrected (25 m stays ~0.3 °C too warm, close to the free run). The learned band is tight where the lake is calm and wide where it is not (Figure 6), and its spread matches the error month by month (Figure 7). The learned R has a clear depth structure, unlike the single fixed value (Figure 8), and both R and q follow the seasons (Figure 9): R stays at the sensor error in winter and at 40 m and rises to about 0.5 °C at 9 m in summer, where internal waves move the thermocline; q is largest at 1 and 9 m from spring to September and drops to about 0 at 40 m after May. Inversions stay within what the free run produces itself (below 3 m, at most 1.9 % of hours in July, against 5.5 % in the free run).
+Both bands contain about 90 % of the observations, but for different reasons. Against the raw readings the learned band covers less (79 % against 88 %): its R describes the filtered reading, and the internal-wave signal the filtering removes is in neither the spread nor R. The `simplified_final` band is almost all fixed observation error: ±1 °C at 25–40 m, where the lake changes by hundredths, and so large that the deep water is barely corrected (25 m stays ~0.3 °C too warm, close to the free run). The learned band is tight where the lake is calm and wide where it is not (Figure 6), and its spread matches the error month by month (Figure 7). The learned R has a clear depth structure, unlike the single fixed value (Figure 8), and both R and q follow the seasons (Figure 9): R stays at the sensor error in winter and at 40 m and rises to about 0.5 °C at 9 m in summer, where internal waves move the thermocline; q is largest at 1 and 9 m from spring to September and drops to about 0 at 40 m after May. Inversions stay within what the free run produces itself (below 3 m, at most 1.9 % of hours in July, against 5.5 % in the free run).
 
 ![Upper Lugano 2025: ensemble mean and 90 % band at 1, 9, 25 and 40 m in three periods](../images/42_upperlugano_online_bands.png){ width="880" .center }
 /// figure-caption
-Upper Lugano 2025: hourly observations, free run, and the ensemble mean with its 90 % band for the buoy reading, mean ± 1.645 √(spread² + R²), for `simplified_final` and the learned R and q, at 1, 9, 25 and 40 m in spring onset, summer and autumn cooling. Under each panel, the share of observations inside each band.
+Upper Lugano 2025: hourly filtered observations, free run, and the ensemble mean with its 90 % band for the buoy reading, mean ± 1.645 √(spread² + R²), for `simplified_final` and the learned R and q, at 1, 9, 25 and 40 m in spring onset, summer and autumn cooling. Under each panel, the share of observations inside each band.
 ///
 
 ![Monthly RMSE against spread, and coverage by depth](../images/43_upperlugano_online_scores.png){ width="880" .center }
 /// figure-caption
-Upper Lugano 2025: (left) monthly RMSE of the ensemble mean (solid) against the ensemble spread (dashed): spread ≈ RMSE means an honest band; (right) coverage of the 90 % band by depth, with R (solid) and spread only (dashed).
+Upper Lugano 2025, **against the filtered observations** at the 16 assimilated depths: (left) monthly RMSE of the ensemble mean (solid) against the ensemble spread (dashed): spread ≈ RMSE means an honest band; (right) coverage of the 90 % band by depth, with R (solid) and spread only (dashed).
 ///
 
 ![R and q by depth, learned against fixed](../images/44_upperlugano_online_learned.png){ width="880" .center }
@@ -291,7 +293,7 @@ Upper Lugano 2025, at 1, 9, 25 and 40 m: (top) observation error R, learned (blu
 - **One year, in sample:** Each depth learns q on its own, so the winter profile of q is noisy. A second lake is checked [below](#online-aegeri).
 - **The depth correlation is measured on 2025 only:** Pooling more years as the record grows (2024–2026 now available) will make it a lake property rather than a property of one year.
 
-**Verdict:** Learned R and q could be an automatic method to run the analysis: better than the operational setup, honest, physically interpretable, one parameter, and standard references for each step.
+**Verdict:** Learned R and q could be an automatic method to run the analysis: as accurate or slightly better than the operational setup (−5 % RMSE, −21 % CRPS against the raw observations), honest about its uncertainty, physically interpretable, one parameter, and standard references for each step.
 
 **Still to do:** score it against the 23 Upper Lugano CTD casts, as adaptive σ. The run on Ägeri is the [next section](#online-aegeri).
 
@@ -306,19 +308,12 @@ Upper Lugano 2025, at 1, 9, 25 and 40 m: (top) observation error R, learned (blu
 
 3. **Real weather:** archive the ICON ensemble forecasts (lake mean, per member and lead) and repeat with them as forcing, each DA member paired with one weather member. With the observed weather the band is a lower bound; this step makes it a forecast band. Check that the band is not too wide at long leads (q partly absorbs forcing error that the weather ensemble then also carries).
 
-**Ideas to improve the forecasts (to test with the reforecasts).** Exploratory reforecasts from an earlier, hand-tuned version point to three ideas. Treat them as hypotheses to confirm, not results:
+**Ideas to improve the forecasts (to test with the reforecasts).** Exploratory reforecasts from an earlier, hand-tuned version point to two ideas. Treat them as hypotheses to confirm, not results:
 
 - **Lake wind.** From June to October the station wind used as forcing is 12–25 % weaker than the wind measured on the lake (Castagnola buoy). Idea: scale the forecast wind by the buoy/model ratio of the previous weeks. Look for: a lower surface error at days 3–7 in summer, where the seasonal bias dominates.
 - **Wind spread.** The members' wind is too alike: the real wind fell inside the members on only about half of the days. Idea: give each member a fixed wind factor between ×0.7 and ×1.4 (spread evenly across members, mean ×1), the typical day-to-day mismatch between lake and station wind. Look for: surface coverage at longer leads, and that the band does not grow too wide (a member stays windier for the whole forecast, while the real mismatch changes within about a day). It should add to q, not replace it (earlier the wind spread explained only about 10 % of the forecast error variance).
 
-**Reproduce:** Not in the repository yet (to be ported to `master`); scripts available from the author on request. They live in the author's local folder `local/upperlugano_pn/`, run on `feat/da-combi`:
-
-| What | Script |
-|---|---|
-| DA run | `run_pn.py pn_online.json`; the method is `pn_online.py` (hooks in `pn_enkf.py`) |
-| Scores and figures | `compare_2025.py`, `story_figs.py`, `plot_online_rq.py`, `plot_nis.py` |
-| Earlier version and reforecasts | `pn_adaptive.py`, `pn_adaptive6.json`; `forecast_from_issue.py [--buoy-wind] [--slow-wind 0.33,29]`; `score_forecasts.py` |
-| Wind | `buoy_factor_forcing.py`, `get_icon_upperlugano.py` (ICON KENDA-CH1, needs the EAWAG VPN), `wind_noise_check.py`, `wind_story_figs.py` |
+**Reproduce:** Branch `feat/online_error`, config block `online_errors`.
 
 ### Ägeri check: one method, three levels { #online-aegeri }
 
@@ -330,29 +325,29 @@ Upper Lugano 2025, at 1, 9, 25 and 40 m: (top) observation error R, learned (blu
 
 | Run | RMSE (°C) | CRPS (°C) | spread / RMSE | 90 % band incl. R | NIS |
 |---|---|---|---|---|---|
-| Free run | 0.430 | – | – | – | – |
-| `simplified_final` (fixed σ 0.237) | 0.225 | 0.113 | 0.22 | 0.93 | 0.98 |
-| Adaptive σ, first version | 0.357 | 0.153 | 0.15 | 0.93 | 0.90 |
-| All to R | 0.230 | 0.105 | 0.21 | 0.93 | 0.91 |
-| R split | 0.214 | 0.102 | 0.17 | 0.82 | 1.76 |
-| **R split + model error** | **0.183** | **0.070** | **0.76** | 0.94 | 0.67 |
+| Free run | 0.461 | – | – | – | – |
+| `simplified_final` (fixed σ 0.237) | 0.299 | 0.140 | 0.22 (0.16) | 0.93 (0.89) | 0.98 |
+| Adaptive σ, first version | 0.398 | 0.170 | 0.15 (0.12) | 0.93 (0.88) | 0.90 |
+| All to R | 0.301 | 0.131 | 0.21 (0.16) | 0.93 (0.87) | 0.91 |
+| R split | 0.290 | 0.128 | 0.17 (0.12) | 0.82 (0.76) | 1.76 |
+| **R split + model error** | **0.275** | **0.100** | **0.76** (0.49) | 0.94 (0.88) | 0.67 |
 
-*Ägeri 2025, hourly profiler at the 22 assimilated depths, 2,503 profile times.*
+*Ägeri 2025, 2,503 profile times. RMSE and CRPS against the raw hourly profiler at all 239 depths; spread/RMSE and the band against the filtered profiler at the 22 assimilated depths, raw in brackets; NIS from the filter ([scoring](reference.md#run-config)). The ported code (`online_errors`) reproduces both levels it was run on: R split + q 0.276 °C, R split identical up to 10 May.*
 
 ![Ägeri 2025: observation error through the year, and RMSE by depth](../images/46_aegeri_online_R.png){ width="880" .center }
 /// figure-caption
-Ägeri 2025: (left) observation error at 2, 10, 14, 18 and 30 m: the first adaptive σ (rebuilt from its saved misses), all to R, R split without and with q, and the fixed σ of `simplified_final`; (right) RMSE by depth over all 2025 profile times and all profiler depths, with each run's RMSE over the whole profile.
+Ägeri 2025: (left) observation error at 2, 10, 14, 18 and 30 m: the first adaptive σ (rebuilt from its saved misses), all to R, R split without and with q, and the fixed σ of `simplified_final`; (right) RMSE by depth **against the filtered profiler**, over all 2025 profile times and all profiler depths, with each run's RMSE over the whole profile (raw values in the table above).
 ///
 
 **Result:** Figure 10 shows three steps.
 
-- **All to R no longer runs away.** With the new settings it is as accurate as `simplified_final` (0.230 against 0.225 °C), against 0.357 for the first version. Which setting stopped it (centred forcing, the gross-error check, the memory, or the start at 0.05 °C) is not separated. The mechanism is still visible, only weaker and later: at 14 m R climbs to 0.9 °C in November, against 0.24 °C for the fixed σ (the first version climbed earlier and higher).
-- **The split keeps R physical.** R stays at or below about 0.45 °C at every depth and the thermocline bulge disappears (RMSE 0.214). But without q nothing carries the misses it takes out of R: the filter is over-confident (NIS 1.76, the band holds 82 %).
-- **q gives the main gain.** RMSE 0.230 → 0.183 °C and CRPS 0.105 → 0.070, best at almost every depth (12–14 m: 0.38 → 0.26–0.31 °C), and the spread rises from a fifth to three quarters of the error. With NIS 0.67 it is now somewhat cautious.
+- **All to R no longer runs away.** With the new settings it is as accurate as `simplified_final` (0.301 against 0.299 °C), against 0.398 for the first version. Which setting stopped it (centred forcing, the gross-error check, the memory, or the start at 0.05 °C) is not separated. The mechanism is still visible, only weaker and later: at 14 m R climbs to 0.9 °C in November, against 0.24 °C for the fixed σ (the first version climbed earlier and higher).
+- **The split keeps R physical.** R stays at or below about 0.45 °C at every depth and the thermocline bulge disappears (RMSE 0.290). But without q nothing carries the misses it takes out of R: the filter is over-confident (NIS 1.76, the band holds 82 %).
+- **q gives the main gain.** RMSE 0.301 → 0.275 °C and CRPS 0.131 → 0.100, lowest at 165 of the 239 depths and within 0.01 °C of the best at 228 (12–14 m: 0.43–0.54 → 0.38–0.51 °C), and the spread rises from a fifth to three quarters of the error. With NIS 0.67 it is now somewhat cautious.
 
 **Verdict:** The same story as on Upper Lugano. Use the split: R then stays physical whatever the model does. Add q whenever the spread matters, which is always for a forecast band; without it the filter is over-confident. The old failure is the reason for the split, but on Ägeri the new settings had already removed most of it.
 
-**Reproduce:** Not in the repository yet; scripts available from the author on request (local folder `local/upperlugano_pn/`, run on `feat/da-combi`): `run_pn.py pn_online_aegeri_{sigma,R,Rq}.json`; the depth correlation from `build_process_noise.py --free inputs/aegeri/ref/T_out.dat --obs observations/aegeri/temperature_filtered_h23_1d.csv --name process_noise_aegeri`; scores `compare_2025.py --lake aegeri --depths-of observations/aegeri/temperature_filtered_h23_1d.csv`; figures `aegeri_figs.py`.
+**Reproduce:** Branch `feat/online_error`, config block `online_errors`.
 
 ---
 
@@ -523,8 +518,9 @@ Delft3D-FLOW, Lake Lugano: satellite surface temperature (left) and cells where 
 
 ---
 
+## Recent work { #recent-work }
 
-Latest work started after the results above. Numbers are preliminary, and the runs are not part of the operational setup. 
+Work started after the results above. Numbers are preliminary, and the runs are not part of the operational setup.
 
 ### Does assimilation disturb the model's natural variability? { #variability }
 
@@ -580,7 +576,7 @@ Each update is a single step (Figure 20, the 06 → 07 UTC hour), with no oscill
 **Result so far.**
 
 - **Ägeri: large improvement (Figure 21):** O₂ error against the profiler drops by about 45 % (46 → 25 mmol/m³), and is spread more evenly over the column, with large gains at 10–20 m and again in the deep water, but not directly at the lake bed. Temperature 0.52 → 0.32 °C.
-- **Murten: smaller improvement (Figure 22):** O₂ drops by about 18 % against the CTD casts (69 → 57 mmol/m³), mostly at the deeper levels near the three oxygen sensors. Temperature 0.75 → 0.36 °C against the profiler.
+- **Murten: smaller improvement (Figure 22):** O₂ drops by about 18 % against the CTD casts (69 → 57 mmol/m³), mostly at the deeper levels near the three oxygen sensors. Temperature 0.79 → 0.45 °C against the profiler.
 
 ![Murten: RMSE profiles of T and O₂, free run vs EnKF](../images/34_murten_to2_profiler.png){ width="700" .center }
 /// figure-caption
@@ -592,7 +588,7 @@ Murten, Jun 2022 – Jun 2026, profiler assimilated: RMSE profiles of T and O₂
 Ägeri, 31 October 2024: O₂ profile, observations (red), free run (dashed) and EnKF (blue).
 ///
 
-The filter struggles right above the lake bed. In the example of Figure 23 the assimilated profile (blue) fits the observations (red) as well as it can, but keeps the wrong shape at the bottom. Discussed with Fabian: this is a structural model error, the model cannot simulate the oxygen depletion at the bottom boundary.
+The filter struggles right above the lake bed. In the example of Figure 23 the assimilated profile (blue) fits the observations (red) as well as it can, but keeps the wrong shape at the bottom. This points to a structural model error: the model cannot simulate the oxygen depletion at the bottom boundary.
 
 **Verdict so far:** Vertical coverage matters, and the bottom boundary has to be fixed in the model, not by assimilation.
 
@@ -619,7 +615,7 @@ The filter struggles right above the lake bed. In the example of Figure 23 the a
 
 **Status:** (✅) Positive, potentially to be adopted · **Lakes:** Ägeri, Murten
 
-**Question:** Suggested by Fabian, for practical purposes: with only the monthly or quarterly CTD casts assimilated, does the run give realistic profiles *between* the casts?
+**Question:** Many lakes have only monthly or quarterly CTD casts. With only those assimilated, does the run give realistic profiles *between* the casts?
 
 **Setup:** Assimilate the CTD casts (T and O₂) instead of the profiler: 14 casts on Ägeri, 42 on Murten (see the [data table](#to2-profiler)); the high-resolution profiler, never seen by the filter, becomes an independent check of the interpolation in time. Note the rows in Figures 25 and 26 are swapped with respect to the profiler runs: top row = independent profiler, bottom row = the assimilated casts, one hour after the analysis.
 
@@ -631,7 +627,7 @@ The filter struggles right above the lake bed. In the example of Figure 23 the a
 **Result so far:**
 
 - **Ägeri: it works essentially only in the deep water:** Between casts, O₂ at 50–80 m stays closer to the profiler than the free run; above about 40 m it is no better than the free run. Overall about −10 % (O₂ 46 → 41 mmol/m³, T 0.52 → 0.48 °C), not evenly distributed.
-- **Murten: similar (Figure 26).** Gains where observations are available (O₂ 62 → 52 mmol/m³, T 0.75 → 0.60 °C). Here we would have expected oxygen gains up to about 15 m.
+- **Murten: similar (Figure 26).** Gains where observations are available (O₂ 62 → 53 mmol/m³, T 0.79 → 0.65 °C). Here we would have expected oxygen gains up to about 15 m.
 
 ![Murten: CTD assimilation, scored against the independent profiler (top) and the casts (bottom)](../images/37_murten_to2_ctd.png){ width="700" .center }
 /// figure-caption
@@ -656,14 +652,14 @@ These runs need the forcing ensemble centred on the original forcing, because th
 
 **Next step:** The operational setup (`simplified_final`) runs without centring, so check its effect there too, and repeat the Lugano deep-mixing run with centred forcing.
 
-**Reproduce:** Branch `feat/center-perturbations`, option `center_perturbations`.
+**Reproduce:** Branch `feat/online_error`, option `center_perturbations`.
 
 ### Long-term CTD assimilation in Geneva { #geneva-ctd }
 
 **Status:** 🔬 Open · **Lakes:** Geneva (LéXPLORE casts, Nov 2019 – Jun 2026)
 
 !!! abstract "In short"
-    - **The casts correct both variables well.** Temperature RMSE against the profiler 1.02 → 0.62 °C; oxygen RMSE at the casts 105 → 38 mmol/m³.
+    - **The casts correct both variables well.** Temperature RMSE against the profiler 1.19 → 0.87 °C; oxygen RMSE at the casts 105 → 38 mmol/m³.
     - **Winter remains wrong, and neither tuning knob fixes it.** More forcing noise or a smaller winter σ leave the errors unchanged: the model mixes too deep in winter, in every member alike.
 
 **Question:** Can six and a half years of CTD casts correct temperature and oxygen together, and does the result hold against the high-resolution profiler, which is not assimilated?
@@ -672,7 +668,7 @@ These runs need the forcing ensemble centred on the original forcing, because th
 
 | RMSE | Free run | EnKF |
 |---|---|---|
-| Temperature, against the profiler | 1.02 °C | 0.62 °C |
+| Temperature, against the profiler | 1.19 °C | 0.87 °C |
 | Oxygen, at the casts | 105 mmol/m³ | 38 mmol/m³ |
 
 - **Oxygen:** the free run's deep water is about 120 mmol/m³ too low below 40 m. The filter needs about a year to lift it (NIS/n about 20 at the start, about 1 from 2022 to 2025).
@@ -683,7 +679,7 @@ These runs need the forcing ensemble centred on the original forcing, because th
 1. **Perturb air temperature too** (AR(1), sd 1.67 °C): the winter spread stays around 0.03 °C, because the deep mixed layer damps the noise.
 2. **A smaller winter σ** (0.10 °C from November to April, the scatter of same-day double casts):
     - Too small: winter NIS/n (December–March) goes from 0.73 to 4.95. The double-cast scatter measures the casts, not what the model cannot represent; the innovations point to about 0.25 °C, close to the annual value.
-    - No accuracy gain: temperature RMSE stays at 0.62 °C, oxygen RMSE 38 → 40 mmol/m³, and the winter mixed layer stays about 15 m too deep (error about 22 m).
+    - No accuracy gain: temperature RMSE is unchanged (0.864 against 0.865 °C), oxygen RMSE 38 → 40 mmol/m³, and the winter mixed layer stays about 15 m too deep (error about 22 m).
     - Why: the stronger updates halve the already tiny spread (0.028 → 0.014 °C), and the model drifts back between casts, so each cast meets the same misfit.
 
 **Deep mixing, year by year:** The casts mix to the station bottom (about 100 m) only in 2020, 2021 and 2026. The model reaches the bottom almost every winter, with or without assimilation; in 2022 and 2024 the lake stopped at about 65 m and 45 m. Unlike on Lake Lugano, assimilation does not make deep mixing more frequent: over the full 309 m column the free run overturns completely in 2021 and 2022, the EnKF only in 2022.

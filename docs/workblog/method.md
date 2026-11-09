@@ -1,6 +1,6 @@
 # Method
 
-*Last updated: October 2026.*
+*Last updated: November 2026.*
 
 !!! abstract "In short"
     A 20-member ensemble is made by adding AR(1) noise to wind and solar radiation. Once a day, at a per-lake night hour, a stochastic EnKF corrects the temperature profile of every member. The observations are filtered below 4 m to remove internal-seiche motion the 1D model cannot reproduce, and thinned to a per-lake depth grid. Their uncertainty σ is a representativeness error, not instrument error: one value per lake and season.
@@ -61,13 +61,13 @@ The left panel of Figure 2 shows how the bias and random error are distributed o
 
 **Daily:** A daily frequency reduces the error correlation between successive analyses, and avoids a sub-daily reversal of the error sign eating into the potential gains. Assimilating more often would make the filter less efficient (information counted twice) and noisier (potential reversals of the corrections). Going below daily costs accuracy ([Assimilation frequency](experiments.md#frequency)). This agrees with [Wander et al. (2024)](../literature-review.md#wander-2024), who found daily assimilation the most skilful for a 1-day forecast, but weekly assimilation the most skilful for 8–35-day horizons.
 
-**At a specific hour:** Using a free run, we take the mean and standard deviation of the model–observation error over the days, hour by hour, and pick the hour that maximises the random (correctable) error per amount of bias injected. The reasoning: the deterministic part of the gap is potentially a correction for something the model's physics might undo.
+**At a specific hour:** Using a free run, we take the mean and standard deviation of the model–observation error over the days, hour by hour. Among the hours the lake samples on at least 30 days, we keep those whose bias is at most 0.2 times their day-to-day scatter, and take the one with the largest scatter: the most correctable error for little injected bias. The reasoning: the deterministic part of the gap is potentially a correction for something the model's physics might undo.
 
 Only the **surface layer, above 4 m,** enters this choice. That is where the diurnal cycle lives, and so where the hour makes a bigger difference. Below 4 m the observations go through the seiche filter, whose trailing window (11 h or more, depending on the lake) smooths most of the diurnal signal out: there the hour matters much less.
 
 By this measure **noon, the hour used by the current BETA, turns out to be a bad choice.** The exact rule is in the [Tutorial](../tutorial.md).
 
-**At night:** Candidates are restricted to 23–06 UTC, so that every lake is sampled at a comparable point in its diurnal cycle, with the operational bonus that it is off-hours.
+**At night:** Candidates are restricted to 23–06 UTC, so that every lake is sampled at a comparable point in its diurnal cycle, with the operational bonus that it is off-hours. This is the window behind the results here; the code's default is now 00–06 UTC, and `assimilate.py fit hour --window 23-6` reproduces these hours.
 
 Only hours the lake actually samples are candidates, with adaptation where a fixed frequency cannot be guaranteed (Greifensee takes the first reading between 00 and 06 UTC each day). Days without a profile in the window are skipped. The hour picked for each lake is in the [per-lake card](reference.md#lakes).
 
@@ -101,7 +101,7 @@ Causal filtering of the observations at 11 m, Upper Lugano: hourly series (black
 
 Figure 4 shows the original time series of the temperature at 11 m in Upper Lugano in black (already aggregated to hourly) and, in blue, the observation filtered with a 27.3 h trailing window set by the seiche period. The fix is to remove large part of the signal the model cannot represent. Three constraints shape the solution:
 
-- **It must be causal:** no leakage of future information, because this runs operationally (a centred moving average would be better but not useable). We use a trailing moving average.
+- **It must be causal:** no leakage of future information, because this runs operationally (a centred moving average would be better but not usable). We use a trailing moving average.
 - **It must be split in depth:** above a threshold (currently 4 m) the series passes through untouched. Surface temperature does not suffer thermocline displacement in the same way, and we do not want to blur an important fast signal.
 - **It must be set physically, per lake:** the trailing window comes from a two-layer approximation, using the lake length and its stratification at peak, giving a characteristic fundamental internal-seiche period for each basin ([per-lake card](reference.md#lakes)).
 
@@ -139,7 +139,7 @@ For the operational setup we make three deliberate simplifying assumptions: the 
 
 The stratified season generally wants a larger σ, exactly what you expect if the dominant error source is thermocline displacement. Two lakes break the pattern: Ägeri, which we restrict to a single scalar because the seasonal split performed worse, and Hallwil, whose mixed season is marginally *larger* than its stratified one and represents an odd case.
 
-> σ here is the honest statement of what the model cannot reproduce. The uncomfortable part is that it still occupies essentially the whole uncertainty budget (the ensemble remains too narrow and model uncertainity underrepresented).
+> σ here is the honest statement of what the model cannot reproduce. The uncomfortable part is that it still occupies essentially the whole uncertainty budget (the ensemble remains too narrow and model uncertainty underrepresented).
 
 ### Why the seasonal σ stays operational, for now
 
@@ -240,7 +240,7 @@ xₜ = φ·xₜ₋₁ + σ·εₜ ,      ε ~ N(0,1) ,      φ = exp(−1/τ)
 
 The two parameters are fitted from **different data and kept strictly separate**.
 
-**Amplitude: measured.** The stationary standard deviation `σ/√(1−φ²)` is fitted from the ICON residual, `s = std(ICON lake mean − control Forcing.dat)`: how far the reanalysis actually strays from the control forcing. Fitted once per lake and committed. This stands for a realistic representativness error of the original station forcing.  
+**Amplitude: measured.** The stationary standard deviation `σ/√(1−φ²)` is fitted from the ICON residual, `s = std(ICON lake mean − control Forcing.dat)`: how far the reanalysis actually strays from the control forcing. Fitted once per lake and committed. This stands for a realistic representativeness error of the original station forcing.  
 
 **Persistence: bracketed, not measured.** No dataset gives us the decorrelation time of the *forcing forecast error*, so we bracket it between two proxies, each biased in a known direction:
 
