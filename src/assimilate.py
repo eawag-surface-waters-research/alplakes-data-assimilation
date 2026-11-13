@@ -13,6 +13,7 @@ Examples:
     python src/assimilate.py run examples/enkf.json                     # same, from a config file
     python src/assimilate.py preprocess raw.csv -o obs.csv --w-seiche 27.3 --hour 6
     python src/assimilate.py fit sigma --free-run T_out.dat --obs obs.csv
+    python src/assimilate.py fit noise-correlation --free-run T_out.dat --obs obs.csv -o corr.json
 """
 
 import os
@@ -145,6 +146,11 @@ def cmd_fit(cli):
         from assimilator.fitting.sigma import fit_sigma
         result = fit_sigma(_read_csv_obs(cli.obs), fitting.read_free_run(cli.free_run, cli.model),
                            year=cli.year, max_depth=cli.max_depth, seasonal=not cli.annual)
+    elif cli.what == "noise-correlation":
+        from assimilator.fitting.noise_correlation import fit_noise_correlation
+        result = fit_noise_correlation(_read_csv_obs(cli.obs),
+                                       fitting.read_free_run(cli.free_run, cli.model),
+                                       year=cli.year, max_depth=cli.max_depth)
     else:   # perturbation persistence (upper bound) from the control forcing alone
         import pandas as pd
         from assimilator.models import get_model
@@ -221,10 +227,10 @@ def main(argv=None):
     p.set_defaults(func=cmd_preprocess)
 
     f = sub.add_parser("fit", help="offline fits")
-    f.add_argument("what", choices=["filter", "hour", "sigma", "perturbation"])
+    f.add_argument("what", choices=["filter", "hour", "sigma", "noise-correlation", "perturbation"])
     f.add_argument("--raw", help="filter/hour: raw sub-daily CSV")
-    f.add_argument("--obs", help="sigma: the ASSIMILATED series CSV")
-    f.add_argument("--free-run", help="hour/sigma: free-run output trajectory (e.g. T_out.dat)")
+    f.add_argument("--obs", help="sigma/noise-correlation: the ASSIMILATED series CSV")
+    f.add_argument("--free-run", help="hour/sigma/noise-correlation: free-run output trajectory (e.g. T_out.dat)")
     f.add_argument("--model", default=None, help="forward model (default simstrat)")
     f.add_argument("--length-km", type=float, help="filter: basin length")
     f.add_argument("--mean-depth", type=float, help="filter: mean lake depth (m)")

@@ -17,7 +17,7 @@ import numpy as np
 
 from ...containers import start_persistent_container, stop_persistent_container
 from ..base import ForwardModel
-from .snapshot import read_snapshot_T_at, write_snapshot_T_at
+from .snapshot import read_snapshot_T_at, write_snapshot_T_at, read_cell_volumes_at
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +345,10 @@ def write_snapshot_T(member_id, T_new, args):
     write_snapshot_T_at(snap_path, par_path, T_new)
 
 
+def state_cell_volumes(member_id, args):
+    return read_cell_volumes_at(*_member_snapshot_paths(member_id, args))
+
+
 def clear_member_state(ensemble_base, member_ids, results_dir):
     for i in member_ids:
         live = os.path.join(ensemble_base, f"ensemble{i}", results_dir, SNAPSHOT)
@@ -410,6 +414,7 @@ class Simstrat(ForwardModel):
     mean_traj_path        = staticmethod(mean_traj_path)
     read_snapshot_T       = staticmethod(read_snapshot_T)
     write_snapshot_T      = staticmethod(write_snapshot_T)
+    state_cell_volumes    = staticmethod(state_cell_volumes)
     clear_member_state    = staticmethod(clear_member_state)
     copy_member_state     = staticmethod(copy_member_state)
     write_mean_state      = staticmethod(write_mean_state)

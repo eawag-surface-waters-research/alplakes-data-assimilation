@@ -24,6 +24,7 @@ DEFAULTS = {
     "inflation":     1.0,         # native EnKF; 1.0 = off
     "rng_seed":      42,
     "sigma_scale":   1.0,         # multiplies every forcing perturbation sigma
+    "center_perturbations": False,  # rescale rows so ensemble-mean wind speed and GLOB = control
     "sigma_default": 0.5,         # observation error (degC) when the run names no sigma_obs
     "reset":         False,       # start from scratch: clears the members' state and the perturbation chain
     "progress":      False,
@@ -86,6 +87,10 @@ def build_config(cfg):
     for k in PATH_KEYS:
         if out.get(k):
             out[k] = os.path.abspath(os.path.expanduser(os.path.expandvars(out[k])))
+
+    if out.get("online_errors") is not None:
+        from .online_errors import validate_online_errors
+        out["online_errors"] = validate_online_errors(out["online_errors"], engine, out["algorithm"])
 
     if engine == "python":
         # Per-algorithm outputs and par copy in each member, so an EnKF and a PF run can share members.

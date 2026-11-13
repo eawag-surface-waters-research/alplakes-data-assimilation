@@ -60,6 +60,16 @@ def test_engine_runs_on_toy_model(tmp_path, algorithm):
     assert not np.allclose(g1, g2)
 
 
+def test_centred_forcing_keeps_the_control_mean_wind_speed(tmp_path):
+    cfg = dict(_cfg(tmp_path, "EnKF"), center_perturbations=True)
+    assimilator.run(cfg)
+    f = [pd.read_csv(tmp_path / "run" / f"ensemble{i}" / "forcing.csv") for i in range(1, 7)]
+    speed = np.mean([np.hypot(m["U"], m["V"]) for m in f], axis=0)
+    ctrl = pd.read_csv(tmp_path / "inputs" / "forcing.csv").set_index("time_days")
+    ctrl = np.hypot(ctrl["U"], ctrl["V"]).reindex(f[0]["time_days"]).to_numpy()
+    assert np.allclose(speed, ctrl, rtol=1e-6)
+
+
 def test_enkf_pulls_state_toward_observations(tmp_path):
     cfg = _cfg(tmp_path, "EnKF")
     assimilator.run(cfg)

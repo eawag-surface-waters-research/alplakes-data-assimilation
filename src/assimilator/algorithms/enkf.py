@@ -9,6 +9,7 @@ from .common import reset_members, run_observations, step_windows
 from ..obs_operator import build_H
 from ..rng import time_keyed_rng
 from ..sigma import resolve_sigma_obs, log_sigma_summary
+from ..online_errors import OnlineRun, draw_noise, stabilize
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,43 @@ def _write_diagnostics(args, when, diags, y_obs, obs_depths, z_vol, lake_level):
                 {"date": stamp, **{f"K_{d}": round(float(v), 8) for d, v in enumerate(K_mean)}})
 
 
-def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when):
+def _nis_check(online, y_obs, HX_f, sigma, when):
+    """y_obs with the observations whose NIS exceeds max_nis set to NaN (once the check is on)."""
+    y = np.asarray(y_obs, dtype=float).copy()
+    if online.oe.checking(when):
+        d_b = y - HX_f.mean(axis=1)
+        nis = d_b ** 2 / (HX_f.var(axis=1, ddof=1) + sigma ** 2)
+        y[nis > float(online.oe.spec["max_nis"])] = np.nan
+    return y
+
+
+def _online_after(args, model, online, members, X_f, X_a, y_obs, y_used, H, sigma,
+                  z_vol, lake_level, obs_depths, when):
+    """Learn R and q from this analysis, then add the model-error noise.
+    Returns (X_a, n_rejected, n_stabilized)."""
+    oe = online.oe
+    y_obs = np.asarray(y_obs, dtype=float)
+    HX_f = H @ X_f
+    d_b = y_obs - HX_f.mean(axis=1)
+    d_a = np.where(np.isnan(y_used), np.nan, y_obs - (H @ X_a).mean(axis=1))
+    oe.learn(when, obs_depths, d_b, d_a, HX_f.var(axis=1, ddof=1), sigma)
+
+    n_stab = 0
+    L = oe.noise_factor(when)
+    if L is not None:
+        depth, taper = lake_level - z_vol, float(oe.spec["taper_m"])
+        X_a = X_a + draw_noise(L, oe.grid, depth, X_a.shape[1], when, online.seed, taper)
+        if oe.spec["stabilize"]:
+            V = model.state_cell_volumes(members[0], args)
+            V = np.ones(len(z_vol)) if V is None else V
+            for m in range(X_a.shape[1]):
+                X_a[:, m], c = stabilize(X_a[:, m], V, depth, oe.grid[-1] + taper)
+                n_stab += c
+    n_rej = int((np.isnan(y_used) & ~np.isnan(y_obs)).sum())
+    return X_a, n_rej, n_stab
+
+
+def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when, online=None):
     """Read the members' end-of-window states, update them with the window's observations and
     write them back. Returns the number of members updated."""
     def read(i):
@@ -117,11 +154,18 @@ def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when):
     # The members share one grid and lake level; the first member's stand for all.
     z_vol, lake_level = states[readable[0]][1], states[readable[0]][2]
     H = build_H(z_vol, lake_level, sim_depths)
-    # A vector, so that enkf_update never sees a season-keyed dict (np.ndim of a dict is 0).
-    sigma = resolve_sigma_obs(obs_depths, when, args)
+    if online is None:
+        # A vector, so that enkf_update never sees a season-keyed dict (np.ndim of a dict is 0).
+        sigma, y_used = resolve_sigma_obs(obs_depths, when, args), y_obs
+    else:
+        sigma = online.oe.R(obs_depths)
+        y_used = _nis_check(online, y_obs, H @ X_f, sigma, when)
     # Keyed on the analysis instant: a run continued in slices draws as one continuous run.
     rng = time_keyed_rng(args.get("rng_seed", 42), "enkf_obs", int(when.timestamp()))
-    X_a, diags = enkf_update(X_f, y_obs, H, sigma, inflation=args["inflation"], rng=rng)
+    X_a, diags = enkf_update(X_f, y_used, H, sigma, inflation=args["inflation"], rng=rng)
+    if online is not None:
+        X_a, n_rej, n_stab = _online_after(args, model, online, readable, X_f, X_a, y_obs, y_used,
+                                           H, sigma, z_vol, lake_level, obs_depths, when)
 
     def write(col_i):
         col, i = col_i
@@ -133,7 +177,9 @@ def _analyse(args, model, members, y_obs, sim_depths, obs_depths, when):
     with concurrent.futures.ThreadPoolExecutor() as pool:
         pool.map(write, enumerate(readable))
     if diags is not None:
-        _write_diagnostics(args, when, diags, y_obs, obs_depths, z_vol, lake_level)
+        _write_diagnostics(args, when, diags, y_used, obs_depths, z_vol, lake_level)
+    if online is not None:
+        online.commit(when, n_rej, n_stab)
     return len(readable)
 
 
@@ -141,7 +187,9 @@ def run_enkf_loop(args, model):
     if args.get("reset"):
         reset_members(args, model, [args["diag_path"], args["innov_depth_path"], args["kgain_depth_path"]])
     obs = run_observations(args, model)
-    log_sigma_summary(args)
+    online = OnlineRun(args, obs["depth"].unique()) if args.get("online_errors") else None
+    if online is None:
+        log_sigma_summary(args)
     logger.info(f"EnKF inflation={args['inflation']}")
 
     def update(window_start, window_end, failed):
@@ -149,7 +197,7 @@ def run_enkf_loop(args, model):
         if y_obs is None:
             return False, "no obs"
         good = [i for i in args["member_ids"] if i not in failed]
-        n_updated = _analyse(args, model, good, y_obs, sim_depths, obs_depths, window_end) if len(good) >= 2 else 0
+        n_updated = _analyse(args, model, good, y_obs, sim_depths, obs_depths, window_end, online) if len(good) >= 2 else 0
         return n_updated > 0, f"n_obs={len(y_obs)}  n_updated={n_updated}"
 
     return step_windows(args, model, obs, update)
