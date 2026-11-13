@@ -1,0 +1,2574 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://eawag-surface-waters-research.github.io/alplakes-data-assimilation/workblog/experiments/">
+      
+      
+        <link rel="prev" href="../results/">
+      
+      
+        <link rel="next" href="../open-problems/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Experiments - Alplakes Data Assimilation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#experiments" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Alplakes Data Assimilation" class="md-header__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Alplakes Data Assimilation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Experiments
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../tutorial/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Tutorial
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../literature-review/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Literature Review
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../project-proposal/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Proposal
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Alplakes Data Assimilation" class="md-nav__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Alplakes Data Assimilation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../method/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Observations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#frequency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assimilation frequency
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation filtering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#surface-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Surface-only assimilation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sigma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation σ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Observation σ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sigma-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Depth-resolved σ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sigma-scaled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rescaled σ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fitting-year" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fitting year
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#online-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Learning the errors online
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Learning the errors online">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adaptive-sigma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adaptive σ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uncertainty-band" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Learned R and q: an honest uncertainty band
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#online-aegeri" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ägeri check: one method, three levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-spread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model spread and structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Model spread and structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#localization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vertical localization
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Vertical localization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#localization-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Localization implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#param-sensitivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter sensitivity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#param-perturbation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter perturbation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Joint state–parameter estimation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deep-mixing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deep mixing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same layout in 3D
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recent-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recent work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recent work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#variability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does assimilation disturb the model's natural variability?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#to2-profiler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Oxygen assimilation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#depth-thinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation depth thinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ctd-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CTD casts as a temporal interpolator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#centred-forcing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Centred forcing perturbations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#geneva-ctd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long-term CTD assimilation in Geneva
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../open-problems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Open problems
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../literature-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Literature Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../project-proposal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Proposal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Observations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#frequency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assimilation frequency
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation filtering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#surface-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Surface-only assimilation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sigma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation σ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Observation σ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sigma-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Depth-resolved σ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sigma-scaled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rescaled σ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fitting-year" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fitting year
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#online-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Learning the errors online
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Learning the errors online">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adaptive-sigma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adaptive σ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uncertainty-band" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Learned R and q: an honest uncertainty band
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#online-aegeri" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ägeri check: one method, three levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-spread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model spread and structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Model spread and structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#localization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vertical localization
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Vertical localization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#localization-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Localization implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#param-sensitivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter sensitivity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#param-perturbation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter perturbation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Joint state–parameter estimation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deep-mixing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deep mixing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same layout in 3D
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recent-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recent work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recent work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#variability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does assimilation disturb the model's natural variability?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#to2-profiler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Oxygen assimilation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#depth-thinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation depth thinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ctd-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CTD casts as a temporal interpolator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#centred-forcing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Centred forcing perturbations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#geneva-ctd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long-term CTD assimilation in Geneva
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="experiments">Experiments<a class="headerlink" href="#experiments" title="Permanent link">&para;</a></h1>
+<p><em>Last updated: November 2026. Unless stated otherwise: 2025, 20 members, native EnKF, operational setup apart from the one thing each experiment changes.</em></p>
+<div class="admonition abstract">
+<p class="admonition-title">In short</p>
+<p>Every experiment we ran, what it asked, and what came of it. Daily assimilation, seiche filtering and profile data pay off. Making σ more refined makes the filter better calibrated, not more accurate. Surface-only assimilation damages the layers below. Extra spread from model parameters helps a little at daily steps, but only at amplitudes we cannot defend; at longer steps it pays off. Assimilation leaves the model's natural variability intact.</p>
+<p>The more recent work is promising: oxygen can be assimilated together with temperature, with large gains where the profiler covers the column; centring the forcing ensemble removes a systematic windiness of the members; and learning the observation and model errors online makes the ensemble honest. Over 7-day forecasts, a more realistic wind perturbation (lake wind, slow wind noise) pays off where it does not in daily assimilation. Deep mixing remains open.</p>
+</div>
+<p>✅ Operational · (✅) Positive, potentially to be adopted · ⚙️ Optional · ❌ Tested, not adopted · 🔬 Open</p>
+<table>
+<thead>
+<tr>
+<th>Experiment</th>
+<th>Question</th>
+<th>Outcome</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#frequency">Assimilation frequency</a></td>
+<td>Daily, or less often?</td>
+<td>Daily is best (Upperlugano pooled RMSE): −26 % vs −23 % (3 days) and −20 % (7 days)</td>
+<td>✅ daily</td>
+</tr>
+<tr>
+<td><a href="#filtering">Observation filtering</a></td>
+<td>Does seiche filtering help?</td>
+<td>Yes: without it, hard to see gains at the thermocline</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><a href="#surface-only">Surface-only</a></td>
+<td>Is a surface station enough?</td>
+<td>No. Helps the surface, damages 10–35 m against CTD</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><a href="#sigma-depth">Depth-resolved σ</a></td>
+<td>Should σ vary with depth?</td>
+<td>Better shape and distribution, same accuracy; fitted on the free run, more complex, its generalization is questionable</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><a href="#sigma-scaled">Rescaled σ</a></td>
+<td>Can σ be fitted to the filter's own innovations iteratively?</td>
+<td>NIS ≈ 1 everywhere, accuracy unchanged, even more complex and less generalizable</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><a href="#fitting-year">Fitting year</a></td>
+<td>Does fitting σ on 2025 bias our results?</td>
+<td>Barely: gain within 1.5 points, the method is not very sensitive and can be used also on unseen years</td>
+<td>✅ passes</td>
+</tr>
+<tr>
+<td><a href="#adaptive-sigma">Adaptive σ</a></td>
+<td>Can σ follow the innovations on the fly?</td>
+<td>NIS ≈ 1 by construction, but it blames every miss on the observations: six of seven lakes less accurate, Ägeri runs away. Replaced by the learned R and q</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><a href="#uncertainty-band">Learned R and q</a></td>
+<td>Can R and a model error be learned online instead, so the ensemble spread is honest?</td>
+<td>Yes, with one parameter: RMSE 0.612 → 0.584 °C, CRPS 0.313 → 0.246, spread/RMSE 0.26 → 0.98 (filtered observations). 7-day reforecasts from it are the next step</td>
+<td>🔬</td>
+</tr>
+<tr>
+<td><a href="#online-aegeri">Ägeri check</a></td>
+<td>Does the method avoid the adaptive σ runaway, and what do the R split and q add?</td>
+<td>Yes: all to R 0.301, split 0.290 (but over-confident, NIS 1.76), split + q 0.275 °C (free run 0.461, <code>simplified_final</code> 0.299)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><a href="#localization">Vertical localization</a></td>
+<td>Are spurious correlations the problem at depth?</td>
+<td>Small gains only, no clear advantage in using operationally for now, but potentially useful in the future on a different setup or application</td>
+<td>(✅)</td>
+</tr>
+<tr>
+<td><a href="#param-sensitivity">Parameter sensitivity</a></td>
+<td>Could parameters add spread at depth?</td>
+<td>Yes: ±1 °C at 11 m in summer</td>
+<td>🔬</td>
+</tr>
+<tr>
+<td><a href="#param-perturbation">Parameter perturbation</a></td>
+<td>Does perturbing them help the filter?</td>
+<td>Daily: only slightly, and at amplitudes we cannot defend. With a longer assimilation step, though, it helps: every 3 days, <code>p_lw</code> ±10 % brings the accuracy back to close to the daily result</td>
+<td>(✅)</td>
+</tr>
+<tr>
+<td><a href="#joint">Joint estimation</a></td>
+<td>Can the filter estimate the parameters?</td>
+<td>They don't converge, but absorb the seasonal bias; that could be useful for studying the model's systematic weaknesses</td>
+<td>🔬</td>
+</tr>
+<tr>
+<td>Deep mixing: <a href="#deep-mixing">Lugano</a> &amp; <a href="#geneva-ctd">Geneva</a></td>
+<td>Can CTD assimilation fix deep mixing?</td>
+<td>Temperature (and oxygen) improve (Lugano 30–100 m 0.29 → 0.16 °C; Geneva 1.19 → 0.87 °C, O₂ 105 → 38). Mixing no: more frequent on Lugano (uncentred forcing), unchanged and still too frequent on Geneva (tested centred)</td>
+<td>🔬</td>
+</tr>
+<tr>
+<td><a href="#3d">3D model</a></td>
+<td>Does the layout transfer to Delft3D?</td>
+<td>Yes, with promising first results</td>
+<td>(✅)</td>
+</tr>
+<tr>
+<td><a href="#variability">Natural variability</a></td>
+<td>Does DA disturb the model's own oscillations?</td>
+<td>No: same spectral shape, one clean step per update</td>
+<td>✅ passes</td>
+</tr>
+<tr>
+<td>Oxygen: <a href="#to2-profiler">assimilation</a>, <a href="#depth-thinning">depth thinning</a> &amp; <a href="#ctd-interpolation">CTD interpolation</a></td>
+<td>Can O₂ be assimilated with T, from how few depths, and from casts alone?</td>
+<td>Profilers: Ägeri O₂ −45 %, Murten −18 %; the bottom boundary is a model problem. 5 of 23 depths keep ~35–40 % of the T gain, ~70 % of the O₂ gain. Monthly casts: good between casts in the deep water only</td>
+<td>(✅)</td>
+</tr>
+<tr>
+<td><a href="#centred-forcing">Centred forcing</a></td>
+<td>Does the forcing noise bias the ensemble mean?</td>
+<td>Yes: mean wind speed +31 to +63 %; centring removes it</td>
+<td>(✅)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="observations">Observations<a class="headerlink" href="#observations" title="Permanent link">&para;</a></h2>
+<h3 id="frequency">Assimilation frequency<a class="headerlink" href="#frequency" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ✅ Operational (daily) · <strong>Lakes:</strong> Upper Lugano</p>
+<p><strong>Question:</strong> How much accuracy is lost by assimilating less often than daily?</p>
+<p><strong>Setup:</strong> Same run at daily, 3-day and 7-day frequency, scored against hourly buoy data.</p>
+<p><strong>Result:</strong> The free run's 0.83 °C drops to 0.61 °C (−26 %) with daily assimilation (365 profiles), 0.64 °C (−23 %) every 3 days (122 profiles) and 0.67 °C (−20 %) every 7 days (53 profiles).</p>
+<p><strong>Verdict:</strong> Daily outperforms the lower frequencies we tested (<a href="../method/#timing">Method</a>).</p>
+<p><strong>Note:</strong> With more model spread, lower frequencies may catch up: with <code>p_lw</code> ±10 %, 3-day assimilation almost matches the daily result (<a href="#param-perturbation">Parameter perturbation</a>).</p>
+<p><strong>Reproduce:</strong> <code>feat/da-combi</code>: <code>notebooks/generate_assimilation_series.py --every-days N</code>.</p>
+<h3 id="filtering">Observation filtering<a class="headerlink" href="#filtering" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ✅ Operational · <strong>Lakes:</strong> Upper Lugano</p>
+<p><strong>Question:</strong> What does the seiche filtering (<a href="../method/#observations">Method</a>) actually gain?</p>
+<p><strong>Setup:</strong> Assimilation in 2025 on unfiltered vs filtered observations, both scored (pooled RMSE °C over the year) against the same raw hourly data.</p>
+<figure id="__figure-caption_1">
+<p><img alt="Upper Lugano: assimilation on unfiltered vs filtered observations" class="center" src="../../images/12_filtering_effect.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 1.</span> Upper Lugano 2025: RMSE by depth with assimilation of unfiltered (left) and filtered (right) observations, scored against the same raw hourly observations.</p>
+</figcaption>
+</figure>
+<p><strong>Result:</strong> Without filtering (Figure 1, left) almost nothing is achieved at the thermocline, and the red fill around 13 and 17 m says it was made slightly worse: the filter is chasing a signal it cannot represent and fails to inject it into the simulation. With filtering (right) we get an improvement everywhere.</p>
+<p><strong>Verdict:</strong> The data becomes more meaningful, and more digestible, for the filter and we get the hoped-for improvement at intermediate depths. All other results use filtered observations.</p>
+<p><strong>Reproduce:</strong> <code>feat/da-combi</code>: <code>notebooks/calibrate_filter.py</code>, <code>notebooks/filter_observations.py</code>.</p>
+<h3 id="surface-only">Surface-only assimilation<a class="headerlink" href="#surface-only" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ❌ Tested, not adopted · <strong>Lakes:</strong> Lower Lugano, Lower Zürich (plus Upper Lugano with surface data only)</p>
+<p><strong>Question:</strong> Several lakes have a surface station and nothing else. Is assimilating the surface enough?</p>
+<p><strong>Setup:</strong> Two lake sections where only surface data is available, with the same seasonal σ recipe applied to the single surface depth: Lower Lugano 0.41 °C mixed / 0.61 °C stratified, Lower Zürich 0.65 / 0.88 °C.</p>
+<figure id="__figure-caption_2">
+<p><img alt="Lower Zürich and Lower Lugano, surface assimilation through the year" class="center" src="../../images/16_surface_only_timeseries.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 2.</span> Surface-only assimilation through 2025 at 1 m: Lower Zürich and Lower Lugano, free run vs assimilation.</p>
+</figcaption>
+</figure>
+<p><strong>Result at the surface:</strong> Both lakes improve at the assimilated depth of 1 m, but very unequally. <strong>Lower Lugano 0.90 → 0.58 °C (−35 %); Lower Zürich 0.80 → 0.68 °C (−15 %).</strong> The difference most likely comes from the error each free run makes, not from the filter. Each correction is the innovation (observation minus forecast) times a gain, and that gain stays small when the ensemble is narrow compared with σ. Our setup has a fairly narrow ensemble and a large σ, so a correction can only be large when the error is large. When the free-run error stays low, the corrections are small and hard to see. Zürich's error is low (around 0.4 °C) for most of the year, with only short large excursions, so the filter has less to correct over the year. In January–February, and also in November–December for Zürich, the assimilated and free-run curves in Figure 2 are indistinguishable. The difference appears in March for Lugano and April for Zürich and lasts through the stratified season.</p>
+<figure id="__figure-caption_3">
+<p><img alt="Surface-only vs profile assimilation, scored against CTD casts" class="center" src="../../images/17_surface_vs_profile_ctd.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 3.</span> RMSE against CTD casts: surface-only assimilation, Lower and Upper Lugano (left), and full-profile assimilation, Upper Lugano (right).</p>
+</figcaption>
+</figure>
+<p><strong>Result in the column:</strong> Figure 3, left: Lower and Upper Lugano with surface-only assimilation; right: Upper Lugano assimilating the full profile. Both scored against CTD casts, a sub-optimal reference: casts are instantaneous and very exposed to the variability problem described in <a href="../method/#observations">Method</a>, while our assimilation works on filtered daily values, and the two panels are different lake sections. Surface-only gains at the top and, weakly, in the deep in lower Lugano. Similar results are obtained when assimilating the upper Lake Lugano section with surface measurements only (note: deep results change). <strong>Between them it loses badly: the RMSE degrades by up to 0.65 °C between roughly 10 and 35 m, more than the 0.4 °C it gains at the surface.</strong></p>
+<p><strong>Profile assimilation gains almost everywhere</strong> down to 60 m, up to 0.7 °C at the surface, and below that does essentially nothing, within 0.02 °C of the free run all the way to 280 m.</p>
+<p><strong>Alternatives tried:</strong> The model is 1D, so no matter how many stations report, the filter must be handed one value per depth. The freedom is in how that value and its uncertainty are constructed. We tried defining σ from <strong>the observations alone</strong> rather than from the model gap: when the spread <em>between stations</em> is large (from climatology), trust the value less; when a value is derived from <em>more</em> stations at run time, trust it more. We tried localizing the corrections (<a href="#localization">Localization</a>), and arbitrarily prescribing a low σ of 0.3 °C. <strong>The results change only at the surface and none of them improved the comparison against the CTD profiles at depth.</strong></p>
+<p><strong>Verdict:</strong> Profile assimilation shows clearly better gains against CTD, and it appears to do little harm where it has no information; <strong>having profile information over the whole upper 30–40 m seems to be essential for correcting a 1D model.</strong></p>
+<p><strong>Reproduce:</strong> <code>feat/multi-station-obs</code>: Lower Lugano and Lower Zürich setups, <code>notebooks/sigma_rep_from_obs.py</code>.</p>
+<hr />
+<h2 id="sigma">Observation σ<a class="headerlink" href="#sigma" title="Permanent link">&para;</a></h2>
+<p>A single fixed σ by season (<a href="../method/#sigma">Method</a>) is simple, well suited to operational use, and already gives significant improvement across the year and the water column. But the simple recipe has clear drawbacks, and each one suggests a fix:</p>
+<ul>
+<li>Seasonal aggregation assumes a clean mixed/stratified split, at the same calendar dates, across lakes and years. A finer temporal resolution (say monthly) would need more history than we have, and monthly conditions vary a lot from year to year.</li>
+<li>Thermocline layers in summer remain challenging to assimilate.</li>
+<li>Deep observations are trusted far too little, because their true representativeness error is much smaller than the depth-median σ.</li>
+</ul>
+<p>In the tables below, "calibration" is the pooled NIS: 1 is perfectly consistent, below 1 over-cautious, above 1 over-confident.</p>
+<h3 id="sigma-depth">Depth-resolved σ<a class="headerlink" href="#sigma-depth" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ❌ Tested, not adopted · <strong>Lakes:</strong> all seven</p>
+<p><strong>Question:</strong> Does σ resolved by depth, instead of collapsed to a median, do better?</p>
+<p><strong>Setup:</strong> Same fitting concept, resolved by depth.</p>
+<table>
+<thead>
+<tr>
+<th>lake</th>
+<th>gain, simple</th>
+<th>gain, σ(z)</th>
+<th>NIS simple (all / mixed / strat.)</th>
+<th>NIS σ(z) (all / mixed / strat.)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>upperlugano</td>
+<td>−26.3 %</td>
+<td>−25.5 %</td>
+<td>0.55 / 0.73 / 0.51</td>
+<td>0.56 / 0.68 / 0.52</td>
+</tr>
+<tr>
+<td>maggiore</td>
+<td>−28.5 %</td>
+<td>−28.4 %</td>
+<td>0.87 / 0.38 / 1.04</td>
+<td>0.91 / 0.38 / 1.13</td>
+</tr>
+<tr>
+<td>greifensee</td>
+<td>−27.1 %</td>
+<td>−28.5 %</td>
+<td>0.63 / 0.55 / 0.64</td>
+<td>0.65 / 0.41 / 0.73</td>
+</tr>
+<tr>
+<td>geneva</td>
+<td>−42.5 %</td>
+<td>−41.8 %</td>
+<td>1.07 / 1.54 / 0.98</td>
+<td>0.62 / 1.18 / 0.55</td>
+</tr>
+<tr>
+<td>aegeri</td>
+<td>−35.2 %</td>
+<td>−28.5 %</td>
+<td>0.94 / 0.66 / 1.14</td>
+<td>0.75 / 0.63 / 0.79</td>
+</tr>
+<tr>
+<td>hallwil</td>
+<td>−49.2 %</td>
+<td>−50.6 %</td>
+<td>1.00 / 0.54 / 1.46</td>
+<td>0.62 / 0.41 / 0.79</td>
+</tr>
+<tr>
+<td>murten</td>
+<td>−34.2 %</td>
+<td>−30.9 %</td>
+<td>0.60 / 0.96 / 0.50</td>
+<td>0.62 / 0.66 / 0.59</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result:</strong> The structure of the budget looks visibly better: σ now follows the shape of the innovation profile instead of cutting across it. But the overall calibration stays about the same, because fixing the shape redistributes the misfit rather than removing it (the budget is more evenly distributed, not better in the pool). <strong>And the RMSE gain barely moves</strong>, while on Ägeri it gets notably worse (−35.2 → −28.5 %). The level stays too high for the same reason as in the seasonal σ of <code>simplified_final</code>: σ is still fitted on the free run's errors, and the purpose of assimilation is to make exactly those errors smaller, so the filter only ever sees smaller innovations than the ones σ was fitted on if assimilation works (<a href="#sigma-scaled">Rescaled σ</a>).</p>
+<p><strong>Verdict:</strong> The depth fit changes the <em>shape</em> of the uncertainty profile but not its <em>level</em>, and it brings no gain over the seasonal σ: for the moment we see no reason to use it. Fixing the level is the next experiment.</p>
+<p><strong>Reproduce:</strong> <code>feat/da-combi</code>: <code>src/assimilator/sigma_rep.py</code>, <code>notebooks/fit_sigma_gap.py</code>.</p>
+<h3 id="sigma-scaled">Rescaled σ<a class="headerlink" href="#sigma-scaled" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ❌ Tested, not adopted · <strong>Lakes:</strong> all seven</p>
+<p><strong>Question:</strong> The depth fit had the right shape and the wrong amplitude. Does fixing the level help?</p>
+<p><strong>Setup:</strong> Since the free-run fit sets σ generally too high (<a href="#sigma-depth">above</a>), we take a previous run's uncertainty profile and rescale it against <strong>that run's own innovations</strong>, with four numbers per lake to keep the risk of overfitting as low as possible: above and below 4 m (where the seiche filtering starts), for each of the two seasons.</p>
+<figure id="__figure-caption_4">
+<p><img alt="Uncertainty budget: depth-resolved σ (left) vs rescaled (right), Upper Lugano" class="center" src="../../images/18_sigma_depth_vs_scaled.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 4.</span> Uncertainty budget with depth-resolved σ (left) and rescaled σ (right), Upper Lugano 2025.</p>
+</figcaption>
+</figure>
+<table>
+<thead>
+<tr>
+<th>lake</th>
+<th>gain, σ(z)</th>
+<th>gain, scaled</th>
+<th>NIS σ(z) (all / mixed / strat.)</th>
+<th>NIS scaled (all / mixed / strat.)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>upperlugano</td>
+<td>−25.5 %</td>
+<td>−26.9 %</td>
+<td>0.56 / 0.68 / 0.52</td>
+<td>0.91 / 0.96 / 0.89</td>
+</tr>
+<tr>
+<td>maggiore</td>
+<td>−28.4 %</td>
+<td>−25.7 %</td>
+<td>0.91 / 0.38 / 1.13</td>
+<td>1.13 / 0.87 / 1.16</td>
+</tr>
+<tr>
+<td>greifensee</td>
+<td>−28.5 %</td>
+<td>−30.5 %</td>
+<td>0.65 / 0.41 / 0.73</td>
+<td>0.93 / 0.93 / 0.93</td>
+</tr>
+<tr>
+<td>geneva</td>
+<td>−41.8 %</td>
+<td>−41.9 %</td>
+<td>0.62 / 1.18 / 0.55</td>
+<td>0.97 / 1.02 / 0.96</td>
+</tr>
+<tr>
+<td>aegeri</td>
+<td>−28.5 %</td>
+<td>−28.6 %</td>
+<td>0.75 / 0.63 / 0.79</td>
+<td>1.00 / 0.94 / 1.01</td>
+</tr>
+<tr>
+<td>hallwil</td>
+<td>−50.6 %</td>
+<td>−49.9 %</td>
+<td>0.62 / 0.41 / 0.79</td>
+<td>1.05 / 1.01 / 1.07</td>
+</tr>
+<tr>
+<td>murten</td>
+<td>−30.9 %</td>
+<td>−32.8 %</td>
+<td>0.62 / 0.66 / 0.59</td>
+<td>0.94 / 0.99 / 0.91</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result:</strong> Figure 4 compares the two budgets on Upper Lugano. <strong>As a calibration test this works very well</strong>, as expected: every lake lands close to 1. Spring and winter remain hard in opposite directions, which is the price of the remaining two-season approximation. <strong>The RMSE gains move only a little, some up, some down, and the simple setup still beats this calibrated version in several cases:</strong> Some general tendencies are nonetheless visible. Calibration tends to score worse in spring, and that loss sits mainly at the surface. The depth-fitted experiments, on the other hand, tend to score better in deeper water and, for the scaled fit, in the winter months. At the thermocline we cannot generalise: of the two lakes with the largest losses there, Greifensee improves, closing part of its intermediate-depth degradation, while Ägeri gets worse.</p>
+<p><strong>Verdict:</strong> Filter self-consistency and filter accuracy are separate objectives: calibrating does not guarantee any improvement in performance. Calibration can offer a targeted repair at difficult depths and times, but not a reliable one. How well more complex or iterative fits would generalise to other years with the limited data at our disposal also remains questionable.</p>
+<p><strong>Reproduce:</strong> <code>feat/da-combi</code>: <code>src/assimilator/sigma_rep.py</code>, <code>notebooks/fit_scale_by_depth.py</code>.</p>
+<h3 id="fitting-year">Fitting year<a class="headerlink" href="#fitting-year" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ✅ Passes · <strong>Lakes:</strong> Ägeri, Hallwil, Greifensee</p>
+<p><strong>Question:</strong> The seasonal σ is independent of the filter, but not of the evaluation data: it was fitted on 2025, and every result here is scored on 2025. Does that matter? (2025 is the only year with profile observations on all seven lakes.)</p>
+<p><strong>Setup:</strong> Three lakes also have full records for 2023 and 2024 on an unchanged sensor chain. For those we refitted σ on 2023–24 and scored the result on 2025, changing nothing else.</p>
+<table>
+<thead>
+<tr>
+<th>lake</th>
+<th>σ fitted on 2025</th>
+<th>σ fitted on 2023–24</th>
+<th>RMSE gain, 2025 fit</th>
+<th>RMSE gain, 2023–24 fit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>aegeri</td>
+<td>0.24</td>
+<td>0.27</td>
+<td>−35.2 %</td>
+<td>−34.3 %</td>
+</tr>
+<tr>
+<td>hallwil (mixed / strat.)</td>
+<td>0.41 / 0.39</td>
+<td>0.33 / 0.53</td>
+<td>−49.2 %</td>
+<td>−47.7 %</td>
+</tr>
+<tr>
+<td>greifensee (mixed / strat.)</td>
+<td>0.52 / 0.94</td>
+<td>0.52 / 0.91</td>
+<td>−27.1 %</td>
+<td>−27.6 %</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result:</strong> The fitted values do move between years, by up to a third (Hallwil's stratified season, odd case mentioned earlier). The result barely does. The gain changes by at most 1.5 points, and no depth differs by more than 0.03 °C. Hallwil's calibration even improves.</p>
+<p><strong>Verdict:</strong> Where it can be tested, <strong>the choice of fitting year matters much less than one might think and the recipe itself</strong>. Two caveats: the test covers three lakes and one scored year, and the forcing perturbation is still the one fitted on 2025, because the ICON reanalysis it needs does not reach back to 2024.</p>
+<p><strong>Reproduce:</strong> <code>master</code> at <code>20564a9</code>: <code>notebooks/generate_sigma.py</code>, fitted on 2023–24 (now <code>assimilate.py fit sigma</code>).</p>
+<hr />
+<h2 id="online-errors">Learning the errors online<a class="headerlink" href="#online-errors" title="Permanent link">&para;</a></h2>
+<p>The σ fits above are made offline, on a reference year, and assume that year stands for the next ones. Here the errors are learned instead from the filter's own misses (innovations) as the run goes. It is one method with two switches (<code>R_rule</code> and <code>q</code> in <code>pn_online</code>), so three levels:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>All to R</th>
+<th>R split</th>
+<th>R split + model error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Switches</td>
+<td><code>R_rule: consistency</code>, <code>q: false</code></td>
+<td><code>R_rule: split</code>, <code>q: false</code></td>
+<td><code>R_rule: split</code>, <code>q: true</code></td>
+</tr>
+<tr>
+<td>Observation error R</td>
+<td>every excess miss: R² ← gap² − spread²</td>
+<td>only the part of the miss that does not repeat from day to day</td>
+<td>as R split</td>
+</tr>
+<tr>
+<td>Model error</td>
+<td>none</td>
+<td>none</td>
+<td>q, learned from the misses, added as daily noise on the profile</td>
+</tr>
+<tr>
+<td>Ensemble spread</td>
+<td>too small</td>
+<td>too small</td>
+<td>follows the error</td>
+</tr>
+<tr>
+<td>Ägeri 2025: RMSE / NIS (free run 0.461, <code>simplified_final</code> 0.299 / 0.98)</td>
+<td>0.301 / 0.91 (first version: 0.398)</td>
+<td>0.290 / 1.76</td>
+<td><strong>0.275</strong> / 0.67</td>
+</tr>
+<tr>
+<td>Upper Lugano 2025: RMSE (<code>simplified_final</code> 0.612)</td>
+<td>first version: gain −27 % against −26 %</td>
+<td>–</td>
+<td><strong>0.584</strong></td>
+</tr>
+</tbody>
+</table>
+<p>RMSE against the raw hourly observations, NIS from the filter (<a href="../reference/#run-config">scoring</a>).</p>
+<p>The first version of "all to R" is the <a href="#adaptive-sigma">adaptive σ</a> experiment (14-day window, uncentred forcing, no gross-error check). The <a href="#uncertainty-band">learned R and q</a> introduces the split and q on Upper Lugano; the <a href="#online-aegeri">Ägeri check</a> runs all three levels on the lake where the first version failed.</p>
+<h3 id="adaptive-sigma">Adaptive σ<a class="headerlink" href="#adaptive-sigma" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ❌ Replaced by the <a href="#uncertainty-band">learned R and q</a> · <strong>Lakes:</strong> all seven; CTD check on Upper Lugano</p>
+<p><strong>Question:</strong> Can σ follow the innovations as the run goes, with no free run, seasonal split or iterative fit?</p>
+<p><strong>Setup:</strong> At each depth, σ² is the mean squared innovation minus the mean ensemble spread² over the 14 days before each analysis, <code>σ(z,t)² = gap² − spread²</code>, with a 0.05 °C floor. The seasonal σ is used for the first 14 days, until the window fills.</p>
+<figure id="__figure-caption_5">
+<p><img alt="Adaptive σ actually used, native EnKF vs OpenDA chain, against the seasonal σ, Upper Lugano" class="center" src="../../images/19_adaptive_sigma_time.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 5.</span> Adaptive σ actually used, native EnKF vs OpenDA chain, against the seasonal σ, Upper Lugano 2025.</p>
+</figcaption>
+</figure>
+<p><strong>Result:</strong> On Upper Lugano σ climbs through the spring warming at the surface and peaks at the thermocline in October; below 25 m it falls well under the seasonal value (Figure 5). NIS is 1, as the estimator is built to produce, but the pooled RMSE barely moves (−26 → −27 %). The gain sits where the seasonal σ distrusted the observations (e.g. 30 m), and the 23 CTD casts, never assimilated, confirm it (better at 98 of 121 levels in the top 60 m). On the seven lakes NIS ends near 1 everywhere, but only Upper Lugano gets more accurate: the others lose a few points, and <strong>Ägeri loses more than half its gain</strong> (−35.2 → −13.6 %).</p>
+<p><strong>Ägeri shows the failure mode:</strong> from July to October the error grows between 10 and 20 m, at the thermocline (<a href="#online-aegeri">Figure 10</a>). The estimator cannot tell whether a large miss comes from the measurement or from the model, so it always blames the observations. When the model starts misplacing the thermocline the misses grow, σ there climbs from 0.2 to 0.9 °C, the filter stops correcting that depth, and the error keeps growing.</p>
+<p><strong>Verdict:</strong> A self-tuning error model can look perfectly calibrated while degrading accuracy. It leaves two problems, which the <a href="#uncertainty-band">next experiment</a> answers: σ takes every miss, also the persistent ones that come from the model, and the ensemble spread stays as small as before.</p>
+<p><strong>Reproduce:</strong> <code>adaptive_sigma</code>: the <code>adaptive_sigma</code> config block, native engine and OpenDA restart chain; <code>operational_openda-restart</code>: <code>src/assimilator/openda/restart.py</code>, the <code>openda_restart</code> config block.</p>
+<h3 id="uncertainty-band">Learned R and q: an honest uncertainty band<a class="headerlink" href="#uncertainty-band" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> 🔬 Analysis done; 7-day reforecasts are the next step · <strong>Lakes:</strong> Upper Lugano, 2025</p>
+<div class="admonition abstract">
+<p class="admonition-title">In short</p>
+<ul>
+<li><strong>The operational setup is too confident.</strong> In <code>simplified_final</code> the ensemble spread is a quarter of the error (spread/RMSE 0.26). Its band only looks right because of one large, fixed observation error (0.30 °C in winter, 0.59 °C in summer, at every depth).</li>
+<li><strong>R and the model error q can be learned online</strong> from the filter's own misses, with one parameter (a ~20-day memory) and no tables to fit per lake.</li>
+<li><strong>Slightly more accurate, and honest:</strong> RMSE 0.612 → 0.584 °C, CRPS 0.313 → 0.246 °C, and the spread follows the error every month (spread/RMSE 0.98 against the filtered observations).</li>
+<li><strong>What it learns is physical:</strong> R peaks at 0.4 °C at 9 m in summer (internal waves) and stays at the sensor error in winter and at depth; q is largest near the surface in summer.</li>
+</ul>
+</div>
+<p><strong>Question:</strong> <a href="#adaptive-sigma">Adaptive σ</a> left two problems: it blames every miss on the observations, so a drifting model is answered by trusting the data less (the Ägeri runaway), and the ensemble spread stays far smaller than the error (<a href="../open-problems/">Open problems</a>). Can R be learned so that it takes only what really is observation error, and the rest be carried by the ensemble as a model error q?</p>
+<p><strong>Idea:</strong> three sources, kept apart. <strong>R</strong> is what a 1D lake-mean model cannot represent (sensor noise, internal waves). <strong>q</strong> is what it represents but gets wrong, added as a daily noise on the temperature profile, as in FLARE (<a href="../../literature-review/#thomas-2020">Thomas et al., 2020</a>). <strong>Bias</strong> is neither, and is not put into either. R and q are learned from the misses d = observation − forecast, with two standard rules.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Rule</th>
+<th>Why it works</th>
+<th>Reference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>q</strong> (daily model error)</td>
+<td>Each day q² moves by 5 % of (d² − spread² − R²)</td>
+<td>On average the miss must be as large as predicted, d² = spread² + R². Misses too large → q up, too small → q down</td>
+<td>Innovation consistency (Mehra 1970; Li et al. 2009)</td>
+</tr>
+<tr>
+<td><strong>R</strong> (observation error)</td>
+<td>Each day R² moves by 5 % of (d_a·d − d·d_next), using yesterday's miss d, its post-analysis miss d_a and today's miss d_next, at the same depth</td>
+<td>Observation noise is new every day, model error persists: if misses repeat from day to day, the filter trusts the observations too little. R is right when they stop repeating</td>
+<td>Kailath 1968; Mehra 1970; Desroziers et al. 2005</td>
+</tr>
+<tr>
+<td><strong>Memory</strong> λ = 0.95</td>
+<td>Each day counts 5 %, about the last 20 days dominate</td>
+<td>Longer than single events, shorter than the seasons. λ = 0.98 (~50 days) gives the same skill (RMSE 0.585, coverage 0.93)</td>
+<td>–</td>
+</tr>
+</tbody>
+</table>
+<p>The rest of the setup, and how each part is done:</p>
+<ul>
+<li><strong>Shape of the noise in depth (fixed).</strong> Only the size q is learned per depth; how errors at different depths move together is a fixed correlation, one for the mixed and one for the stratified season, measured from the free run's day-to-day error. It matches the correlation of the run's own misses (e.g. 1–3 m 0.70 vs 0.76; 9–13 m in summer −0.29 vs −0.26, the thermocline moving up or down), so it is representative for this lake (and year for now).</li>
+<li><strong>Gross errors.</strong> An observation whose miss is more than 5 standard deviations (NIS &gt; 25) is not assimilated, but still counts when q is learned, so a q that is too small cannot reject the very misses that should raise it.</li>
+<li><strong>No shift of the mean.</strong> Each day's noise is centred across members, so it adds spread without moving the ensemble mean.</li>
+<li><strong>Stable profiles.</strong> After the noise, any density inversion in a member is merged into its volume-weighted mean, so the heat content is unchanged. Only what the noise can cause is touched: 0–50 m (the noise reaches the deepest observation at 40 m and fades to zero over the next 10 m) and inversions larger than 0.001 kg/m³ (about 0.01 °C; the model's own are smaller).</li>
+<li><strong>Start.</strong> R starts at the sensor error (0.05 °C, also its lower limit) and learns only after 15 days, while the ensemble builds its spread; q starts at 0.</li>
+</ul>
+<p><strong>Result (daily DA, 2025):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>RMSE (°C)</th>
+<th>CRPS (°C)</th>
+<th>spread / RMSE</th>
+<th>90 % band incl. R</th>
+<th>spread only</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Free run</td>
+<td>0.831</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td><code>simplified_final</code> (fixed σ, no noise)</td>
+<td>0.612</td>
+<td>0.313</td>
+<td>0.26 (0.15)</td>
+<td>0.95 (0.88)</td>
+<td>10–40 % (10–40 %)</td>
+</tr>
+<tr>
+<td><strong>Learned R and q (<code>pn_online</code>)</strong></td>
+<td><strong>0.584</strong></td>
+<td><strong>0.246</strong></td>
+<td><strong>0.98</strong> (0.43)</td>
+<td>0.94 (0.79)</td>
+<td><strong>80–90 %</strong> (55–85 %) to 25 m</td>
+</tr>
+</tbody>
+</table>
+<p><em>Upper Lugano 2025. RMSE and CRPS against the raw hourly buoy observations; spread/RMSE and the bands against the filtered observations at the 16 assimilated depths, raw in brackets (<a href="../reference/#run-config">scoring</a>). "Spread only": share of observations inside mean ± 1.645 × spread, the part of the band a forecast carries.</em></p>
+<p>Both bands contain about 90 % of the observations, but for different reasons. Against the raw readings the learned band covers less (79 % against 88 %): its R describes the filtered reading, and the internal-wave signal the filtering removes is in neither the spread nor R. The <code>simplified_final</code> band is almost all fixed observation error: ±1 °C at 25–40 m, where the lake changes by hundredths, and so large that the deep water is barely corrected (25 m stays ~0.3 °C too warm, close to the free run). The learned band is tight where the lake is calm and wide where it is not (Figure 6), and its spread matches the error month by month (Figure 7). The learned R has a clear depth structure, unlike the single fixed value (Figure 8), and both R and q follow the seasons (Figure 9): R stays at the sensor error in winter and at 40 m and rises to about 0.5 °C at 9 m in summer, where internal waves move the thermocline; q is largest at 1 and 9 m from spring to September and drops to about 0 at 40 m after May. Inversions stay within what the free run produces itself (below 3 m, at most 1.9 % of hours in July, against 5.5 % in the free run).</p>
+<figure id="__figure-caption_6">
+<p><img alt="Upper Lugano 2025: ensemble mean and 90 % band at 1, 9, 25 and 40 m in three periods" class="center" src="../../images/42_upperlugano_online_bands.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 6.</span> Upper Lugano 2025: hourly filtered observations, free run, and the ensemble mean with its 90 % band for the buoy reading, mean ± 1.645 √(spread² + R²), for <code>simplified_final</code> and the learned R and q, at 1, 9, 25 and 40 m in spring onset, summer and autumn cooling. Under each panel, the share of observations inside each band.</p>
+</figcaption>
+</figure>
+<figure id="__figure-caption_7">
+<p><img alt="Monthly RMSE against spread, and coverage by depth" class="center" src="../../images/43_upperlugano_online_scores.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 7.</span> Upper Lugano 2025, <strong>against the filtered observations</strong> at the 16 assimilated depths: (left) monthly RMSE of the ensemble mean (solid) against the ensemble spread (dashed): spread ≈ RMSE means an honest band; (right) coverage of the 90 % band by depth, with R (solid) and spread only (dashed).</p>
+</figcaption>
+</figure>
+<figure id="__figure-caption_8">
+<p><img alt="R and q by depth, learned against fixed" class="center" src="../../images/44_upperlugano_online_learned.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 8.</span> Upper Lugano 2025, median over each season: (left) observation error R, learned (blue) against the fixed σ of <code>simplified_final</code> (orange); (right) the learned daily model error q. <code>simplified_final</code> has no model error.</p>
+</figcaption>
+</figure>
+<figure id="__figure-caption_9">
+<p><img alt="R and q through 2025 at four depths, learned against fixed" class="center" src="../../images/45_upperlugano_online_time.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 9.</span> Upper Lugano 2025, at 1, 9, 25 and 40 m: (top) observation error R, learned (blue) against the fixed σ of <code>simplified_final</code> (orange), dotted line the 0.05 °C sensor error; (bottom) the learned daily model error q. The first 15 days (warm-up) are not shown.</p>
+</figcaption>
+</figure>
+<p><strong>Limits:</strong></p>
+<ul>
+<li><strong>The R/q split is defined by persistence.</strong> Internal waves lasting several days count as model error, so at 5 m R is smaller than an observation-based estimate.</li>
+<li><strong>q falls slowly after active periods.</strong> It rises within 2–3 weeks but takes 6–7 weeks to come down, because a calm day can lower it only a little and the ensemble keeps its spread. The band is wider than needed in autumn (98–100 % of observations inside).</li>
+<li><strong>Large corrections at the thermocline:</strong> without a step cap, 18 analyses move the water below 4 m by more than 1 °C (largest 2.0 °C). On <a href="#online-aegeri">Ägeri</a> the same happens, less often: 3 analyses above 1 °C (largest 1.4 °C at 4 m in April), and the run is still the most accurate at those depths. The extra spread from q makes the filter trust the observations more, so it corrects in bigger steps. If the aim is to keep jumps and shocks to the model small, the R-only versions are decisively better: on Ägeri no correction exceeds 0.8 °C with the R split, or 0.43 °C with all to R. </li>
+<li><strong>Deep water in summer:</strong> q drops to 0 at 30–40 m, so the spread-only band covers 45–70 % there (errors of a few hundredths of a degree).</li>
+<li><strong>One year, in sample:</strong> Each depth learns q on its own, so the winter profile of q is noisy. A second lake is checked <a href="#online-aegeri">below</a>.</li>
+<li><strong>The depth correlation is measured on 2025 only:</strong> Pooling more years as the record grows (2024–2026 now available) will make it a lake property rather than a property of one year.</li>
+</ul>
+<p><strong>Verdict:</strong> Learned R and q could be an automatic method to run the analysis: as accurate or slightly better than the operational setup (−5 % RMSE, −21 % CRPS against the raw observations), honest about its uncertainty, physically interpretable, one parameter, and standard references for each step.</p>
+<p><strong>Still to do:</strong> score it against the 23 Upper Lugano CTD casts, as adaptive σ. The run on Ägeri is the <a href="#online-aegeri">next section</a>.</p>
+<p><strong>Next step: 7-day reforecasts.</strong> The band has only been tested in the daily cycle (0–24 h).</p>
+<ol>
+<li>
+<p>Rerun the learned R and q with the analysis states saved every 7 days, then run weekly 7-day reforecasts from them with the observed weather, and score them by lead time against persistence and the free run (CRPS, RMSE, coverage).</p>
+</li>
+<li>
+<p><strong>What to look for:</strong></p>
+<ul>
+<li>coverage stays near 90 % from day 1 to day 7 (below: q too small in forecasts; above: too large, e.g. in autumn);</li>
+<li>whether the seasonal surface bias (summer too warm, spring too cold) still dominates the day-7 error;</li>
+<li>whether the forecast ideas below improve the surface at longer leads.</li>
+</ul>
+</li>
+<li>
+<p><strong>Real weather:</strong> archive the ICON ensemble forecasts (lake mean, per member and lead) and repeat with them as forcing, each DA member paired with one weather member. With the observed weather the band is a lower bound; this step makes it a forecast band. Check that the band is not too wide at long leads (q partly absorbs forcing error that the weather ensemble then also carries).</p>
+</li>
+</ol>
+<p><strong>Ideas to improve the forecasts (to test with the reforecasts).</strong> Exploratory reforecasts from an earlier, hand-tuned version point to two ideas. Treat them as hypotheses to confirm, not results:</p>
+<ul>
+<li><strong>Lake wind.</strong> From June to October the station wind used as forcing is 12–25 % weaker than the wind measured on the lake (Castagnola buoy). Idea: scale the forecast wind by the buoy/model ratio of the previous weeks. Look for: a lower surface error at days 3–7 in summer, where the seasonal bias dominates.</li>
+<li><strong>Wind spread.</strong> The members' wind is too alike: the real wind fell inside the members on only about half of the days. Idea: give each member a fixed wind factor between ×0.7 and ×1.4 (spread evenly across members, mean ×1), the typical day-to-day mismatch between lake and station wind. Look for: surface coverage at longer leads, and that the band does not grow too wide (a member stays windier for the whole forecast, while the real mismatch changes within about a day). It should add to q, not replace it (earlier the wind spread explained only about 10 % of the forecast error variance).</li>
+</ul>
+<p><strong>Reproduce:</strong> Branch <code>feat/online_error</code>, config block <code>online_errors</code>.</p>
+<h3 id="online-aegeri">Ägeri check: one method, three levels<a class="headerlink" href="#online-aegeri" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ✅ Done · <strong>Lakes:</strong> Ägeri, 2025</p>
+<p><strong>Question:</strong> Ägeri is where adaptive σ ran away. Does the new method avoid it, and what do the R split and q each add?</p>
+<p><strong>Setup:</strong> Three runs of <code>pn_online</code> that differ only in the two switches (table <a href="#online-errors">above</a>). Everything else as the learned R and q on Upper Lugano: memory λ = 0.95, centred forcing, gross-error check (NIS &gt; 25), R starting at the sensor error 0.05 °C. The depth correlation of q comes from the Ägeri free run. Compared with <code>simplified_final</code> and the first adaptive σ run.</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>RMSE (°C)</th>
+<th>CRPS (°C)</th>
+<th>spread / RMSE</th>
+<th>90 % band incl. R</th>
+<th>NIS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Free run</td>
+<td>0.461</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td><code>simplified_final</code> (fixed σ 0.237)</td>
+<td>0.299</td>
+<td>0.140</td>
+<td>0.22 (0.16)</td>
+<td>0.93 (0.89)</td>
+<td>0.98</td>
+</tr>
+<tr>
+<td>Adaptive σ, first version</td>
+<td>0.398</td>
+<td>0.170</td>
+<td>0.15 (0.12)</td>
+<td>0.93 (0.88)</td>
+<td>0.90</td>
+</tr>
+<tr>
+<td>All to R</td>
+<td>0.301</td>
+<td>0.131</td>
+<td>0.21 (0.16)</td>
+<td>0.93 (0.87)</td>
+<td>0.91</td>
+</tr>
+<tr>
+<td>R split</td>
+<td>0.290</td>
+<td>0.128</td>
+<td>0.17 (0.12)</td>
+<td>0.82 (0.76)</td>
+<td>1.76</td>
+</tr>
+<tr>
+<td><strong>R split + model error</strong></td>
+<td><strong>0.275</strong></td>
+<td><strong>0.100</strong></td>
+<td><strong>0.76</strong> (0.49)</td>
+<td>0.94 (0.88)</td>
+<td>0.67</td>
+</tr>
+</tbody>
+</table>
+<p><em>Ägeri 2025, 2,503 profile times. RMSE and CRPS against the raw hourly profiler at all 239 depths; spread/RMSE and the band against the filtered profiler at the 22 assimilated depths, raw in brackets; NIS from the filter (<a href="../reference/#run-config">scoring</a>). The ported code (<code>online_errors</code>) reproduces both levels it was run on: R split + q 0.276 °C, R split identical up to 10 May.</em></p>
+<figure id="__figure-caption_10">
+<p><img alt="Ägeri 2025: observation error through the year, and RMSE by depth" class="center" src="../../images/46_aegeri_online_R.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 10.</span> Ägeri 2025: (left) observation error at 2, 10, 14, 18 and 30 m: the first adaptive σ (rebuilt from its saved misses), all to R, R split without and with q, and the fixed σ of <code>simplified_final</code>; (right) RMSE by depth <strong>against the filtered profiler</strong>, over all 2025 profile times and all profiler depths, with each run's RMSE over the whole profile (raw values in the table above).</p>
+</figcaption>
+</figure>
+<p><strong>Result:</strong> Figure 10 shows three steps.</p>
+<ul>
+<li><strong>All to R no longer runs away.</strong> With the new settings it is as accurate as <code>simplified_final</code> (0.301 against 0.299 °C), against 0.398 for the first version. Which setting stopped it (centred forcing, the gross-error check, the memory, or the start at 0.05 °C) is not separated. The mechanism is still visible, only weaker and later: at 14 m R climbs to 0.9 °C in November, against 0.24 °C for the fixed σ (the first version climbed earlier and higher).</li>
+<li><strong>The split keeps R physical.</strong> R stays at or below about 0.45 °C at every depth and the thermocline bulge disappears (RMSE 0.290). But without q nothing carries the misses it takes out of R: the filter is over-confident (NIS 1.76, the band holds 82 %).</li>
+<li><strong>q gives the main gain.</strong> RMSE 0.301 → 0.275 °C and CRPS 0.131 → 0.100, lowest at 165 of the 239 depths and within 0.01 °C of the best at 228 (12–14 m: 0.43–0.54 → 0.38–0.51 °C), and the spread rises from a fifth to three quarters of the error. With NIS 0.67 it is now somewhat cautious.</li>
+</ul>
+<p><strong>Verdict:</strong> The same story as on Upper Lugano. Use the split: R then stays physical whatever the model does. Add q whenever the spread matters, which is always for a forecast band; without it the filter is over-confident. The old failure is the reason for the split, but on Ägeri the new settings had already removed most of it.</p>
+<p><strong>Reproduce:</strong> Branch <code>feat/online_error</code>, config block <code>online_errors</code>.</p>
+<hr />
+<h2 id="model-spread">Model spread and structure<a class="headerlink" href="#model-spread" title="Permanent link">&para;</a></h2>
+<p>The problems above all point to an under-dispersed ensemble (<a href="../open-problems/">Open problems</a>). These experiments look at the model side.</p>
+<h3 id="localization">Vertical localization<a class="headerlink" href="#localization" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> (✅) Positive, potentially to be adopted · <strong>Lakes:</strong> all seven (radii); example Greifensee</p>
+<p><strong>Question:</strong> Do the failures in the deeper layers come from spurious correlations? With 20 members, a small correlation is potentially indistinguishable from sampling noise, and without a limiting mechanism the filter acts on it anyway. Besides, observations often stop well before the lake floor, and stratification complicates the profiles. Localization forces small correlations to zero instead of trusting them.</p>
+<figure id="__figure-caption_11">
+<p><img alt="Localization taper: correlation weight by state depth and observation depth" class="center" src="../../images/22_localization_taper.png" width="380" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 11.</span> Localization taper: correlation weight by state depth and observation depth.</p>
+</figcaption>
+</figure>
+<p><strong>Setup:</strong> Radii are derived offline, per lake, from a free ensemble (perturbed forcing, no analysis) in the stratified season: the ensemble anomalies (each member minus the ensemble mean) are correlated between depths, pooled over all members and times, and the radius at a given depth is the smallest separation at which that correlation first drops below a threshold of 0.45. That is 2/√20, the level below which a correlation estimated from 20 members cannot be told apart from sampling noise (two-sided 5 %): links weaker than this are ones our 20-member filter would mostly act on by chance. The radius is then used as the support of a smooth taper (Figure 11) (weight 1 at zero separation, falling to 0 at the radius). Two matrices built from the taper modify the Kalman gain. The radii come out narrow near the surface, where the gradient is sharp, and wider with depth, where the column is more coherent. Conceptually, corrections from far-away cells shrink, less spread is removed in general, and the extra spread gives a larger gain on the links that remain. Implementation details are in <a href="#localization-implementation">Localization implementation</a>.</p>
+<figure id="__figure-caption_12">
+<p><img alt="Greifensee August profile: without localization (left) and with (right)" class="center" src="../../images/23_localization_greifensee.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 12.</span> Greifensee, August 2025: error profile without localization (left) and with it (right).</p>
+</figcaption>
+</figure>
+<p><strong>Result:</strong> On Greifensee in August for example, localization brings the pooled error from 1.32 to 0.93 °C (Figure 12, left) instead of 0.97 °C (right), and trims the worst analysis error at 7.1 m from 1.76 to 1.57 °C. But the band between about 6 and 14 m is still worse than the free run in both cases. <strong>The improvements, when present, remain small.</strong></p>
+<p><strong>Verdict:</strong> <strong>Long-range spurious correlations don't seem to be a central problem in our lakes in the current set up.</strong> We provide localization as an optional element rather than part of the operational configuration.</p>
+<p><strong>Next step:</strong> The scheme is measured per lake and ready to be tested and integrated where that stops being true: with more spread at depth, or in 3D, where spurious horizontal correlations are a bigger concern (<a href="#3d">3D</a>).</p>
+<p><strong>Reproduce:</strong> <code>feat/da-combi</code>: <code>src/assimilator/localization.py</code>, <code>notebooks/localization.py</code>.</p>
+<h4 id="localization-implementation">Localization implementation<a class="headerlink" href="#localization-implementation" title="Permanent link">&para;</a></h4>
+<p>Radii are derived offline per lake from a free ensemble run in the stratified season (<code>notebooks/localization.py</code>): member anomalies are correlated between model depths, pooled over (member, time), and the radius at a depth is the smallest separation at which that correlation first drops below the threshold (0.45 = 2/√20, the sampling floor of a 20-member ensemble). The stratified radius is used all year: in a mixed column it localizes harder than needed, which discards some real information but never lets a spurious correlation through. That radius is the <strong>support</strong> of a Gaspari–Cohn taper: weight 1 at zero separation, falling smoothly to exactly 0 at the radius. Two matrices are built from it: a <em>(state, obs)</em> taper for <code>PHᵀ</code> and an <em>(obs, obs)</em> taper for <code>HPHᵀ</code>.</p>
+<p><strong>Both sides must be tapered, not just <code>PHᵀ</code>:</strong> The tempting shortcut is to taper only the cross-covariance, since that is the term that spreads the correction. But the gain also contains <code>(HPHᵀ + R)⁻¹</code>, and if that inverse is still built for the <em>full</em> observation set, the two halves of the gain disagree about which observations exist.</p>
+<p><strong>The taper must not be a boxcar:</strong> A binary on/off mask can produce a correlation structure that is no longer positive semi-definite: negative eigenvalues, and a covariance matrix that is mathematically invalid.</p>
+<p>The taper accepts two arbitrary depth axes; per-depth radii are interpolated from the table and held <strong>flat past the table's ends</strong> rather than extrapolated; and the support of a pair is the <strong>mean</strong> of the two radii, which is what keeps ρ symmetric. Deleting <code>localization/&lt;lake&gt;.json</code> is the kill switch; the scheme falls back to a flat 5 m radius.</p>
+<p>The intended consequence is that nothing far below the deepest observation gets updated. The deep water free-runs, and that is correct behaviour rather than a limitation: there is no information down there, so the model should be trusted rather than nudged by noise.</p>
+<h3 id="param-sensitivity">Parameter sensitivity<a class="headerlink" href="#param-sensitivity" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> 🔬 Open · <strong>Lakes:</strong> Upper Lugano</p>
+<p><strong>Question:</strong> An obvious source of additional spread is the model itself. Three clear candidates, all already used in Simstrat's own calibration: <code>f_wind</code> (wind factor: wind speed is multiplied by it), <code>p_lw</code> (longwave radiation factor: longwave irradiance is multiplied by it) and <code>a_seiche</code> (seiche factor: how much wind energy is absorbed by internal waves). How much spread could they give, and where?</p>
+<p><strong>Setup:</strong> Seven continuous free runs over 2025, identical unperturbed forcing and identical warm start: control plus a low/high pair per parameter (<code>f_wind</code> ±10 %, <code>p_lw</code> ±3 %, <code>a_seiche</code> ×3 / ÷3, all inside the lake-calibrator bounds). Shown with the control subtracted, at 1, 11 and 30 m, against raw hourly observations. Light grey is the free ensemble from forcing perturbation; darker grey the assimilated one.</p>
+<figure id="__figure-caption_13">
+<p><img alt="Parameter sensitivity envelopes at 1, 11 and 30 m, 2025" class="center" src="../../images/24_parameter_sensitivity.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 13.</span> Parameter sensitivity envelopes at 1, 11 and 30 m, Upper Lugano 2025, control subtracted, against raw hourly observations; light grey: free forcing ensemble, darker grey: assimilated ensemble.</p>
+</figcaption>
+</figure>
+<p><strong>Result:</strong> In Figure 13, at <strong>1 m</strong>, the error to explain reaches −2 °C in midsummer. The AR(1) forcing ensemble is about ±0.3 °C. The parameter envelopes reach 0.5–1.2 °C. At <strong>11 m</strong>, observations minus free run peaks near +3 °C in September. The forcing spread is still around ±0.3 °C, but <code>a_seiche</code> and <code>f_wind</code> open to about ±1 °C, and they open <em>in the stratified season</em>, which is exactly where more spread would be particularly helpful. At <strong>30 m</strong> the error is smaller, but more spread would still help.</p>
+<p><strong>Verdict:</strong> Parameter variability could be a viable way to insert uncertainty into the deep column. Two ways to use it follow: perturbing the parameters, or estimating them.</p>
+<p><strong>Reproduce:</strong> Not in the repository; easily reproducible, scripts available from the author on request.</p>
+<h3 id="param-perturbation">Parameter perturbation<a class="headerlink" href="#param-perturbation" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> (✅) Positive, potentially to be adopted · <strong>Lakes:</strong> Upper Lugano</p>
+<p><strong>Question:</strong> Parameter differences are structural, so the analysis should have a harder time collapsing them, and it moves uncertainty away from the observation error and toward the model, where it partly belongs: more model spread means the observations are trusted more. Does it help the filter?</p>
+<p><strong>Setup:</strong> Seven assimilation experiments, native EnKF (seasonal σ). The only thing that changes is which model parameter is spread across the members, and by how much. Members are spread deterministically around the calibrated value, and the control member keeps it.</p>
+<table>
+<thead>
+<tr>
+<th>perturbation</th>
+<th>mean spread (°C)</th>
+<th>spread below 19 m</th>
+<th>pooled NIS</th>
+<th>RMSE, hourly</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none (operational)</td>
+<td>0.072</td>
+<td>0.033</td>
+<td>0.55</td>
+<td>−26.3 %</td>
+</tr>
+<tr>
+<td><code>a_seiche_w</code> ×/÷ 5</td>
+<td>0.072</td>
+<td>0.033</td>
+<td>0.55</td>
+<td>−26.3 %</td>
+</tr>
+<tr>
+<td><code>f_wind</code> ±10 %</td>
+<td>0.074</td>
+<td>0.034</td>
+<td>0.54</td>
+<td>−26.5 %</td>
+</tr>
+<tr>
+<td><code>a_seiche</code> ×/÷ 5</td>
+<td>0.082</td>
+<td>0.039</td>
+<td>0.55</td>
+<td>−26.1 %</td>
+</tr>
+<tr>
+<td><code>p_lw</code> ±5 % + <code>a_seiche</code> ±80 %</td>
+<td>0.084</td>
+<td>0.036</td>
+<td>0.50</td>
+<td>−27.3 %</td>
+</tr>
+<tr>
+<td><code>p_lw</code> ±10 %</td>
+<td>0.090</td>
+<td>0.035</td>
+<td>0.49</td>
+<td>−27.4 %</td>
+</tr>
+<tr>
+<td><code>f_wind</code> ±50 %</td>
+<td>0.108</td>
+<td>0.052</td>
+<td>0.48</td>
+<td>−27.3 %</td>
+</tr>
+<tr>
+<td><code>p_lw</code> ±25 %</td>
+<td>0.116</td>
+<td>0.037</td>
+<td>0.44</td>
+<td>−28.3 %</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result:</strong> <strong>It works in the direction predicted, but it is small.</strong> More parameter spread gives a slightly better analysis. The best case, <code>p_lw</code> ±25 %, moves RMSE from −26.3 % to −28.3 %, and it cuts the total depth-months made worse by assimilation from 41 to 25 out of 192. The corrections become bigger (median 0.013 → 0.017 °C at the surface), which is what a filter with a wider ensemble is supposed to do.</p>
+<p><strong>The amplitudes in parameter perturbations that achieve this are not defensible.</strong> <code>p_lw</code> ±25 % is an eightfold exaggeration of the ±3 % used in the sensitivity test, and the calibrated values across our seven lakes span less. The perturbations we <em>can</em> eventually justify (<code>f_wind</code> ±10 %, <code>a_seiche</code> ×/÷ 5) change essentially nothing: 0.072 → 0.074 and 0.082 °C of spread. <strong>σ still dominates</strong> and the imbalance grows with depth.</p>
+<figure id="__figure-caption_14">
+<p><img alt="Upper Lugano: ensemble spread vs actual error, daily and 3-day, with and without p_lw ±10 %" class="center" src="../../images/25_plw_daily_vs_3day.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 14.</span> Upper Lugano 2025: ensemble spread (solid) vs actual error (dashed) and σ (grey), daily and 3-day assimilation, with and without p_lw ±10 %.</p>
+</figcaption>
+</figure>
+<p><strong>Where it becomes interesting is at lower frequency:</strong> In Figure 14, solid lines are ensemble spread, dashed the actual error it should cover, grey σ. With <code>p_lw</code> ±10 %, the spread grows by about a quarter at daily frequency, and by more than a third when assimilating every 3 days, because the parameter differences have longer to act between analyses. At 3 days this is enough to bring the accuracy back to almost exactly the daily result, while assimilating a third of the profiles.</p>
+<p><strong>Verdict:</strong> Not adopted at defensible amplitudes; only worth it at lower assimilation frequencies.</p>
+<p><strong>Next step:</strong> The 3-day result is a quick test only: the deepest measurement actually got worse, so the way the additional spread is generated needs more care, but it is a promising direction.</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+<h3 id="joint">Joint state–parameter estimation<a class="headerlink" href="#joint" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> 🔬 Open · <strong>Lakes:</strong> Upper Lugano</p>
+<p><strong>Question:</strong> Instead of fixing the parameter spread, can the filter estimate the parameters together with the temperature? There is precedent in the literature (e.g. the FLARE framework of <a href="../../literature-review/#thomas-2020">Thomas et al. (2020)</a>).</p>
+<p><strong>Setup:</strong> The filter updates <code>f_wind</code>, <code>p_lw</code> and <code>a_seiche</code> at every analysis. At the start each of the 20 members draws its own set of values around the calibrated ones: <code>p_lw</code> with a 5 % spread in logit space, bounded to 0.8–1.2; <code>a_seiche</code> and <code>f_wind</code> in log space, with a spread of ×1.65 and about 10 %. The transforms keep the parameters positive and within bounds, and the draws are stratified and shuffled so the three parameters start uncorrelated. The transformed parameters are appended to each member's temperature profile as an extended state. Since they are not observed, they change only through their ensemble covariance with the observed temperatures, and the temperature update itself is unchanged. Between analyses they stay fixed. Each update narrows their spread; a floor holds the spread from collapsing.</p>
+<figure id="__figure-caption_15">
+<p><img alt="Joint state–parameter estimation: the three parameters through 2025, coloured by month" class="center" src="../../images/26_joint_parameter_cloud.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 15.</span> Joint state–parameter estimation, Upper Lugano 2025: the members' values of the three parameters, coloured by month; the star marks the calibrated values.</p>
+</figcaption>
+</figure>
+<p><strong>Result:</strong> The cloud in Figure 15 shows the members' values through 2025, coloured by month; the star marks the calibrated values. <strong>They do not converge.</strong> They keep moving with the seasons, with much less wind and much more seiche mixing in summer, and the longwave factor pinned to its lower bound. The filter is using the parameters to absorb the seasonal bias. The accuracy ends up the same as without updating them, but reached in a different way.</p>
+<p><strong>Verdict:</strong> That opens real questions. Can a parameter be updated daily? Is 20 members enough for a joint state? Do the parameters stay physically defensible (broad bounds help, but probably something tighter is needed)? And there is an underlying attribution problem: we change the model's physics and its state at the same time on limited evidence, so the parameters can absorb errors that aren't theirs, and they trade off against each other.</p>
+<p><strong>Next step:</strong> A single run both corrects the temperatures and yields a distribution of the parameters, which could be a cheap first estimate to compare against a traditional calibration or to analyse potential systematic model failures. Coming back to the spread question, the next step would be adding justified random variability to the model state itself: structural uncertainty through state perturbation (see <a href="#uncertainty-band">Uncertainty band</a>).</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+<h3 id="deep-mixing">Deep mixing<a class="headerlink" href="#deep-mixing" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> 🔬 Open · <strong>Lakes:</strong> Lake Lugano, 1987–2025</p>
+<p><strong>Question:</strong> Can assimilation improve the representation of deep mixing in Simstrat?</p>
+<p><strong>Setup:</strong> The buoy stops at 40 m, but for Lake Lugano there are almost 40 years of CTD casts, one every two weeks, down to 280 m, and we started by assimilating those. The profiles were thinned to a coarser grid as described in <a href="../method/#observations">Method</a>; the seiche filtering is not possible on fortnightly casts.</p>
+<figure id="__figure-caption_16">
+<p><img alt="Lake Lugano, 1987–2025: model − observation, free run vs CTD assimilation" class="center" src="../../images/27_deep_mixing_ctd.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 16.</span> Lake Lugano, 1987–2025: model − observation, free run vs CTD assimilation; arrows mark the winters the lake mixed below 100 m.</p>
+</figcaption>
+</figure>
+<p><strong>Result:</strong> The free run starts too cold in the deep water and slowly builds up a warm bias. It mixes all the way below 100 m in 10 winters, while the lake did so in only two (the arrows in Figure 16). With assimilation the deep temperatures are corrected: <strong>RMSE between 30 and 100 m almost halves, 0.29 → 0.16 °C</strong>, and at 1 m it drops from 0.88 to 0.79 °C.</p>
+<figure id="__figure-caption_17">
+<p><img alt="Independent check against the 2025 Upper Lugano buoy" class="center" src="../../images/28_deep_mixing_buoy_check.png" width="380" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 17.</span> Independent check of the CTD-assimilated run against the 2025 Upper Lugano buoy.</p>
+</figcaption>
+</figure>
+<p>Against the 2025 buoy, which this run never saw, the error still drops from 0.83 to 0.72 °C. <strong>But look at the dotted lines in Figure 17: deep mixing becomes more frequent, 15 winters instead of 10.</strong></p>
+<p><strong>Verdict:</strong> For now, assimilating temperature fixes the temperature but tends to make the mixing worse. Correcting the state may change when and how deep the model overturns.</p>
+<p><strong>A later finding may explain part of this:</strong> the forcing perturbation makes every member windier than the control (<a href="#centred-forcing">Centred forcing perturbations</a>), and more wind brings more mixing. The Lugano run above was made before this was found, with uncentred forcing. On Geneva, with centred forcing, the free run and the assimilated run mix to the bottom in the same winters (both still too often), but Geneva has not been run without centring, so the comparison is indirect. The Lugano run has not yet been repeated with centred forcing.</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+<h3 id="3d">The same layout in 3D<a class="headerlink" href="#3d" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> (✅) Positive, potentially to be adopted · <strong>Lakes:</strong> Lake Lugano (Delft3D-FLOW), one-month test window</p>
+<p><strong>Question:</strong> Does the ensemble DA layout transfer to a 3D model, so that it can sit beside Simstrat in the module as an optional engine?</p>
+<p><strong>Setup:</strong> Delft3D-FLOW on Lake Lugano, driven the same way: OpenDA treats the model as a black box, writes a restart file, launches the model in a container, reads the output, adjusts the restart, and repeats, so the simulation advances window by window. The model is expensive, so these experiments use 7 members instead of 20. A big new thing in 3D is that the covariance also spreads a single station's correction <em>horizontally</em> to nearby cells, so one buoy can inform a whole region. That is attractive, because we have few stations, and risky at the same time: with seven members, spurious horizontal correlations become a real concern, more so than in 1D.</p>
+<figure id="__figure-caption_18">
+<p><img alt="Satellite surface temperature, Lake Lugano, DA improvement" class="center" src="../../images/29_lugano_satellite.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 18.</span> Delft3D-FLOW, Lake Lugano: satellite surface temperature (left) and cells where the assimilated run is closer to it than the operational run (right, green).</p>
+</figcaption>
+</figure>
+<p><strong>Result:</strong> Surface-only assimilation of the five stations around Lake Lugano gives promising first results: against a satellite surface-temperature snapshot (Figure 18, left), the assimilated run is closer than the operational Alplakes run in 94 % of the cells (right, green).</p>
+<p><strong>Next step:</strong> The first results point clearly at the need for a vertical localization mechanism, or for deep measurements where they exist. Beyond that, it opens up possibilities to explore also assimilating the satellite surface temperature itself, providing the whole lake surface, but at lower resolution.</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+<hr />
+<h2 id="recent-work">Recent work<a class="headerlink" href="#recent-work" title="Permanent link">&para;</a></h2>
+<p>Work started after the results above. Numbers are preliminary, and the runs are not part of the operational setup.</p>
+<h3 id="variability">Does assimilation disturb the model's natural variability?<a class="headerlink" href="#variability" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> ✅ Passes · <strong>Lakes:</strong> Upper Lugano, 2025</p>
+<p><strong>Question:</strong> A daily correction is a jump in the model state. Does it leave the model's own oscillations intact, or does it add artificial ones?</p>
+<p><strong>Setup:</strong> The operational setup (<code>simplified_final</code>: 20 members, one analysis a day at 06 UTC) against the free run, over 2025. Power spectra of the hourly temperature at every depth (one FFT over the year) for the free run, the ensemble mean with assimilation, and the buoy observations (the raw 10-minute record averaged to hourly, not filtered, so that the variability being compared is still in it); plus the mean absolute hourly temperature change by hour of day.</p>
+<figure id="__figure-caption_19">
+<p><img alt="Upper Lugano: spectral energy by depth and period, without and with DA, and at 0.5, 11 and 40 m" class="center" src="../../images/30_da_spectra.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 19.</span> Upper Lugano 2025, <code>simplified_final</code>: spectral energy of hourly temperature by depth and period, without and with DA and their ratio (top); spectra at 0.5, 11 and 40 m with the observations (middle); spectra of the model − observation error (bottom).</p>
+</figcaption>
+</figure>
+<p><strong>Result so far:</strong> The assimilated run keeps generally the spectral shape of the free run at every depth (Figure 19), so the model's natural behaviour is preserved. At short periods (days to hours) and at 11 and 40 m, the energy with assimilation lies between the free run and the observations: it moves towards the real lake, which has far more short-period energy than the 1D model. </p>
+<figure id="__figure-caption_20">
+<p><img alt="Upper Lugano: mean absolute hourly temperature change by hour of day, without and with DA" class="center" src="../../images/31_da_hourly_change.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 20.</span> Upper Lugano 2025, <code>simplified_final</code>: mean absolute hourly temperature change by hour of day at 0.5, 11 and 40 m, without and with DA; the update falls in the 06 → 07 UTC step.</p>
+</figcaption>
+</figure>
+<p>Each update is a single step (Figure 20, the 06 → 07 UTC hour), with no oscillation after it; in every other hour the assimilated run changes like the free run.</p>
+<p><strong>Next step:</strong> Results support the claim in <a href="../overview/">Overview</a> that the shocks are not generating artificial oscillations and that the scheme is safe to run unattended.</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+<h3 id="to2-profiler">Oxygen assimilation<a class="headerlink" href="#to2-profiler" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> (✅) Positive, potentially to be adopted · <strong>Lakes:</strong> Ägeri (Nov 2022 – Jun 2026), Murten (Jun 2022 – Jun 2026)</p>
+<p><strong>Question:</strong> Can the same filter correct dissolved oxygen as well as temperature, and what does the vertical coverage of the oxygen data change?</p>
+<p><strong>Setup:</strong> Temperature and oxygen are assimilated together, with their updates decoupled (temperature observations correct only temperature, oxygen only oxygen), a seasonal σ for oxygen, and a small white noise (standard deviation 2 mmol/m³) on every member's oxygen after each analysis, to widen an oxygen spread that was far below its innovations. Here the profilers are assimilated and the CTD casts are only used for scoring; the next two experiments change which data go in:</p>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>Ägeri</th>
+<th>Murten</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Profiler, temperature</td>
+<td>23 depths, 2–79 m</td>
+<td>35 depths, 0.5–43 m</td>
+</tr>
+<tr>
+<td>Profiler, oxygen</td>
+<td>23 depths, 2–79 m</td>
+<td>3 depths: 25, 40 and 41 m</td>
+</tr>
+<tr>
+<td>Profiler period, as assimilated</td>
+<td>Nov 2022 – Oct 2026, seiche-filtered, one profile a day at 23 UTC</td>
+<td>Jun 2022 – Jul 2026 (oxygen from Dec 2022), seiche-filtered, one profile a day at 04 UTC</td>
+</tr>
+<tr>
+<td>CTD casts (T and O₂)</td>
+<td>14 casts, about quarterly, Dec 2022 – Mar 2026, 0.5–78.5 m</td>
+<td>42 casts, about monthly, Jul 2022 – Dec 2025, 0.5–42.5 m</td>
+</tr>
+<tr>
+<td><a href="#to2-profiler">Oxygen assimilation</a></td>
+<td>profiler in, casts for scoring</td>
+<td>profiler in, casts for scoring</td>
+</tr>
+<tr>
+<td><a href="#depth-thinning">Depth thinning</a></td>
+<td>5 of the 23 profiler depths in, all profiler depths and casts for scoring</td>
+<td>–</td>
+</tr>
+<tr>
+<td><a href="#ctd-interpolation">CTD interpolation</a></td>
+<td>casts in, profiler for scoring</td>
+<td>casts in, profiler for scoring</td>
+</tr>
+</tbody>
+</table>
+<p>Ägeri's profiler is high-resolution both in time and in depth; Murten's is high-resolution in time, but measures oxygen only in the deep water.</p>
+<figure id="__figure-caption_21">
+<p><img alt="Ägeri: RMSE profiles of T and O₂, free run vs EnKF, against the profiler and the CTD casts" class="center" src="../../images/32_aegeri_to2_profiler.png" width="700" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 21.</span> Ägeri, Nov 2022 – Jun 2026, profiler assimilated: RMSE profiles of T and O₂, free run vs EnKF, against the profiler (top) and the CTD casts (bottom).</p>
+</figcaption>
+</figure>
+<p><strong>Result so far.</strong></p>
+<ul>
+<li><strong>Ägeri: large improvement (Figure 21):</strong> O₂ error against the profiler drops by about 45 % (46 → 25 mmol/m³), and is spread more evenly over the column, with large gains at 10–20 m and again in the deep water, but not directly at the lake bed. Temperature 0.52 → 0.32 °C.</li>
+<li><strong>Murten: smaller improvement (Figure 22):</strong> O₂ drops by about 18 % against the CTD casts (69 → 57 mmol/m³), mostly at the deeper levels near the three oxygen sensors. Temperature 0.79 → 0.45 °C against the profiler.</li>
+</ul>
+<figure id="__figure-caption_22">
+<p><img alt="Murten: RMSE profiles of T and O₂, free run vs EnKF" class="center" src="../../images/34_murten_to2_profiler.png" width="700" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 22.</span> Murten, Jun 2022 – Jun 2026, profiler assimilated: RMSE profiles of T and O₂, free run vs EnKF, against the profiler (top) and the CTD casts (bottom).</p>
+</figcaption>
+</figure>
+<figure id="__figure-caption_23">
+<p><img alt="Ägeri, 31 October 2024: O₂ profile, observations (red), free run (dashed) and EnKF (blue)" class="center" src="../../images/33_aegeri_o2_bottom_profile.png" width="320" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 23.</span> Ägeri, 31 October 2024: O₂ profile, observations (red), free run (dashed) and EnKF (blue).</p>
+</figcaption>
+</figure>
+<p>The filter struggles right above the lake bed. In the example of Figure 23 the assimilated profile (blue) fits the observations (red) as well as it can, but keeps the wrong shape at the bottom. This points to a structural model error: the model cannot simulate the oxygen depletion at the bottom boundary.</p>
+<p><strong>Verdict so far:</strong> Vertical coverage matters, and the bottom boundary has to be fixed in the model, not by assimilation.</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+<h3 id="depth-thinning">Observation depth thinning<a class="headerlink" href="#depth-thinning" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> (✅) Positive, potentially to be adopted · <strong>Lakes:</strong> Ägeri</p>
+<p><strong>Question:</strong> How many depths do we need for a useful improvement? If the filter can interpolate vertically, fewer sensors could be enough in the field.</p>
+<p><strong>Setup:</strong> Same Ägeri profiler data as above, temperature and oxygen, but keep only 5 of the 23 depths (2, 10, 20, 40, 70 m; a second layout 2, 7, 15, 45, 70 m) and score against all profiler depths and hours, with the 23-depth run as reference.</p>
+<figure id="__figure-caption_24">
+<p><img alt="Ägeri: 5 assimilated depths (blue) vs 23 (dashed) vs free run" class="center" src="../../images/35_aegeri_to2_thinned.png" width="700" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 24.</span> Ägeri: RMSE profiles with 5 assimilated depths (blue) vs 23 (dashed) vs free run; red fill where 5 depths are worse than the free run.</p>
+</figcaption>
+</figure>
+<p><strong>Result so far:</strong> With 5 depths, about 35–40 % of the temperature gain (0.52 → 0.45 °C, against 0.32 with 23 depths) and about 70 % of the oxygen gain (46 → 31 mmol/m³, against 25) remain. These are scored on the profiler, of which the 5-depth run assimilates a few depths; against the CTD casts, which neither run assimilates, the shares are almost the same (about 40 % for temperature, 0.43 → 0.35 °C against 0.24; about 70 % for oxygen, 47 → 34 mmol/m³ against 28). The deep levels above the bottom keep good gains with just a few measurements; the rest to a lower extent. Each layout opens possible new gaps between its sensors (red areas in Figure 24, where the filter is worse than the free run) and the oxygen and temperature structure of each lake needs to carefully be taken into account and requires more study.</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+<h3 id="ctd-interpolation">CTD casts as a temporal interpolator<a class="headerlink" href="#ctd-interpolation" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> (✅) Positive, potentially to be adopted · <strong>Lakes:</strong> Ägeri, Murten</p>
+<p><strong>Question:</strong> Many lakes have only monthly or quarterly CTD casts. With only those assimilated, does the run give realistic profiles <em>between</em> the casts?</p>
+<p><strong>Setup:</strong> Assimilate the CTD casts (T and O₂) instead of the profiler: 14 casts on Ägeri, 42 on Murten (see the <a href="#to2-profiler">data table</a>); the high-resolution profiler, never seen by the filter, becomes an independent check of the interpolation in time. Note the rows in Figures 25 and 26 are swapped with respect to the profiler runs: top row = independent profiler, bottom row = the assimilated casts, one hour after the analysis.</p>
+<figure id="__figure-caption_25">
+<p><img alt="Ägeri: CTD assimilation, scored against the independent profiler (top) and the casts (bottom)" class="center" src="../../images/36_aegeri_to2_ctd.png" width="700" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 25.</span> Ägeri, CTD casts assimilated: RMSE profiles against the independent profiler (top) and the casts, one hour after the analysis (bottom).</p>
+</figcaption>
+</figure>
+<p><strong>Result so far:</strong></p>
+<ul>
+<li><strong>Ägeri: it works essentially only in the deep water:</strong> Between casts, O₂ at 50–80 m stays closer to the profiler than the free run; above about 40 m it is no better than the free run. Overall about −10 % (O₂ 46 → 41 mmol/m³, T 0.52 → 0.48 °C), not evenly distributed.</li>
+<li><strong>Murten: similar (Figure 26).</strong> Gains where observations are available (O₂ 62 → 53 mmol/m³, T 0.79 → 0.65 °C). Here we would have expected oxygen gains up to about 15 m.</li>
+</ul>
+<figure id="__figure-caption_26">
+<p><img alt="Murten: CTD assimilation, scored against the independent profiler (top) and the casts (bottom)" class="center" src="../../images/37_murten_to2_ctd.png" width="700" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 26.</span> Murten, CTD casts assimilated: RMSE profiles against the independent profiler (top) and the casts, one hour after the analysis (bottom).</p>
+</figcaption>
+</figure>
+<p>These runs need the forcing ensemble centred on the original forcing, because the observations are weeks apart (<a href="#centred-forcing">Centred forcing perturbations</a>).</p>
+<p><strong>Verdict so far:</strong> Assimilation is a promising temporal interpolator for the deep layers, but not for the faster-varying upper layers with monthly or sub-monthly sampling.</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+<h3 id="centred-forcing">Centred forcing perturbations<a class="headerlink" href="#centred-forcing" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> (✅) Positive, potentially to be adopted · <strong>Lakes:</strong> Ägeri, Murten, Geneva</p>
+<p><strong>Question:</strong> Does the forcing perturbation shift the ensemble mean away from the original forcing, and does that matter?</p>
+<p><strong>Setup:</strong> The AR(1) noise is added to the wind components U and V with zero mean. But the wind <em>speed</em> is the length of the vector, so noise in either direction makes it larger on average. With the option <code>center_perturbations</code>, each forcing row is rescaled so that the ensemble-mean wind speed, solar radiation and air temperature equal the unperturbed forcing.</p>
+<p><strong>Result so far:</strong> Without centring, every member is windier than the control: the ensemble-mean wind speed is 63 % above it on Ägeri (2.52 against 1.55 m/s), 57 % on Geneva and 31 % on Murten. With centring, the two agree to within about 2 %. With daily assimilation the filter corrects the resulting bias every day, but when the observations are weeks apart (CTD casts) it accumulates between casts: more wind, more mixing, a deeper overturn. That may explain part of the more frequent deep mixing seen on Lake Lugano (<a href="#deep-mixing">Deep mixing</a>).</p>
+<p><strong>Next step:</strong> The operational setup (<code>simplified_final</code>) runs without centring, so check its effect there too, and repeat the Lugano deep-mixing run with centred forcing.</p>
+<p><strong>Reproduce:</strong> Branch <code>feat/online_error</code>, option <code>center_perturbations</code>.</p>
+<h3 id="geneva-ctd">Long-term CTD assimilation in Geneva<a class="headerlink" href="#geneva-ctd" title="Permanent link">&para;</a></h3>
+<p><strong>Status:</strong> 🔬 Open · <strong>Lakes:</strong> Geneva (LéXPLORE casts, Nov 2019 – Jun 2026)</p>
+<div class="admonition abstract">
+<p class="admonition-title">In short</p>
+<ul>
+<li><strong>The casts correct both variables well.</strong> Temperature RMSE against the profiler 1.19 → 0.87 °C; oxygen RMSE at the casts 105 → 38 mmol/m³.</li>
+<li><strong>Winter remains wrong, and neither tuning knob fixes it.</strong> More forcing noise or a smaller winter σ leave the errors unchanged: the model mixes too deep in winter, in every member alike.</li>
+</ul>
+</div>
+<p><strong>Question:</strong> Can six and a half years of CTD casts correct temperature and oxygen together, and does the result hold against the high-resolution profiler, which is not assimilated?</p>
+<p><strong>Main result (annual σ 0.297 °C):</strong></p>
+<table>
+<thead>
+<tr>
+<th>RMSE</th>
+<th>Free run</th>
+<th>EnKF</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Temperature, against the profiler</td>
+<td>1.19 °C</td>
+<td>0.87 °C</td>
+</tr>
+<tr>
+<td>Oxygen, at the casts</td>
+<td>105 mmol/m³</td>
+<td>38 mmol/m³</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Oxygen:</strong> the free run's deep water is about 120 mmol/m³ too low below 40 m. The filter needs about a year to lift it (NIS/n about 20 at the start, about 1 from 2022 to 2025).</li>
+<li><strong>The ensemble is far too narrow:</strong> spread 0.026 °C against σ 0.297 °C, so all the uncertainty sits in σ.</li>
+</ul>
+<p><strong>Two attempts to improve winter, neither helped:</strong></p>
+<ol>
+<li><strong>Perturb air temperature too</strong> (AR(1), sd 1.67 °C): the winter spread stays around 0.03 °C, because the deep mixed layer damps the noise.</li>
+<li><strong>A smaller winter σ</strong> (0.10 °C from November to April, the scatter of same-day double casts):<ul>
+<li>Too small: winter NIS/n (December–March) goes from 0.73 to 4.95. The double-cast scatter measures the casts, not what the model cannot represent; the innovations point to about 0.25 °C, close to the annual value.</li>
+<li>No accuracy gain: temperature RMSE is unchanged (0.864 against 0.865 °C), oxygen RMSE 38 → 40 mmol/m³, and the winter mixed layer stays about 15 m too deep (error about 22 m).</li>
+<li>Why: the stronger updates halve the already tiny spread (0.028 → 0.014 °C), and the model drifts back between casts, so each cast meets the same misfit.</li>
+</ul>
+</li>
+</ol>
+<p><strong>Deep mixing, year by year:</strong> The casts mix to the station bottom (about 100 m) only in 2020, 2021 and 2026. The model reaches the bottom almost every winter, with or without assimilation; in 2022 and 2024 the lake stopped at about 65 m and 45 m. Unlike on Lake Lugano, assimilation does not make deep mixing more frequent: over the full 309 m column the free run overturns completely in 2021 and 2022, the EnKF only in 2022.</p>
+<p><strong>Verdict so far:</strong> The remaining error is a systematic winter model error (mixing too deep, surface too cold, the same in every member), not a filter-tuning problem (<a href="../open-problems/">Open problems</a>).</p>
+<p><strong>Next step:</strong> Most of the 0.25 °C winter σ is model uncertainty that the ensemble does not carry. A process noise on the temperature profile, as in the <a href="#uncertainty-band">learned R and q</a>, would move it into the ensemble, so σ could shrink towards the cast scatter and each cast would correct more. In a near-isothermal winter column the noise must not create inversions (the profile constraint discussed there).</p>
+<p><strong>Reproduce:</strong> Not in the repository; scripts available from the author on request.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

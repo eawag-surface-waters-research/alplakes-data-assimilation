@@ -1,0 +1,1110 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://eawag-surface-waters-research.github.io/alplakes-data-assimilation/workblog/open-problems/">
+      
+      
+        <link rel="prev" href="../experiments/">
+      
+      
+        <link rel="next" href="../reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Open problems - Alplakes Data Assimilation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#open-problems" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Alplakes Data Assimilation" class="md-header__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Alplakes Data Assimilation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Open problems
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../tutorial/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Tutorial
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../literature-review/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Literature Review
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../project-proposal/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Proposal
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Alplakes Data Assimilation" class="md-nav__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Alplakes Data Assimilation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../method/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Open problems
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Open problems
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#narrow-ensemble" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The ensemble is too narrow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uncentred-forcing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The forcing ensemble is not centred
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thermocline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The summer thermocline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#over-cautious" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. The filter is over-cautious
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#surface-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Lakes with surface data only
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deep-mixing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Deep mixing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ensemble-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Ensemble size and evaluation period
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Physically defensible parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 3D: horizontal spurious correlations
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../literature-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Literature Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../project-proposal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Proposal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#narrow-ensemble" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The ensemble is too narrow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uncentred-forcing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The forcing ensemble is not centred
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thermocline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The summer thermocline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#over-cautious" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. The filter is over-cautious
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#surface-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Lakes with surface data only
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deep-mixing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Deep mixing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ensemble-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Ensemble size and evaluation period
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Physically defensible parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 3D: horizontal spurious correlations
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="open-problems">Open problems<a class="headerlink" href="#open-problems" title="Permanent link">&para;</a></h1>
+<p><em>Last updated: November 2026.</em></p>
+<div class="admonition abstract">
+<p class="admonition-title">In short</p>
+<p>The observation side is in good shape; the open problems are on the model side. The main one is that the ensemble is too narrow, especially at depth. Most of the other problems below follow from it.</p>
+</div>
+<h2 id="narrow-ensemble">1. The ensemble is too narrow<a class="headerlink" href="#narrow-ensemble" title="Permanent link">&para;</a></h2>
+<p>The problems we tried to solve with the observation uncertainty all point to an under-dispersed ensemble. In every calibration σ occupies almost the entire uncertainty budget, because the spread has little to contribute at depth (<a href="../results/#honest">Results</a>). The single biggest limitation of the current setup: spread is generated only at the surface, through three forcing variables, and reaches depth only by mixing.</p>
+<p><strong>What we know.</strong> Parameter perturbation adds spread in the right place but only at amplitudes that cannot be justified (<a href="../experiments/#param-perturbation">Parameter perturbation</a>). Perturbing air temperature adds nothing, particularly in winter where we were hoping to see an effect on the mixing structure (<a href="../experiments/#geneva-ctd">Geneva CTD</a>).</p>
+<p><strong>First answer: a learned model error.</strong> A process noise q on the temperature profile, learned online together with the observation error R, makes the spread follow the error: spread/RMSE 0.26 → 0.98 on Upper Lugano and 0.22 → 0.76 on Ägeri (against the filtered observations), with slightly lower RMSE on both (−5 % and −8 % against the raw observations) (<a href="../experiments/#uncertainty-band">Learned R and q</a>, <a href="../experiments/#online-aegeri">Ägeri check</a>).</p>
+<p><strong>Suggested next steps.</strong> Port it to <code>master</code> and test it on the other lakes; 7-day reforecasts to see whether the band holds at longer leads; the deep water in summer, where q drops to 0 and the band is still too narrow. Parameter spread at lower assimilation frequency remains an option.</p>
+<h2 id="uncentred-forcing">2. The forcing ensemble is not centred<a class="headerlink" href="#uncentred-forcing" title="Permanent link">&para;</a></h2>
+<p>The perturbation noise on the wind components U and V has zero mean, but the wind <em>speed</em> does not: every member is windier than the control. In the later CTD runs the ensemble-mean wind speed was 31–63 % above the control's (<a href="../experiments/#centred-forcing">Centred forcing perturbations</a>), and the operational setup (<code>simplified_final</code>) uses the same uncentred perturbation. The ensemble mean therefore carries a systematic extra mixing that the daily analysis has to correct every day, and that accumulates when the observations are far apart.</p>
+<p><strong>Suggested next step.</strong> Rerun <code>simplified_final</code> with <code>center_perturbations</code> and compare RMSE, spread and NIS with the current results; repeat the Lugano deep-mixing run with centred forcing.</p>
+<h2 id="thermocline">3. The summer thermocline<a class="headerlink" href="#thermocline" title="Permanent link">&para;</a></h2>
+<p>Most places where the analysis is worse than the free run sit at the thermocline in summer (<a href="../results/#time-depth">Results</a>). The error there is structural: the model misplaces the thermocline, and a forcing-generated ensemble rarely contains the right profile. Every σ variant we tried either left it unchanged or made it worse (<a href="../experiments/#sigma">Experiments</a>).</p>
+<p>The learned model error helps here first: on Ägeri the 12–14 m error drops from 0.45–0.60 °C with <code>simplified_final</code>, which at 12–12.4 m is even slightly worse than the free run, to 0.38–0.51 °C, below the free run at every level (<a href="../experiments/#online-aegeri">Ägeri check</a>). The price is larger corrections at the thermocline (up to 1.4 °C on Ägeri and 2.0 °C on Upper Lugano).</p>
+<p><strong>Suggested next steps.</strong> Check whether the large corrections at the thermocline are physical or shocks (the day after each), and whether a step cap is needed; parameter spread at lower assimilation frequency.</p>
+<h2 id="over-cautious">4. The filter is over-cautious<a class="headerlink" href="#over-cautious" title="Permanent link">&para;</a></h2>
+<p>With the seasonal σ the filter is systematically too cautious (NIS ≈ 0.6): it says it is less sure than it really is, and deep observations are trusted far too little. Calibrating σ fixes the consistency but not the accuracy (<a href="../experiments/#sigma">Experiments</a>).</p>
+<p><strong>Suggested next step.</strong> Revisit σ once the ensemble carries more spread; σ should then not have to fill the whole budget!</p>
+<p>This is now possible: with the <a href="../experiments/#uncertainty-band">learned R and q</a> the model error is carried by the ensemble, and R takes only the misses that do not repeat from day to day. Without q (R split only) R stays physical and there is no runaway as with <a href="../experiments/#adaptive-sigma">adaptive σ</a>, but the filter swings to over-confident (NIS 1.76 on Ägeri). With q it is close to consistent (NIS 1.29 on Upper Lugano, 0.67 on Ägeri). Open: why Ägeri ends on the cautious side.</p>
+<h2 id="surface-only">5. Lakes with surface data only<a class="headerlink" href="#surface-only" title="Permanent link">&para;</a></h2>
+<p>Several lakes have only a surface station. Surface-only assimilation corrects the surface but damages the layers just below, between about 10 and 35 m against CTD (<a href="../experiments/#surface-only">Surface-only</a>). Nothing we tried on the observation side fixed it.</p>
+<p><strong>Suggested next step.</strong> Localization limited to the mixed layer, so that surface information is not pushed below it; or, where possible, at least a few sensors over the upper 30–40 m (assimilating deeper sensor 15 m together or CTD).</p>
+<h2 id="deep-mixing">6. Deep mixing<a class="headerlink" href="#deep-mixing" title="Permanent link">&para;</a></h2>
+<p>Assimilating long-term CTD casts corrects the deep temperatures but makes deep mixing more frequent, 15 winters instead of 10 on Lake Lugano (<a href="../experiments/#deep-mixing">Deep mixing</a>).</p>
+<p>Part of this may come from the uncentred forcing ensemble (<a href="#uncentred-forcing">problem 2</a>).</p>
+<h2 id="ensemble-size">7. Ensemble size and evaluation period<a class="headerlink" href="#ensemble-size" title="Permanent link">&para;</a></h2>
+<p>Twenty members is what the operational chain can afford, not a statistically defended choice. And every result is scored on 2025, the only year with profile observations on all seven lakes; the fitting-year check covers only three lakes (<a href="../experiments/#fitting-year">Fitting year</a>).</p>
+<p><strong>Suggested next step.</strong> Score each new year as it becomes available, with the σ fitted on the previous ones. The learned R and q need no fitted σ; only the depth correlation of q comes from one year, and pooling more years would make it a lake property.</p>
+<h2 id="parameters">8. Physically defensible parameters<a class="headerlink" href="#parameters" title="Permanent link">&para;</a></h2>
+<p>Estimating parameters with the filter does not converge: the parameters follow the seasons and absorb the model's seasonal bias (<a href="../experiments/#joint">Joint estimation</a>).</p>
+<p><strong>Suggested next step.</strong> Slower updates; and compare the estimated distribution with a traditional calibration and learn model weaknesses.</p>
+<h2 id="3d">9. 3D: horizontal spurious correlations<a class="headerlink" href="#3d" title="Permanent link">&para;</a></h2>
+<p>In 3D one buoy can correct a whole region, but with 7 members spurious horizontal correlations are a real concern, and the first runs point to the need for vertical localization (<a href="../experiments/#3d">3D</a>).</p>
+<p><strong>Suggested next step.</strong> Vertical and horizontal localization; assimilating the satellite surface temperature using scaling to adapt the vertical resolution.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

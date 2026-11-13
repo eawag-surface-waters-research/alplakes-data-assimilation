@@ -1,0 +1,1265 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://eawag-surface-waters-research.github.io/alplakes-data-assimilation/workblog/results/">
+      
+      
+        <link rel="prev" href="../method/">
+      
+      
+        <link rel="next" href="../experiments/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Results - Alplakes Data Assimilation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#results" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Alplakes Data Assimilation" class="md-header__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Alplakes Data Assimilation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Results
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../tutorial/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Tutorial
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../literature-review/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Literature Review
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../project-proposal/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Proposal
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Alplakes Data Assimilation" class="md-nav__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Alplakes Data Assimilation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../method/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#which-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which filter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enkf-gains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The EnKF gains
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#time-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In time and depth
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#honest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Is the filter honest?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Is the filter honest?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-uncertainty-budget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The uncertainty budget
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-time-and-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In time and depth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-corrections-look-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the corrections look like
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../open-problems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Open problems
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../literature-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Literature Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../project-proposal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Proposal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#which-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which filter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enkf-gains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The EnKF gains
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#time-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In time and depth
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#honest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Is the filter honest?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Is the filter honest?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-uncertainty-budget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The uncertainty budget
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-time-and-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In time and depth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-corrections-look-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the corrections look like
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h1>
+<p><em>Last updated: October 2026. Operational setup (<code>simplified_final</code>), 2025, 20 members; scored against hourly observations unless stated otherwise. Full run configuration in <a href="../reference/#run-config">Reference</a>.</em></p>
+<div class="admonition abstract">
+<p class="admonition-title">In short</p>
+<p>The EnKF wins on every lake, on both engines, and lowers the hourly RMSE by 26–51 %. The error peak at the thermocline or surface is lowered, not moved. The gain follows the mixed layer down through the year, because that is where the ensemble has spread. The filter is mostly over-cautious: σ fills almost the whole uncertainty budget, and the corrections are small.</p>
+</div>
+<h2 id="which-filter">Which filter<a class="headerlink" href="#which-filter" title="Permanent link">&para;</a></h2>
+<p>Pooled hourly over the year, all depths, RMSE in °C:</p>
+<table>
+<thead>
+<tr>
+<th>Lake</th>
+<th>free run</th>
+<th>Selection</th>
+<th>PF (OpenDA)</th>
+<th>EnKF (OpenDA)</th>
+<th>EnKF (native)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>upperlugano</td>
+<td>0.83</td>
+<td>0.69</td>
+<td>0.75</td>
+<td><strong>0.61</strong></td>
+<td><strong>0.61</strong></td>
+</tr>
+<tr>
+<td>maggiore</td>
+<td>1.54</td>
+<td>1.43</td>
+<td>1.58</td>
+<td>1.14</td>
+<td><strong>1.10</strong></td>
+</tr>
+<tr>
+<td>greifensee</td>
+<td>1.09</td>
+<td>1.67</td>
+<td>1.25</td>
+<td><strong>0.78</strong></td>
+<td>0.79</td>
+</tr>
+<tr>
+<td>geneva</td>
+<td>1.35</td>
+<td>0.94</td>
+<td>0.90</td>
+<td><strong>0.77</strong></td>
+<td>0.78</td>
+</tr>
+<tr>
+<td>aegeri</td>
+<td>0.46</td>
+<td>0.84</td>
+<td>0.78</td>
+<td><strong>0.30</strong></td>
+<td><strong>0.30</strong></td>
+</tr>
+<tr>
+<td>hallwil</td>
+<td>0.93</td>
+<td>0.87</td>
+<td>0.72</td>
+<td><strong>0.45</strong></td>
+<td>0.47</td>
+</tr>
+<tr>
+<td>murten</td>
+<td>0.72</td>
+<td>0.95</td>
+<td>0.84</td>
+<td><strong>0.47</strong></td>
+<td><strong>0.47</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The same comparison restricted to the <strong>top 10 m</strong> (Figure 1):</p>
+<figure id="__figure-caption_1">
+<p><img alt="RMSE by method, top 10 m only" class="center" src="../../images/09_rmse_top10m.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 1.</span> RMSE by method and engine, top 10 m only, all seven lakes, 2025.</p>
+</figcaption>
+</figure>
+<p><strong>The EnKF wins on every lake, on both engines, and not marginally.</strong></p>
+<p><strong>Best-member selection is worse than not assimilating at all on three of seven lakes:</strong> Greifensee (1.67 vs 1.09), Ägeri (0.84 vs 0.46), Murten (0.95 vs 0.72). If no member has the right profile, selecting one cannot help, and collapsing the choice to a single member appears to be worse than resampling more often than not. The two Ticino lakes are the exceptions where both selection and PF help.</p>
+<p><strong>The native and OpenDA EnKF agree to within 0.01–0.04 °C on every lake.</strong> The two configurations are built from identical inputs, identical perturbed forcings, identical warmup and identical observation series. The agreement validates our custom implementation.</p>
+<p><strong>In the top 10 m the PF and selection perform much closer to the EnKF:</strong> near the surface the perturbation acts directly, so the ensemble develops genuine spread and picking the best member can pick a modified enough profile. At depth the members are very close to each other, there is nothing to choose between, and the member selected for its surface fit arrives carrying its own deep profile. The PF's failure is a deep-profile failure, and it is the concrete cost of not building a per-depth correction.</p>
+<h2 id="enkf-gains">The EnKF gains<a class="headerlink" href="#enkf-gains" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Lake</th>
+<th>RMSE free</th>
+<th>RMSE native</th>
+<th>RMSE OpenDA</th>
+<th>gain native</th>
+<th>gain OpenDA</th>
+<th>levels improved (native)</th>
+<th>levels improved (OpenDA)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>upperlugano</td>
+<td>0.83</td>
+<td>0.61</td>
+<td>0.61</td>
+<td>−26.3 %</td>
+<td>−26.6 %</td>
+<td>16/16</td>
+<td>16/16</td>
+</tr>
+<tr>
+<td>maggiore</td>
+<td>1.54</td>
+<td>1.10</td>
+<td>1.14</td>
+<td>−28.5 %</td>
+<td>−26.2 %</td>
+<td>16/16</td>
+<td>16/16</td>
+</tr>
+<tr>
+<td>greifensee</td>
+<td>1.09</td>
+<td>0.79</td>
+<td>0.78</td>
+<td>−27.1 %</td>
+<td>−28.4 %</td>
+<td>130/160</td>
+<td>136/160</td>
+</tr>
+<tr>
+<td>geneva</td>
+<td>1.35</td>
+<td>0.78</td>
+<td>0.77</td>
+<td>−42.5 %</td>
+<td>−42.7 %</td>
+<td>44/44</td>
+<td>44/44</td>
+</tr>
+<tr>
+<td>aegeri</td>
+<td>0.46</td>
+<td>0.30</td>
+<td>0.30</td>
+<td>−35.2 %</td>
+<td>−34.3 %</td>
+<td>229/239</td>
+<td>228/239</td>
+</tr>
+<tr>
+<td>hallwil</td>
+<td>0.93</td>
+<td>0.47</td>
+<td>0.45</td>
+<td>−49.2 %</td>
+<td>−51.3 %</td>
+<td>19/19</td>
+<td>19/19</td>
+</tr>
+<tr>
+<td>murten</td>
+<td>0.72</td>
+<td>0.47</td>
+<td>0.47</td>
+<td>−34.2 %</td>
+<td>−34.2 %</td>
+<td>18/18</td>
+<td>18/18</td>
+</tr>
+</tbody>
+</table>
+<p>Pooled hourly over the year, for each depth, RMSE in °C (Figure 2):</p>
+<figure id="__figure-caption_2">
+<p><img alt="RMSE against depth, free run vs analysis, all seven lakes" class="center" src="../../images/10_rmse_by_depth.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 2.</span> RMSE against depth, free run (grey) vs analysis (colour), all seven lakes, 2025; green fill is the gain.</p>
+</figcaption>
+</figure>
+<p>Free run in grey, analysis in colour, green fill is the gain.</p>
+<p><strong>Every lake improves by at least 25%</strong>. On five of seven lakes <em>every single model level</em> improves. The exceptions are Greifensee (around 7 m and between 11 and 13.5 m) and, more mildly, Ägeri (between 11 and 13 m). <strong>Every lake's error peaks at the thermocline or at the surface, and the analysis lowers that peak without moving it.</strong> The filter does not relocate the difficulty. Gains are often largest at the surface, and on some lakes the two curves converge in the deeper layers. Geneva's and Hallwil's spikes are data gaps.</p>
+<h2 id="time-depth">In time and depth<a class="headerlink" href="#time-depth" title="Permanent link">&para;</a></h2>
+<figure id="__figure-caption_3">
+<p><img alt="RMSE change vs free run by depth and month, all seven lakes" class="center" src="../../images/11_rmse_depth_month.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 3.</span> RMSE change against the free run by depth and month, all seven lakes, 2025.</p>
+</figcaption>
+</figure>
+<p>The same gain resolved by month (Figure 3). On Upper Lugano, Maggiore, Hallwil and Murten a <strong>green staircase descends with depth through the year</strong>, following the seasonal stratification.</p>
+<p>The filter can only correct effectively where it has covariance, a model-observation gap, <em>and</em> where ensemble spread exists. Our spread is created at the surface, by wind and radiation, and reaches depth only by mixing. So the staircase traces the depth to which the ensemble is still dispersed effectively and where significant model error is present.</p>
+<p>In winter the model errors are smaller, so corrections and gains are smaller too, and the panels fade toward white. Most of the significant red patches, where the analysis is worse than the free run, group around the thermocline in summer: it remains the challenging region.</p>
+<h2 id="honest">Is the filter honest?<a class="headerlink" href="#honest" title="Permanent link">&para;</a></h2>
+<p>Accuracy is one question. Whether the filter's <em>stated</em> uncertainty matches the errors it actually sees is a different one.</p>
+<h3 id="the-uncertainty-budget">The uncertainty budget<a class="headerlink" href="#the-uncertainty-budget" title="Permanent link">&para;</a></h3>
+<figure id="__figure-caption_4">
+<p><img alt="Uncertainty budget by depth, all lakes" class="center" src="../../images/13_uncertainty_budget.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 4.</span> Uncertainty budget by depth, all seven lakes, 2025: ensemble spread, observation error σ, model–observation gap and pooled target.</p>
+</figcaption>
+</figure>
+<p>In Figure 4, blue is ensemble spread, green the assumed observation error, black the model–observation gap, orange the pooled target √(spread² + σ²), which is what the filter expects the gap to be.</p>
+<p><strong>The observation error occupies essentially the whole uncertainty budget, and the spread collapses to near zero at depth for certain lakes</strong>, a direct consequence of perturbing only surface forcing. This balance is what actually governs how large the corrections can be.</p>
+<p>The model–observation gap (black) falls with depth on every lake, after a local maximum at intermediate depths. Where black and orange disagree the filter is not self-consistent: where black crosses above orange it is over-confident, where it sits below it is damped. Ägeri and Hallwil appear again as outlier cases. Overall, the setup tends to be over-cautious.</p>
+<h3 id="in-time-and-depth">In time and depth<a class="headerlink" href="#in-time-and-depth" title="Permanent link">&para;</a></h3>
+<figure id="__figure-caption_5">
+<p><img alt="Normalised innovation squared by depth and month" class="center" src="../../images/14_nis_depth_month.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 5.</span> Normalised innovation squared (NIS) by depth and month, all seven lakes, 2025.</p>
+</figcaption>
+</figure>
+<p>The same comparison resolved in time (Figure 5), as the normalised innovation squared (NIS), <code>d² / (spread² + σ²)</code>: green is consistent, blue over-damped, red over-confident. <strong>The map is mostly blue</strong>: the filter is systematically too cautious and assumes more error than it actually sees. Observations in the deep column are particularly affected by the fixed-profile approximation and are trusted far too little. Where the filter <em>is</em> over-confident is spring, during the large model biases, and then sporadically in the deeper layers. Ägeri, with a very polarised profile in depth, and Hallwil are the odd cases.</p>
+<h3 id="what-the-corrections-look-like">What the corrections look like<a class="headerlink" href="#what-the-corrections-look-like" title="Permanent link">&para;</a></h3>
+<p>Figure 6 shows the absolute EnKF correction per analysis against depth for each lake, on a log scale: thick bars mark the typical range (interquartile range), thin lines the full range, dots the median at the observed depths, and the box gives the median and the largest single correction.</p>
+<figure id="__figure-caption_6">
+<p><img alt="Magnitude of EnKF corrections by depth, all lakes" class="center" src="../../images/15_corrections_by_depth.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 6.</span> Absolute EnKF correction per analysis by depth, all seven lakes, 2025, log scale.</p>
+</figcaption>
+</figure>
+<p>Because the spread is narrow and the observation error large in proportion, corrections are steered toward the observations only weakly: <strong>median increments over column and time are 0.006–0.027 °C</strong>, typically much smaller than the spread or the gap. The large increments (up to 0.3–1.4 °C) come from large innovations, and those live at the surface and, above all, where the model's thermocline and the observed one disagree. Below the stratification the correction magnitude decays down to a flat minimum, a structure that probably reflects the mixing activity in each lake.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

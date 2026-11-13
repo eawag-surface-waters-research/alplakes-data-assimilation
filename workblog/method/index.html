@@ -1,0 +1,1519 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://eawag-surface-waters-research.github.io/alplakes-data-assimilation/workblog/method/">
+      
+      
+        <link rel="prev" href="../overview/">
+      
+      
+        <link rel="next" href="../results/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Method - Alplakes Data Assimilation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#method" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Alplakes Data Assimilation" class="md-header__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Alplakes Data Assimilation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Method
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../tutorial/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Tutorial
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../literature-review/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Literature Review
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../project-proposal/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Proposal
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Alplakes Data Assimilation" class="md-nav__button md-logo" aria-label="Alplakes Data Assimilation" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Alplakes Data Assimilation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The filters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the spread comes from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to assimilate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The observations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The observations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-raw-signal-at-depth-is-not-the-signal-we-can-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The raw signal at depth is not the signal we can use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filtering-the-observations-causally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering the observations causally
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#too-many-sensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Too many sensors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sigma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The observation error σ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The observation error σ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#is-not-instrument-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        σ is not instrument error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-simple-operational-recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A simple operational recipe
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-the-seasonal-stays-operational-for-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the seasonal σ stays operational, for now
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#details-math" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Details &amp; Math
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Details &amp; Math">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enkf-full" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The EnKF in full
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pf-full" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The PF (OpenDA)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The native engine's "PF" is a selection scheme
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#perturbation-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Perturbation calibration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../open-problems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Open problems
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../literature-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Literature Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../project-proposal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Proposal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The filters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the spread comes from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to assimilate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The observations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The observations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-raw-signal-at-depth-is-not-the-signal-we-can-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The raw signal at depth is not the signal we can use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filtering-the-observations-causally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering the observations causally
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#too-many-sensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Too many sensors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sigma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The observation error σ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The observation error σ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#is-not-instrument-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        σ is not instrument error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-simple-operational-recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A simple operational recipe
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-the-seasonal-stays-operational-for-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the seasonal σ stays operational, for now
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#details-math" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Details &amp; Math
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Details &amp; Math">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enkf-full" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The EnKF in full
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pf-full" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The PF (OpenDA)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The native engine's "PF" is a selection scheme
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#perturbation-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Perturbation calibration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="method">Method<a class="headerlink" href="#method" title="Permanent link">&para;</a></h1>
+<p><em>Last updated: November 2026.</em></p>
+<div class="admonition abstract">
+<p class="admonition-title">In short</p>
+<p>A 20-member ensemble is made by adding AR(1) noise to wind and solar radiation. Once a day, at a per-lake night hour, a stochastic EnKF corrects the temperature profile of every member. The observations are filtered below 4 m to remove internal-seiche motion the 1D model cannot reproduce, and thinned to a per-lake depth grid. Their uncertainty σ is a representativeness error, not instrument error: one value per lake and season.</p>
+</div>
+<h2 id="filters">The filters<a class="headerlink" href="#filters" title="Permanent link">&para;</a></h2>
+<p>The <strong>Ensemble Kalman Filter (EnKF)</strong> updates the state by weighing two uncertainties against each other: how wrong the ensemble thinks the model is, and how wrong we say the observation is. The Kalman gain can be read as a trust ratio: if the ensemble is confident, the observation moves the state very little; if the ensemble is uncertain, the observation wins and pulls the state a lot. The property that makes this filter attractive for a lake column is that information propagates in depth through the ensemble covariance, which comes from the model spread and so reflects the model physics: an observation at one depth can correct the whole profile, by an amount the ensemble says those depths move together (and, in a 3D model, this also translates to whole regions of the lake). We use the <em>stochastic</em> EnKF: where each member is updated with its own perturbed observation, to avoid ensemble collapse.</p>
+<p>The <strong>Particle Filter (PF)</strong>, on the other hand, never builds a correction. It re-weights and clones whole member states in proportion to their likelihood, so every surviving trajectory stays a physically untouched Simstrat run. The price is that the analysis can only ever contain states the model itself produced: if no member happens to have the right profile, there is no mechanism to produce a fitting one and potentially would need more spread (ensemble members) or more effort in creating varying particles (parameter sampling).</p>
+<p>The native engine also has a cheaper <strong>best-member selection</strong>, which clones the best-fitting member onto all the others as a simple reference (<a href="#selection">details</a>).</p>
+<blockquote>
+<p><strong>Why an ensemble filter and not a standard Kalman filter?</strong> The models are nonlinear, which a classic KF handles poorly. An ensemble method treats the model as a black box, so the same strategy transfers to other models well (see <a href="../experiments/#3d">3D</a>); it needs no derivatives to build the error covariances; and the members run naturally in parallel.</p>
+</blockquote>
+<div class="admonition note">
+<p class="admonition-title">Decision: the EnKF is the operational filter</p>
+<ul>
+<li><strong>Alternatives:</strong> particle filter (OpenDA), best-member selection (native).</li>
+<li><strong>Evidence:</strong> the EnKF wins on every lake, on both engines; selection is worse than no assimilation on three lakes (<a href="../results/#which-filter">Results</a>).</li>
+<li><strong>Revisit if:</strong> the ensemble becomes much larger, or the spread at depth grows enough that members genuinely differ there too; that is where the PF fails now.</li>
+</ul>
+</div>
+<h2 id="spread">Where the spread comes from<a class="headerlink" href="#spread" title="Permanent link">&para;</a></h2>
+<p>You cannot run an ensemble filter without spread, and the spread has to come from a defensible source. We generate it by perturbing the meteorological forcing, a major and well-known uncertainty factor for lake models. <strong>This forcing perturbation is the only component that generates spread in the module right now.</strong></p>
+<figure id="__figure-caption_1">
+<p><img alt="Ensemble envelope around the control forcing" class="center" src="../../images/02_ensemble_envelope.png" width="880" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 1.</span> Ensemble envelope (blue) around the control station forcing (black), one wind component, Lake Lugano, July 2025.</p>
+</figcaption>
+</figure>
+<p>Figure 1 shows a blue ensemble envelope around the black control station forcing, here for one wind component on Lake Lugano during July 2025.</p>
+<p><strong>Only three variables are perturbed: wind U, wind V, solar radiation.</strong> Temperature, vapour pressure, cloud cover and rain pass through untouched. Those three dominate the surface momentum and energy budget, and restricting to them keeps the mechanism simpler and potentially more interpretable.</p>
+<p>Each member gets one AR(1) noise series added to the control forcing, so that the perturbation carries part of the temporal correlation of real forcing errors:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>xₜ = φ·xₜ₋₁ + σ·εₜ ,      ε ~ N(0,1)
+</code></pre></div>
+<p>We assume that the <strong>amplitude</strong> of the perturbation represents the mismatch between the lake's reference meteorological station and the average conditions over the lake, and measure it as the standard deviation of the ICON reanalysis averaged over the lake minus the control forcing, <code>s = std(ICON − control)</code>. The <strong>persistence</strong> <code>φ = exp(−1/τ)</code> cannot be measured precisely: we bracket it between two proxies, the autocorrelation of the residual series and of the station signal itself, and take the end that gives <em>more</em> persistence, hence potentially more spread, which benefits the EnKF. The size of one hourly kick then follows as <code>σ = s·√(1−φ²)</code>. The full calibration is in <a href="#perturbation-calibration">Perturbation calibration</a>.</p>
+<p>The practical advantage is that <strong>the ensemble is generated at the forcing, not at the state.</strong> Members diverge the way the weather diverges, and each one remains a physically consistent Simstrat run. This is done to keep the filter from shocking the model when it injects a correction.</p>
+<div class="admonition note">
+<p class="admonition-title">Decision: spread from forcing perturbation only</p>
+<ul>
+<li><strong>Alternatives:</strong> parameter perturbation, joint state–parameter estimation, state perturbation (<a href="../experiments/#model-spread">Experiments</a>); not tested, driving each member with a member of an NWP ensemble (COSMO-E), as <a href="../../literature-review/#safin-2022">Safin et al. (2022)</a> do for Lake Geneva, which keeps the physical correlations between variables without a statistical noise model.</li>
+<li><strong>Evidence:</strong> keeps every member a physically consistent run and the corrections small; the defensible parameter perturbations added only little spread.</li>
+<li><strong>Revisit if:</strong> a defensible source of spread at depth is found, e.g. the process noise of the <a href="../experiments/#uncertainty-band">forecast uncertainty band</a>, or parameter spread at longer analysis intervals (<a href="../experiments/#param-perturbation">Parameter perturbation</a>); under-dispersion is the main open problem (<a href="../open-problems/">Open problems</a>). The forcing ensemble is also not centred yet (<a href="../open-problems/#uncentred-forcing">Open problems</a>).</li>
+</ul>
+</div>
+<h2 id="timing">When to assimilate<a class="headerlink" href="#timing" title="Permanent link">&para;</a></h2>
+<figure id="__figure-caption_2">
+<p><img alt="Choosing the assimilation hour &amp; RMSE by assimilation frequency, Upper Lugano 2025" class="center" src="../../images/03_assimilation_hour.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 2.</span> Choosing the assimilation hour. Left: bias and random error of the free run by hour of day, Lake Geneva. Right: RMSE by assimilation frequency, Upper Lugano 2025.</p>
+</figcaption>
+</figure>
+<p>The left panel of Figure 2 shows how the bias and random error are distributed over the day for Lake Geneva. The right one shows how the accuracy of the assimilation decreases with decreasing frequency for Lake Lugano.</p>
+<p><strong>Daily:</strong> A daily frequency reduces the error correlation between successive analyses, and avoids a sub-daily reversal of the error sign eating into the potential gains. Assimilating more often would make the filter less efficient (information counted twice) and noisier (potential reversals of the corrections). Going below daily costs accuracy (<a href="../experiments/#frequency">Assimilation frequency</a>). This agrees with <a href="../../literature-review/#wander-2024">Wander et al. (2024)</a>, who found daily assimilation the most skilful for a 1-day forecast, but weekly assimilation the most skilful for 8–35-day horizons.</p>
+<p><strong>At a specific hour:</strong> Using a free run, we take the mean and standard deviation of the model–observation error over the days, hour by hour. Among the hours the lake samples on at least 30 days, we keep those whose bias is at most 0.2 times their day-to-day scatter, and take the one with the largest scatter: the most correctable error for little injected bias. The reasoning: the deterministic part of the gap is potentially a correction for something the model's physics might undo.</p>
+<p>Only the <strong>surface layer, above 4 m,</strong> enters this choice. That is where the diurnal cycle lives, and so where the hour makes a bigger difference. Below 4 m the observations go through the seiche filter, whose trailing window (11 h or more, depending on the lake) smooths most of the diurnal signal out: there the hour matters much less.</p>
+<p>By this measure <strong>noon, the hour used by the current BETA, turns out to be a bad choice.</strong> The exact rule is in the <a href="../../tutorial/">Tutorial</a>.</p>
+<p><strong>At night:</strong> Candidates are restricted to 23–06 UTC, so that every lake is sampled at a comparable point in its diurnal cycle, with the operational bonus that it is off-hours. This is the window behind the results here; the code's default is now 00–06 UTC, and <code>assimilate.py fit hour --window 23-6</code> reproduces these hours.</p>
+<p>Only hours the lake actually samples are candidates, with adaptation where a fixed frequency cannot be guaranteed (Greifensee takes the first reading between 00 and 06 UTC each day). Days without a profile in the window are skipped. The hour picked for each lake is in the <a href="../reference/#lakes">per-lake card</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Decision: daily, at a per-lake night hour</p>
+<ul>
+<li><strong>Alternatives:</strong> every 3 or 7 days; noon (the BETA); any hour of the day.</li>
+<li><strong>Evidence:</strong> daily beats 3- and 7-day on Upper Lugano (<a href="../experiments/#frequency">Assimilation frequency</a>); noon maximises injected bias.</li>
+<li><strong>Revisit if:</strong> more model spread makes lower frequencies competitive (with <code>p_lw</code> ±10 %, assimilating every 3 days already matches the daily accuracy: <a href="../experiments/#param-perturbation">Parameter perturbation</a>), or a lake's sampling schedule changes.</li>
+</ul>
+</div>
+<h2 id="observations">The observations<a class="headerlink" href="#observations" title="Permanent link">&para;</a></h2>
+<h3 id="the-raw-signal-at-depth-is-not-the-signal-we-can-use">The raw signal at depth is not the signal we can use<a class="headerlink" href="#the-raw-signal-at-depth-is-not-the-signal-we-can-use" title="Permanent link">&para;</a></h3>
+<figure id="__figure-caption_3">
+<p><img alt="Raw temperature at 11 m over ten days, against the model" class="center" src="../../images/05_raw_11m_series.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 3.</span> Raw temperature at 11 m against the model, Upper Lugano, 25 June to 5 July 2025.</p>
+</figcaption>
+</figure>
+<p>Figure 3 shows a raw temperature observation at 11 m depth, 25 June to 5 July 2025, Upper Lake Lugano. The sensor swings by up to <strong>10 °C within a few hours</strong>. The dashed line is what Simstrat predicts at the same times, and it is nearly flat, with only an underlying trend visible. (The series is debiased here to make the contrast more visible.)</p>
+<p>The cause is internal wave motion: the steep thermal gradient is displaced vertically past a fixed instrument. The sensor is right and the signal is real.</p>
+<p>But <strong>a 1D model cannot reproduce it by construction</strong>. There is no horizontal dimension for an internal wave to propagate in. So this variability, which can exceed the entire actual model–observation discrepancy we are trying to correct, is not an error the filter should try to fix. Feeding these thermocline-displacement excursions to the filter would continuously drag the whole column toward an unstable state that the model cannot maintain.</p>
+<h3 id="filtering-the-observations-causally">Filtering the observations causally<a class="headerlink" href="#filtering-the-observations-causally" title="Permanent link">&para;</a></h3>
+<figure id="__figure-caption_4">
+<p><img alt="Causal filtering of the observation series" class="center" src="../../images/06_causal_filtering.png" width="800" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 4.</span> Causal filtering of the observations at 11 m, Upper Lugano: hourly series (black) and filtered series (blue).</p>
+</figcaption>
+</figure>
+<p>Figure 4 shows the original time series of the temperature at 11 m in Upper Lugano in black (already aggregated to hourly) and, in blue, the observation filtered with a 27.3 h trailing window set by the seiche period. The fix is to remove large part of the signal the model cannot represent. Three constraints shape the solution:</p>
+<ul>
+<li><strong>It must be causal:</strong> no leakage of future information, because this runs operationally (a centred moving average would be better but not usable). We use a trailing moving average.</li>
+<li><strong>It must be split in depth:</strong> above a threshold (currently 4 m) the series passes through untouched. Surface temperature does not suffer thermocline displacement in the same way, and we do not want to blur an important fast signal.</li>
+<li><strong>It must be set physically, per lake:</strong> the trailing window comes from a two-layer approximation, using the lake length and its stratification at peak, giving a characteristic fundamental internal-seiche period for each basin (<a href="../reference/#lakes">per-lake card</a>).</li>
+</ul>
+<p>Residual variability at depth drops from around 10 °C to roughly <strong>1–1.5 °C</strong>. Still not small, but far more digestible for the filter. What the filtering gains is shown in <a href="../experiments/#filtering">Observation filtering</a>.</p>
+<h3 id="too-many-sensors">Too many sensors<a class="headerlink" href="#too-many-sensors" title="Permanent link">&para;</a></h3>
+<figure id="__figure-caption_5">
+<p><img alt="Picking depths" class="center" src="../../images/07_target_grid_thinning.png" width="380" /></p>
+<figcaption>
+<p><span class="caption-prefix">Figure 5.</span> Thinning a dense sensor chain to the target depth grid.</p>
+</figcaption>
+</figure>
+<p>Profilers and moorings differ in vertical and temporal resolution, and a filter that ingests whatever it is handed behaves differently on each. Some instruments, such as those on Ägeri and Greifensee, report at sub-metre resolution (Figure 5: 160 depths at 0.1 m). <strong>Neighbouring sensors at that spacing are near-copies</strong>: two thermistors 10–25 cm apart in a well-mixed layer report the same water, and their error is essentially one error, not two independent ones. The filter counts them as independent evidence and can grow over-confident, pull too hard toward the observations and shrink the posterior spread. With only 20 members, ensemble collapse is something we want to avoid as much as possible.</p>
+<p>The solution is a per-lake <strong>target vertical grid</strong>: dense profiles are thinned to a manageable resolution (here 17 assimilated depths), preferring the depths with fewer gaps. That also makes the seven lakes more comparable with each other. The large observation uncertainty defined below further counteracts the residual over-confidence.</p>
+<h2 id="sigma">The observation error σ<a class="headerlink" href="#sigma" title="Permanent link">&para;</a></h2>
+<h3 id="is-not-instrument-error">σ is not instrument error<a class="headerlink" href="#is-not-instrument-error" title="Permanent link">&para;</a></h3>
+<p>The unrepresented variability is still present in smaller magnitude at filtered depths but <em>also at unfiltered depths</em>, and this mismatch cannot easily be covered by spread generated through forcing perturbation alone: we are asking the ensemble to cover variability that no member could produce with the current setup.</p>
+<p>The sensors are generally very accurate; their precision is not the issue. So the uncertainty we hand the filter has to come from somewhere else, or the filter will pull far too hard toward the observations. We therefore define σ <strong>not as instrument error but as representativeness error</strong>: an honest statement of what the model cannot reproduce and is currently assigned as observation error. It varies by lake, by depth, and by season. That is partly process: variability, like the internal-wave signal above, that a 1D column cannot reproduce. And it is partly space: a buoy measures one point, while Simstrat represents a horizontally averaged column for the whole lake.</p>
+<h3 id="a-simple-operational-recipe">A simple operational recipe<a class="headerlink" href="#a-simple-operational-recipe" title="Permanent link">&para;</a></h3>
+<p>For the operational setup we make three deliberate simplifying assumptions: the observation uncertainty is <strong>fixed in depth</strong>, <strong>seasonal</strong> (mixed vs stratified), and <strong>comparable from year to year</strong>.</p>
+<p><strong>The recipe:</strong> take the gap between a free run and the filtered observations at the assimilation times over a reference year (for the results presented here, 2025 for data availability over an entire year for all lakes). Split the series into seasons and remove each season's own mean (that is bias, not random uncertainty). Take the standard deviation of what remains as a variability proxy, and aggregate with the median across depths. This is deliberately a simple approach aimed at being a justified and generalizable approach to start running the multiple lakes operationally.</p>
+<table>
+<thead>
+<tr>
+<th>season</th>
+<th>upperlugano</th>
+<th>maggiore</th>
+<th>greifensee</th>
+<th>geneva</th>
+<th>aegeri</th>
+<th>hallwil</th>
+<th>murten</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>mixed</strong></td>
+<td>0.30</td>
+<td>0.70</td>
+<td>0.52</td>
+<td>0.28</td>
+<td>0.24</td>
+<td>0.41</td>
+<td>0.34</td>
+</tr>
+<tr>
+<td><strong>stratified</strong></td>
+<td>0.59</td>
+<td>1.17</td>
+<td>0.94</td>
+<td>0.59</td>
+<td>0.24</td>
+<td>0.39</td>
+<td>0.60</td>
+</tr>
+</tbody>
+</table>
+<p>The stratified season generally wants a larger σ, exactly what you expect if the dominant error source is thermocline displacement. Two lakes break the pattern: Ägeri, which we restrict to a single scalar because the seasonal split performed worse, and Hallwil, whose mixed season is marginally <em>larger</em> than its stratified one and represents an odd case.</p>
+<blockquote>
+<p>σ here is the honest statement of what the model cannot reproduce. The uncomfortable part is that it still occupies essentially the whole uncertainty budget (the ensemble remains too narrow and model uncertainty underrepresented).</p>
+</blockquote>
+<h3 id="why-the-seasonal-stays-operational-for-now">Why the seasonal σ stays operational, for now<a class="headerlink" href="#why-the-seasonal-stays-operational-for-now" title="Permanent link">&para;</a></h3>
+<p>We tested three alternatives: σ resolved in depth, rescaled against the filter's own innovations, and estimated on the fly from the innovations (<a href="../experiments/#sigma">Experiments</a>). Each calibrates better than the seasonal σ. None of them is clearly more accurate. For an unattended system, three things tip the balance.</p>
+<p><strong>Simple.</strong> The seasonal σ is two numbers per lake, fitted once and written in the config. Anyone can read them, both engines use them unchanged, and the filter's trust is known before the run starts. The adaptive σ is a moving quantity. It needs a two-week history of innovations that must survive restarts and outages.</p>
+<p><strong>Cautious.</strong> The approaches fail in opposite directions, and only one of those directions is safe. The seasonal σ is too large (NIS ≈ 0.6), so the filter under-trusts the observations and corrections stay generally small. The adaptive σ can fall significantly and might pull hard where it has little information about its own error. A sudden change after a quiet fortnight, whether a real event or a faulty sensor, is over-trusted until the window catches up. And because σ is estimated from innovations the filter itself shaped, errors can reinforce themselves in both directions. Good corrections shrink the innovations, which shrinks σ, so the filter pulls harder. A growing model bias enlarges them, which raises σ, so the filter lets go. On Ägeri the second loop took more than half the gain (<a href="../experiments/#adaptive-sigma">Adaptive σ</a>). The seasonal σ is measured against a free run the filter never touched, so it cannot enter either loop.</p>
+<p><strong>Differences.</strong> What do we give up? In general accuracy, nothing: the seasonal σ is as good or better on six of seven lakes, and Upper Lugano's advantage for the adaptive σ did not carry over to the other lakes. What we give up is an honest uncertainty: the seasonal filter often says it is less sure than it really is and it trusts the observations less than it could.</p>
+<div class="admonition note">
+<p class="admonition-title">Decision: fixed seasonal σ per lake</p>
+<ul>
+<li><strong>Alternatives:</strong> depth-resolved σ, rescaled σ (<a href="../experiments/#sigma">Experiments</a>); adaptive σ and the learned R and q (<a href="../experiments/#online-errors">Learning the errors online</a>).</li>
+<li><strong>Evidence:</strong> as accurate or better on six of seven lakes, cannot enter a feedback loop, and the choice of fitting year barely matters (<a href="../experiments/#fitting-year">Fitting year</a>).</li>
+<li><strong>Revisit if:</strong> the ensemble spread at depth grows (σ would no longer have to fill the whole budget), the <a href="../experiments/#uncertainty-band">learned R and q</a> holds on more lakes and in forecasts, or an observation file changes: σ is only valid for the file it was fitted on.</li>
+</ul>
+</div>
+<hr />
+<h2 id="details-math">Details &amp; Math<a class="headerlink" href="#details-math" title="Permanent link">&para;</a></h2>
+<h3 id="enkf-full">The EnKF in full<a class="headerlink" href="#enkf-full" title="Permanent link">&para;</a></h3>
+<p>Two quantities are computed from the ensemble spread:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>PHᵀ  ≈  Aᶠ (HAᶠ)ᵀ / (N−1)          how the whole column co-varies with the measured depths
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>HPHᵀ ≈  (HAᶠ)(HAᶠ)ᵀ / (N−1)        the forecast's own spread at the observed locations
+</code></pre></div>
+<p>The first is the one that matters most for a 1D lake column: it is what lets an observation at 5 m adjust the temperature at 12 m, because the ensemble says those depths move together. The gain then weighs the two uncertainties,</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>K  =  PHᵀ (HPHᵀ + R)⁻¹
+</code></pre></div>
+<p>and each member is updated with <strong>its own perturbed observation</strong>,</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>xᵢᵃ  =  xᵢᶠ + K (dᵢ + εᵢ) ,      εᵢ ~ N(0, R)
+</code></pre></div>
+<p>which helps prevent ensemble collapse, i.e. the spread shrinking to nothing and the filter ceasing to listen to the observations at all.</p>
+<table>
+<thead>
+<tr>
+<th>symbol</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>N</td>
+<td>ensemble size</td>
+</tr>
+<tr>
+<td>A</td>
+<td>ensemble spread about the mean</td>
+</tr>
+<tr>
+<td>P</td>
+<td>forecast error covariance</td>
+</tr>
+<tr>
+<td>R</td>
+<td>observation error covariance</td>
+</tr>
+<tr>
+<td>K</td>
+<td>Kalman gain</td>
+</tr>
+<tr>
+<td>H</td>
+<td>observation operator</td>
+</tr>
+<tr>
+<td>X</td>
+<td>state vector (forecast / analysis)</td>
+</tr>
+<tr>
+<td>dᵢ</td>
+<td><em>innovation</em> = observation − member forecast</td>
+</tr>
+<tr>
+<td>εᵢ</td>
+<td>observation perturbation drawn for member i</td>
+</tr>
+</tbody>
+</table>
+<p>The structure of K explains the entire calibration effort in <a href="../results/#honest">Results</a> and <a href="../experiments/#sigma">Experiments</a>: it is essentially <strong>model spread / (model spread + observation error)</strong>. If R is too small the filter believes the observations completely and pushes the model around. If R is too large you pay for an ensemble that corrects very little and ends up reproducing a free run. There is no neutral choice; it is always a balance.</p>
+<blockquote>
+<p><strong>R is diagonal.</strong> Each observation gets its own variance σ² on the diagonal, and every off-diagonal term is zero: <code>R = diag(σ²)</code>, in both engines. In other words, the observation errors are assumed independent of each other, and the σ described <a href="#sigma">above</a> is the whole of R. This is a simplification: neighbouring depths share part of their representativeness error (e.g. the same internal wave moves the whole thermocline), so their errors are in reality correlated. We keep it diagonal because those correlations are difficult to estimate reliably from the data (and estimating them wrong could do more damage than good); because the setup already compensates for them in two ways (profiles are thinned so that near-duplicate sensors are not counted twice (<a href="#observations">Too many sensors</a>), and σ is deliberately large); and because OpenDA's standard observers, including the one we use, only take one standard deviation per observation: the OpenDA EnKF itself accepts a full R, but providing one would need a custom observer.</p>
+</blockquote>
+<h3 id="pf-full">The PF (OpenDA)<a class="headerlink" href="#pf-full" title="Permanent link">&para;</a></h3>
+<p>A SIR particle filter with residual resampling. Each member is weighted by the Gaussian likelihood of its own innovation,</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>wᵢ  ∝  exp( −½ · dᵢᵀ R⁻¹ dᵢ ) ,      w̃ᵢ = wᵢ / Σⱼ wⱼ ,      Σᵢ w̃ᵢ = 1
+</code></pre></div>
+<p>after which members are resampled so each is duplicated roughly in proportion to <code>w̃ᵢ</code>. Copies are exact clones of the full model state.</p>
+<p>Note what does <em>not</em> appear: no gain, no covariance, no <code>PHᵀ</code>. The PF never asks how the column co-varies. It cannot use an observation at 5 m to construct a correction at 12 m; it can only prefer members that already happened to be right at both.</p>
+<p><strong>This is the weak point at our ensemble size.</strong> With 20 members and a state vector spanning every depth cell, the likelihood is sharply peaked: a few members can dominate, the filter can collapse to a single particle, resampling fills the ensemble with copies of one trajectory, and the spread is almost all gone until the following day's forcing perturbations rebuild it. That is the well-known dimensionality limitation of particle filters, and it is why the EnKF is the operational choice.</p>
+<h3 id="selection">The native engine's "PF" is a selection scheme<a class="headerlink" href="#selection" title="Permanent link">&para;</a></h3>
+<p>The native engine scores each member by a depth-weighted RMSE over the window (hourly data),</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>RMSEᵢ = sqrt( Σ_z w_z (xᵢ(z) − y(z))² / Σ_z w_z )
+</code></pre></div>
+<p>with trapezoidal layer thicknesses as weights <code>w_z</code>, so a tight cluster of sensors does not outvote a sparsely instrumented part of the column. The filter then clones the best member onto all the others. In the language above, that is a particle filter whose weights have been replaced by a hard <code>argmin</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>w̃ᵢ = 1 for the single best member, 0 otherwise
+</code></pre></div>
+<p>It sits permanently at the degeneracy the real PF only falls into occasionally. It is <em>best-member selection</em>, not Bayesian inference, and it is kept as a cheap reference rather than a competitor. The "Selection" column in <a href="../results/#which-filter">Results</a> is this scheme; the "PF (OpenDA)" column is the real SIR filter.</p>
+<h3 id="perturbation-calibration">Perturbation calibration<a class="headerlink" href="#perturbation-calibration" title="Permanent link">&para;</a></h3>
+<p>Each member gets one AR(1) noise series per variable added to the control <code>Forcing.dat</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>xₜ = φ·xₜ₋₁ + σ·εₜ ,      ε ~ N(0,1) ,      φ = exp(−1/τ)
+</code></pre></div>
+<p>The two parameters are fitted from <strong>different data and kept strictly separate</strong>.</p>
+<p><strong>Amplitude: measured.</strong> The stationary standard deviation <code>σ/√(1−φ²)</code> is fitted from the ICON residual, <code>s = std(ICON lake mean − control Forcing.dat)</code>: how far the reanalysis actually strays from the control forcing. Fitted once per lake and committed. This stands for a realistic representativeness error of the original station forcing.  </p>
+<p><strong>Persistence: bracketed, not measured.</strong> No dataset gives us the decorrelation time of the <em>forcing forecast error</em>, so we bracket it between two proxies, each biased in a known direction:</p>
+<ul>
+<li><em>Floor</em>: the ACF of the ICON residual. An approximation of the error ACF after averaging; its 1/e crossing comes early.</li>
+<li><em>Ceiling</em>: the ACF of the station signal itself. This measures how long the <em>weather</em> persists, not how long the <em>error</em> does. A forecast already captures the slow synoptic structure and fails on the fast small-scale part, so the error is enriched in fast components and should decorrelate sooner.</li>
+</ul>
+<p>On Upper Lugano GLOB that gives <code>1.39 h &lt; τ_err &lt; 7.17 h</code>.</p>
+<p><strong>The envelope is the production choice</strong>: per channel, take whichever end has the <em>longer</em> τ. Two reasons. First, the bracket does not always hold: on Maggiore V, Geneva V and Hallwil U the supposed floor e-folds <em>later</em> than the ceiling, which falsifies the floor argument on those channels, because that residual is carrying a slowly drifting bias rather than white grid noise. Second, and decisively, taking the shorter end would shorten persistence, and short persistence costs spread. Under-dispersion is the failure mode we already have and want to avoid.</p>
+<p><strong>Two traps this encoding avoids.</strong></p>
+<p><strong>Never fit AR(1) to raw GLOB.</strong> Its autocorrelation is dominated by the diurnal cycle, not by cloud persistence: a lag-1 correlation of 0.934 implies τ = 14.67 h, while the ACF actually e-folds at 4.28 h. The ACF is periodic, not exponential, so fitting it raw injects a radiation <strong>too persistent</strong> perturbation. GLOB is fitted on the <strong>clearness index</strong> (GLOB / clear-sky, daytime only); wind on the <strong>diurnal anomaly</strong>, with the lake breeze effect removed.</p>
+<p><strong>σ is not the perturbation's size:</strong> it is the size of one hourly kick. The spread is <code>σ/√(1−φ²)</code>, because a persistent process accumulates its past kicks. Raising φ at fixed σ therefore also raises the amplitude, which confounds persistence with amplitude and makes the comparison uninterpretable. So σ is always re-derived to hold the stationary std at the ICON-fitted value, <code>σ = s·√(1−φ²)</code>. Note that σ <em>falls</em> as the perturbation becomes more persistent: smaller kicks, but they accumulate further.</p>
+<p>Both bounds are stored with the lake's perturbation (operational-simstrat <code>static/assimilation/&lt;lake&gt;.json</code>, <code>perturbations.persistence</code>; <code>perturbations/&lt;lake&gt;.json</code> at <code>20564a9</code>); <code>stationary_std</code> is stored once and both bounds derive their σ from it, so the two ends cannot drift apart in amplitude.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
